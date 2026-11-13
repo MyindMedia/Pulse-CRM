@@ -9,7 +9,7 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
-import { autoChargeDecision, feeEmailBody, paidTowardSession } from "./lib/cardConsent";
+import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS, paidTowardSession } from "./lib/cardConsent";
 import { markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
 
 /* ============================================================
@@ -278,6 +278,8 @@ export const _claimFeeCharge = internalMutation({
   handler: async (ctx, { invoiceId }): Promise<ChargePlan | null> => {
     const inv = await ctx.db.get(invoiceId);
     if (!inv || inv.autoCharge?.status !== "pending") return null;
+    // Never before the undo window has passed; the scheduled run comes later.
+    if (Date.now() < inv.autoCharge.at + NO_SHOW_CHARGE_DELAY_MS) return null;
     const skip = async (message: string) => {
       await ctx.db.patch(invoiceId, { autoCharge: { status: "skipped", at: Date.now(), message } });
       await feeFallback(ctx, inv, "skipped", message);
@@ -289,8 +291,13 @@ export const _claimFeeCharge = internalMutation({
     }
     const session = inv.sessionId ? await ctx.db.get(inv.sessionId) : null;
     if (!session || session.orgId !== inv.orgId) return await skip("booking not found");
-    if (session.status !== "no_show" && session.status !== "cancelled") {
-      return await skip("booking is no longer a no-show or cancellation");
+    if (session.status !== "no_show") {
+      // Staff undid the no-show (or it was never one): the fee no longer
+      // applies, so nobody is asked to send it and the client is not told.
+      await ctx.db.patch(invoiceId, {
+        autoCharge: { status: "skipped", at: Date.now(), message: "booking is no longer a no-show" },
+      });
+      return null;
     }
     const [org, artist] = await Promise.all([
       ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", inv.orgId)).first(),

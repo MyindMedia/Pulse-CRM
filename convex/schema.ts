@@ -1652,6 +1652,9 @@ export default defineSchema({
         savedAt: v.optional(v.number()),
       }),
     ),
+    // The No-Show Shield fee invoice raised for this booking, so undoing the
+    // no-show can cancel a charge that has not run yet.
+    noShowFeeInvoiceId: v.optional(v.id("invoices")),
     // SMS confirm flow: client replied NO to the pre-session confirm text.
     // Their deposit is held for rebooking until rebookHoldUntil (10 days);
     // after that staff/automation may forfeit it.

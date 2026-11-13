@@ -10,6 +10,10 @@ import { money } from "./money";
    draft invoice, which is how Pulse has always billed it.
    ============================================================ */
 
+/** A no-show is charged no sooner than this after staff mark it, so a
+ *  mis-click can be undone before any money moves. */
+export const NO_SHOW_CHARGE_DELAY_MS = 15 * 60_000;
+
 export type ConsentPolicy = {
   studioName: string;
   feePct: number;
@@ -151,6 +155,10 @@ export function autoChargeDecision(i: AutoChargeInput): AutoChargeDecision {
   // cancel stays a draft invoice that staff choose to send.
   if (i.status === "cancelled") {
     return { charge: false, reason: "a late cancellation is billed by invoice, not charged to the card" };
+  }
+  // A session that has not started yet cannot have been missed.
+  if (i.now < i.startTime) {
+    return { charge: false, reason: "the session had not started when it was marked a no-show" };
   }
   return { charge: true };
 }

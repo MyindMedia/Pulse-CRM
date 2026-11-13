@@ -555,12 +555,30 @@ async function confirmed(t: T, session: Id<"sessions">) {
   await t.run((ctx) => ctx.db.patch(session, { status: "confirmed" }));
 }
 
+/** A confirmed booking whose start time has passed. Round 2 (H205-07): a
+ *  no-show is never charged for a session that had not started. */
+async function confirmedStarted(t: T, session: Id<"sessions">) {
+  await t.run((ctx) => ctx.db.patch(session, { status: "confirmed", startTime: Date.now() - HOUR, endTime: Date.now() + HOUR }));
+}
+
+/** Run the scheduled charge as the scheduler would, once the 15-minute undo
+ *  window has passed (H205-07). Ages only a charge still pending. */
+async function runCharge(t: T, invoiceId: Id<"invoices">) {
+  await t.run(async (ctx) => {
+    const inv = await ctx.db.get(invoiceId);
+    if (inv?.autoCharge?.status === "pending") {
+      await ctx.db.patch(invoiceId, { autoCharge: { ...inv.autoCharge, at: inv.autoCharge.at - 16 * 60_000 } });
+    }
+  });
+  await t.action(internal.cardOnFile.chargeFee, { invoiceId });
+}
+
 describe("charging a no-show fee", () => {
   it("U-17: switch off means no charge even with a saved, agreed card", async () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: false });
     await agreeAndSave(t, ids);
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     expect(await scheduled(t, "chargeFee")).toHaveLength(0);
     const [inv] = await invoicesA(t);
@@ -574,7 +592,7 @@ describe("charging a no-show fee", () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await t.mutation(internal.billingWebhooks.handle, { event: evt("setup_intent.succeeded", setupIntent(ids.a), "acct_A") });
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     expect(await scheduled(t, "chargeFee")).toHaveLength(0);
   });
@@ -584,7 +602,7 @@ describe("charging a no-show fee", () => {
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
     await t.mutation(internal.cardOnFile._setCardDetails, { artistId: ids.a, paymentMethodId: "pm_checkout", brand: "visa", last4: "4242" });
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     // Double click: the second call is a no-op transition.
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
@@ -597,8 +615,8 @@ describe("charging a no-show fee", () => {
     expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
 
     // The scheduled charge runs (twice, as a retry would): Stripe is asked once.
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: invs[0]._id });
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: invs[0]._id });
+    await runCharge(t, invs[0]._id);
+    await runCharge(t, invs[0]._id);
     expect(fake.pi).toHaveLength(1);
     expect(fake.pi[0].params).toMatchObject({
       amount: 10_000, customer: "cus_A", payment_method: "pm_checkout", off_session: true, confirm: true,
@@ -628,10 +646,10 @@ describe("charging a no-show fee", () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
-    await t.run((ctx) => ctx.db.patch(ids.session, { status: "confirmed", depositPaid: true, amountPaidCents: 6_000 }));
+    await t.run((ctx) => ctx.db.patch(ids.session, { status: "confirmed", startTime: Date.now() - HOUR, depositPaid: true, amountPaidCents: 6_000 }));
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     const [inv] = await invoicesA(t);
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    await runCharge(t, inv._id);
     expect(fake.pi[0].params.amount).toBe(4_000);
   });
 
@@ -640,11 +658,11 @@ describe("charging a no-show fee", () => {
       const t = newT();
       const ids = await seed(t, { autoCharge: true });
       await agreeAndSave(t, ids);
-      await confirmed(t, ids.session);
+      await confirmedStarted(t, ids.session);
       await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
       fake.piMode = mode;
       const [inv] = await invoicesA(t);
-      await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+      await runCharge(t, inv._id);
       const [after] = await invoicesA(t);
       expect(after.status).toBe("draft");
       expect(after.autoCharge?.status).toBe(status);
@@ -657,7 +675,7 @@ describe("charging a no-show fee", () => {
       expect(mail.body).not.toMatch(/charged/);
       // A retry after the failure does not charge again.
       fake.piMode = "succeed";
-      await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+      await runCharge(t, inv._id);
       expect(fake.pi).toHaveLength(1);
     });
   }
@@ -666,11 +684,11 @@ describe("charging a no-show fee", () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     fake.piMode = "network";
     const [inv] = await invoicesA(t);
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    await runCharge(t, inv._id);
     // Wrong account or wrong amount: ignored.
     const pi = (over: Record<string, unknown>, account: string) =>
       evt("payment_intent.succeeded", { id: "pi_late", status: "succeeded", amount: 10_000, metadata: { kind: "no_show_fee", invoiceId: inv._id }, ...over }, account);
@@ -694,7 +712,7 @@ describe("charging a no-show fee", () => {
       } else {
         await owner(t).mutation(api.cardOnFile.removeCard, { artistId: ids.a });
       }
-      await confirmed(t, ids.session);
+      await confirmedStarted(t, ids.session);
       await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
       expect(await scheduled(t, "chargeFee")).toHaveLength(0);
     }
@@ -704,11 +722,11 @@ describe("charging a no-show fee", () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     await owner(t).mutation(api.sessions.setNoShowAutoCharge, { enabled: false });
     const [inv] = await invoicesA(t);
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    await runCharge(t, inv._id);
     expect(fake.pi).toHaveLength(0);
     const [after] = await invoicesA(t);
     expect(after).toMatchObject({ status: "draft", autoCharge: { status: "skipped" } });
@@ -720,11 +738,11 @@ describe("charging a no-show fee", () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     const [inv] = await invoicesA(t);
     await t.run((ctx) => ctx.db.patch(inv._id, { status: "void" }));
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    await runCharge(t, inv._id);
     expect(fake.pi).toHaveLength(0);
   });
 
@@ -733,7 +751,7 @@ describe("charging a no-show fee", () => {
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids); // agreed to at most $100 (50%)
     await owner(t).mutation(api.sessions.setCancellationPolicy, { cancellationFeePct: 80 });
-    await confirmed(t, ids.session);
+    await confirmedStarted(t, ids.session);
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
     expect(await scheduled(t, "chargeFee")).toHaveLength(0);
   });
@@ -753,7 +771,7 @@ describe("charging a no-show fee", () => {
     expect(inv.autoCharge).toBeUndefined();
     // Even an invoice forced into "pending" is refused when the charge runs.
     await t.run((ctx) => ctx.db.patch(inv._id, { autoCharge: { status: "pending", at: Date.now() - 20 * 60_000 } }));
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    await runCharge(t, inv._id);
     expect(fake.pi).toHaveLength(0);
     const [mail] = await emails(t, "session.cancellation_fee");
     expect(mail.body).toMatch(/The studio will send you an invoice/);
@@ -775,7 +793,8 @@ describe("autoChargeDecision", () => {
     chargeCents: 10_000,
     paidCents: 0,
     startTime: 10 * HOUR,
-    now: 9 * HOUR,
+    // Marked an hour after the start (a no-show is never charged before it).
+    now: 11 * HOUR,
   };
   it("allows only when every rule holds", () => {
     expect(autoChargeDecision(base)).toEqual({ charge: true });
@@ -910,5 +929,80 @@ describe("H205-01 / H205-03: never charged for money already paid", () => {
       depositForfeitCents: 6_000, paidAppliedCents: 8_000, balanceCents: 2_000, outcome: "invoice_to_follow",
     });
     expect(body).toMatch(/The \$80 you already paid for this session has been applied toward it\./);
+  });
+});
+
+describe("H205-07: a no-show is charged only after an undo window, and never before the start", () => {
+  it("the charge is scheduled at least 15 minutes after the no-show is marked", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    const before = Date.now();
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [job] = await scheduled(t, "chargeFee");
+    expect(job.scheduledTime).toBeGreaterThanOrEqual(before + 15 * 60_000);
+    // Run too early (a stray or early run): nothing is charged, still pending.
+    const [inv] = await invoicesA(t);
+    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    expect(fake.pi).toHaveLength(0);
+    expect((await invoicesA(t))[0].autoCharge?.status).toBe("pending");
+  });
+
+  it("undoing the no-show inside the window cancels the charge, with no 'send invoice' alert and no client email", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "confirmed" });
+    const [inv] = await invoicesA(t);
+    expect(inv.autoCharge).toMatchObject({ status: "skipped", message: expect.stringMatching(/undone/) });
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(0);
+    const insights = await t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
+    expect(insights.some((i) => i.title.includes("Send invoice"))).toBe(false);
+    expect(await emails(t, "invoice.auto_charge_failed")).toHaveLength(0);
+    expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
+  });
+
+  it("a status changed back before the claim (without the undo hook) is skipped silently", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    await t.run((ctx) => ctx.db.patch(ids.session, { status: "completed" }));
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(0);
+    expect((await invoicesA(t))[0].autoCharge?.status).toBe("skipped");
+    expect(await emails(t, "invoice.auto_charge_failed")).toHaveLength(0);
+  });
+
+  it("a session that has not started yet is never auto-charged as a no-show", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmed(t, ids.session); // starts in 2 hours
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    expect(await scheduled(t, "chargeFee")).toHaveLength(0);
+    const [inv] = await invoicesA(t);
+    expect(inv.status).toBe("draft");
+    expect(inv.autoCharge).toBeUndefined();
+  });
+
+  it("undoing a no-show after the charge went through raises a refund check for staff", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(1);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "confirmed" });
+    const insights = await t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
+    expect(insights.some((i) => i.title.includes(`Check the no-show fee on invoice ${inv.number}`))).toBe(true);
   });
 });

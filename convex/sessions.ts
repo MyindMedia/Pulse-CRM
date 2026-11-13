@@ -17,7 +17,13 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
-import { autoChargeDecision, feeEmailBody, feeStillOwedCents, paidTowardSession } from "./lib/cardConsent";
+import {
+  autoChargeDecision,
+  feeEmailBody,
+  feeStillOwedCents,
+  NO_SHOW_CHARGE_DELAY_MS,
+  paidTowardSession,
+} from "./lib/cardConsent";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -611,6 +617,7 @@ async function assessNoShowShield(
     // and notify the client. The fee counts as won back when the invoice is
     // paid, not now (lib/recoveryOnPaid.ts), so unpaid fees are never claimed.
     const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
+    if (invoiceId) await ctx.db.patch(s._id, { noShowFeeInvoiceId: invoiceId });
 
     // Charge the client's saved card only when the studio switched it on, the
     // client agreed at checkout and that same card is still on file
@@ -633,9 +640,11 @@ async function assessNoShowShield(
     const autoCharge = decision.charge && invoiceId !== null;
     if (autoCharge && invoiceId) {
       // "pending" is the one state chargeFee runs from, so a second schedule
-      // or a retry can never charge twice.
+      // or a retry can never charge twice. The charge waits at least
+      // NO_SHOW_CHARGE_DELAY_MS so staff can undo a mis-marked no-show
+      // (applyStatus -> undoNoShowCharge) before any money moves.
       await ctx.db.patch(invoiceId, { autoCharge: { status: "pending", at: Date.now() } });
-      await ctx.scheduler.runAfter(0, internal.cardOnFile.chargeFee, { invoiceId });
+      await ctx.scheduler.runAfter(NO_SHOW_CHARGE_DELAY_MS, internal.cardOnFile.chargeFee, { invoiceId });
     }
 
     // With a charge scheduled, the client is told once the result is known
@@ -675,6 +684,45 @@ async function assessNoShowShield(
     entityType: "session",
     entityId: s._id,
     accent: "gold",
+  });
+}
+
+/**
+ * Staff moved a booking off no-show. A fee charge still waiting is cancelled
+ * (the 15-minute window exists for exactly this). A charge already made, or
+ * in flight, cannot be taken back here: staff are told to check it and refund
+ * in Stripe. The draft fee invoice itself is left as it always was, with a
+ * note to void it if the fee no longer applies.
+ */
+async function undoNoShowCharge(ctx: MutationCtx, s: Doc<"sessions">): Promise<void> {
+  if (!s.noShowFeeInvoiceId) return;
+  const inv = await ctx.db.get(s.noShowFeeInvoiceId);
+  if (!inv || inv.orgId !== s.orgId || inv.sessionId !== s._id || !inv.autoCharge) return;
+  if (inv.autoCharge.status === "pending") {
+    await ctx.db.patch(inv._id, {
+      autoCharge: { status: "skipped", at: Date.now(), message: "no-show undone by staff before the charge ran" },
+    });
+    await ctx.db.insert("activity", {
+      orgId: s.orgId,
+      kind: "invoice.auto_charge_cancelled",
+      summary: `No-show undone on ${s.title}: the card charge was cancelled. Invoice ${inv.number} is still a draft; void it if the fee no longer applies.`,
+      entityType: "invoice",
+      entityId: inv._id,
+      accent: "info",
+    });
+    return;
+  }
+  const charged = inv.autoCharge.status === "charging" || inv.autoCharge.status === "succeeded";
+  if (!charged) return;
+  await ctx.db.insert("insights", {
+    orgId: s.orgId,
+    kind: "risk",
+    severity: "warning",
+    title: `Check the no-show fee on invoice ${inv.number}: the no-show was undone`,
+    body: `${s.title} is no longer marked a no-show, but its ${money(inv.amountCents)} fee was ${inv.autoCharge.status === "succeeded" ? "already charged" : "being charged"} to the client's saved card${inv.autoCharge.reference ? ` (${inv.autoCharge.reference})` : ""}. Refund it in Stripe if the fee no longer applies.`,
+    entityType: "invoice",
+    entityId: inv._id,
+    status: "new",
   });
 }
 
@@ -744,6 +792,11 @@ export async function applyStatus(
     // proving the subscription pays for itself. Only fires on a fresh transition.
     if ((status === "cancelled" || status === "no_show") && wasActive) {
       await assessNoShowShield(ctx, s, status);
+    }
+
+    // Undoing a no-show cancels a card charge that has not run yet.
+    if (s.status === "no_show" && status !== "no_show") {
+      await undoNoShowCharge(ctx, s);
     }
 
     if (status === "no_show") {
