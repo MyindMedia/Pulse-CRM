@@ -353,30 +353,34 @@ function refuseClosed(session: Pick<Doc<"sessions">, "status">): void {
  *  and "other" (a company) are greeted by their whole name. */
 const PERSON_TYPES = new Set<Doc<"artists">["type"]>(["artist", "producer", "songwriter"]);
 /** First words that are an article, a title or part of a stage name, never a
- *  first name: matched as the whole first word, any case, with or without a
- *  trailing period. */
+ *  first name: matched as the whole first word, any case, once leading and
+ *  trailing non-letters are stripped ("Dr.", "Lil'"). */
 const NOT_A_FIRST_NAME = new Set([
   "the", "a", "an", "dj", "mc", "lil", "big", "young", "yung",
   "dr", "mr", "mrs", "ms", "sir", "king", "queen", "saint", "st",
 ]);
 
 /** The name to greet a client by. "" for none and for an erased client. A
- *  person is greeted by the first word only when the name has two or three
- *  words, that word has at least three letters and it is not an article, a
- *  title or a stage-name prefix ("Jordan Ellis" -> "Jordan"; "Lil Baby", "DJ
- *  Premier", "The Midnight Tape", "Prince" -> the whole name). A band, label or
- *  company is always greeted by its whole name. The card, both emails and the
- *  page all use it. */
+ *  person is greeted by the first word only when the name has no comma, has
+ *  two or three words, and that word, with leading and trailing non-letters
+ *  stripped, has at least three letters and is not an article, a title or a
+ *  stage-name prefix; the stripped word is what is returned ("Jordan Ellis"
+ *  -> "Jordan"; "Lil Baby", "Lil' Kim", "DJ Premier", "The Midnight Tape",
+ *  "Tyler, The Creator", "Ellis, Jordan", "Prince" -> the whole name). A band,
+ *  label or company is always greeted by its whole name. The card, both emails
+ *  and the page all use it. */
 export function greetingName(artist: Pick<Doc<"artists">, "name" | "type" | "erasedAt"> | null | undefined): string {
   if (!artist || artist.erasedAt) return "";
   const name = (artist.name ?? "").trim().replace(/\s+/g, " ");
   if (!name) return "";
   if (!PERSON_TYPES.has(artist.type)) return name;
+  // "Tyler, The Creator", "Ellis, Jordan": the order is not first then last.
+  if (name.includes(",")) return name;
   const words = name.split(" ");
   if (words.length < 2 || words.length > 3) return name;
-  const first = words[0];
+  const first = words[0].replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
   const letters = (first.match(/\p{L}/gu) ?? []).length;
-  if (letters < 3 || NOT_A_FIRST_NAME.has(first.toLowerCase().replace(/\.$/, ""))) return name;
+  if (letters < 3 || NOT_A_FIRST_NAME.has(first.toLowerCase())) return name;
   return first;
 }
 

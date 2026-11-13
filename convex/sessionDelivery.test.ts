@@ -1322,6 +1322,23 @@ describe("session delivery: who the client is greeted as (V3-02) and the title (
     expect(g("Erased client a1b2c3", "artist", Date.now())).toBe("");
   });
 
+  it("R5-04 greetingName: a name with a comma is greeted whole; the first word is matched and returned without punctuation", () => {
+    const g = (name: string, type: Doc<"artists">["type"] = "artist") => greetingName({ name, type });
+    for (const name of ["Tyler, The Creator", "Ellis, Jordan", "Jordan, Ellis", "Lil' Kim", "Lil, Kim", "Earth, Wind", "\u201cLil\u201d Kim", "Dr.. Dre", "(DJ) Premier"]) {
+      expect(g(name), name).toBe(name);
+    }
+    expect(g("Ellis, Jordan", "producer")).toBe("Ellis, Jordan");
+    expect(g("Jordan Ellis")).toBe("Jordan");
+    // Punctuation around a real first name is not part of the greeting.
+    expect(g("\"Jordan\" Ellis")).toBe("Jordan");
+    expect(g("Jordan! Ellis")).toBe("Jordan");
+    // Letters other than A to Z still count as letters.
+    expect(g("Zoë Kravitz")).toBe("Zoë");
+    expect(g("José Gonzalez")).toBe("José");
+    // Nothing but punctuation left: the whole name.
+    expect(g("... Ellis")).toBe("... Ellis");
+  });
+
   it("R4-05 an erased client is greeted by no name on the card", async () => {
     await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "Erased client abc123", erasedAt: Date.now() }); });
     expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ clientFirstName: "" });
