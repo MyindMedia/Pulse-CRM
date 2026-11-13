@@ -192,7 +192,11 @@ export const current = query({
   },
 });
 
-/** Public - resolve a studio by its slug for the /book/<slug> page. */
+/** Public - resolve a studio by its slug for its public pages (the visitor
+ *  check-in at /visit/<slug>). Anyone can call it, so it returns branding
+ *  only: never discount codes, prices, tax, billing, plan or the owner's
+ *  contact details (H210-02). Codes are checked one at a time on the server
+ *  (booking.validateCode), never listed. */
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
@@ -201,7 +205,14 @@ export const getBySlug = query({
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
     if (!org) return null;
-    return brandOf(ctx, org, org.orgId);
+    return {
+      name: org.name,
+      slug: org.slug,
+      accentColor: org.accentColor ?? "#fdb913",
+      brandSecondary: brandSecondaryOf(org),
+      tagline: org.tagline ?? "Your music business runs itself.",
+      logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
+    };
   },
 });
 
