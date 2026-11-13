@@ -655,3 +655,64 @@ describe("H206-R2-01: a short-paid booking is never forfeited automatically; sta
     expect((await t.run((ctx) => ctx.db.get(sessionId)))?.shortPaidAt).toBeUndefined();
   });
 });
+
+describe("H206-R2-03: a refund that fails after Stripe reported it succeeded is not ignored", () => {
+  async function refunded(t: T) {
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_done", status: "succeeded" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect((await strays(t))[0]).toMatchObject({ status: "refunded", refundId: "re_done" });
+    return strayId;
+  }
+
+  it("refund.failed on a refunded row reopens it as refund_failed, tells the team to refund by hand, and corrects the client", async () => {
+    const t = convexTest(schema);
+    const strayId = await refunded(t);
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: refundEvent(strayId, { id: "evt_late_fail", type: "refund.failed", status: "failed", refundId: "re_done" }),
+    });
+    const [row] = await strays(t);
+    expect(row.status).toBe("refund_failed");
+    expect(row.error).toContain("after it succeeded");
+    const failed = await notes(t, "payment.refund_failed");
+    expect(failed.some((n) => n.recipient !== "nova@r2.test" && n.subject.startsWith("Refund failed - refund by hand"))).toBe(true);
+    expect(failed.find((n) => n.recipient === "nova@r2.test")?.body).toContain("has not reached you yet");
+    // A replay, or a second failure event, alerts nobody again.
+    const count = failed.length;
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: refundEvent(strayId, { id: "evt_late_fail", type: "refund.failed", status: "failed", refundId: "re_done" }),
+    });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: refundEvent(strayId, { id: "evt_late_fail_2", type: "refund.updated", status: "failed", refundId: "re_done" }),
+    });
+    expect((await notes(t, "payment.refund_failed")).length).toBe(count);
+  });
+
+  it("'canceled' after success is handled the same way", async () => {
+    const t = convexTest(schema);
+    const strayId = await refunded(t);
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: refundEvent(strayId, { id: "evt_cx", status: "canceled", refundId: "re_done" }),
+    });
+    expect((await strays(t))[0].status).toBe("refund_failed");
+  });
+
+  it("a failure for another refund, another account or another payment does not reopen the row", async () => {
+    const t = convexTest(schema);
+    const strayId = await refunded(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "a", status: "failed", refundId: "re_other" }) });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "b", status: "failed", refundId: "re_done", account: "acct_x" }) });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "c", status: "failed", refundId: "re_done", pi: "pi_other" }) });
+    expect((await strays(t))[0].status).toBe("refunded");
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+  });
+
+  it("a repeated 'succeeded' on a refunded row changes nothing", async () => {
+    const t = convexTest(schema);
+    const strayId = await refunded(t);
+    const before = (await notes(t, "payment.late_refunded")).length;
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "s2", refundId: "re_done" }) });
+    expect((await strays(t))[0].status).toBe("refunded");
+    expect((await notes(t, "payment.late_refunded")).length).toBe(before);
+  });
+});

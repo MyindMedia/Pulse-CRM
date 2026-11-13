@@ -295,8 +295,50 @@ export async function applyRefundUpdate(
   if (!row || row.stripeAccountId !== account) return false;
   if (typeof r.payment_intent === "string" && row.paymentIntent && r.payment_intent !== row.paymentIntent) return false;
   if (row.refundId && row.refundId !== r.id) return false;
-  await applyOutcome(ctx, strayId, outcomeOf({ id: r.id, status: r.status as string | undefined }));
+  const outcome = outcomeOf({ id: r.id, status: r.status as string | undefined });
+  // A refund Stripe reported succeeded can later fail (for example the card
+  // was closed). The client was told they were refunded: reopen the row and
+  // tell the team to refund by hand, and correct what the client was told
+  // (H206-R2-03).
+  if (row.status === "refunded" && outcome.kind === "failed" && row.refundId === r.id) {
+    await reopenFailedRefund(ctx, row, outcome.error);
+    return true;
+  }
+  await applyOutcome(ctx, strayId, outcome);
   return true;
+}
+
+async function reopenFailedRefund(ctx: MutationCtx, row: Doc<"strayPayments">, error: string) {
+  const reason = `${error} after it succeeded`;
+  await ctx.db.patch(row._id, { status: "refund_failed", error: reason, resolvedAt: Date.now() });
+  const what = await describe(ctx, row);
+  await ctx.db.insert("activity", {
+    orgId: row.orgId,
+    kind: "payment.refund_failed",
+    summary: `Refund of ${money(row.amountCents)} on ${what.label} failed after it succeeded - refund by hand`,
+    entityType: row.invoiceId ? "invoice" : "session",
+    entityId: (row.invoiceId ?? row.sessionId ?? row._id) as string,
+    accent: "critical",
+  });
+  await notifyTeam(ctx, {
+    orgId: row.orgId,
+    subject: `Refund failed - refund by hand: ${what.label} (${money(row.amountCents)})`,
+    body: `Stripe first reported the ${money(row.amountCents)} refund on ${what.label}${row.refundId ? ` (refund ${row.refundId})` : ""} as succeeded and has now reported it ${error.replace("Stripe refund ", "")}, so the client has not got their money back. Refund them another way (check your Stripe dashboard${row.paymentIntent ? `, payment ${row.paymentIntent}` : ""}).`,
+    kind: "payment.refund_failed",
+    ...(row.sessionId ? { sessionId: row.sessionId } : {}),
+  });
+  const email = await clientEmail(ctx, what.artistId);
+  if (email) {
+    await notify(ctx, {
+      orgId: row.orgId,
+      channel: "email",
+      recipient: email,
+      subject: `About your ${money(row.amountCents)} refund`,
+      body: `The ${money(row.amountCents)} refund for ${what.label} could not be completed by your card provider, so the money has not reached you yet. The studio has been told and will refund you another way.`,
+      kind: "payment.refund_failed",
+      ...(row.sessionId ? { sessionId: row.sessionId } : {}),
+    });
+  }
 }
 
 export const _stuck = internalQuery({
