@@ -228,6 +228,11 @@ export const refund = internalAction({
     const row = await ctx.runQuery(internal.strayPayments._get, { strayId });
     if (!row || row.status !== "refund_pending" || !row.paymentIntent || row.refundId) return;
     const out = await createRefund(row);
+    // Stripe never answered: it may already have refunded, so do not call
+    // the refund failed or tell the client anything. The row stays
+    // "refund_pending"; sweepStuck retries it with the same idempotency key
+    // and tells the team once if it still cannot confirm (H206-R2-02).
+    if (out.kind === "failed" && out.unconfirmed) return;
     await ctx.runMutation(internal.strayPayments._applyOutcome, { strayId, outcome: out });
   },
 });

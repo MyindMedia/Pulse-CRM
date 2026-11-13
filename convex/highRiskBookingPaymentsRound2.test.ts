@@ -382,16 +382,41 @@ describe("H206-04: a refund call that errors is retried, and a stuck refund is n
     expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
   });
 
-  it("Stripe never answers: marked failed after the retries, and the team is told to check Stripe before refunding by hand", async () => {
+  it("Stripe never answers: the row stays refund_pending for the sweep, nobody is told it failed (H206-R2-02)", async () => {
     const t = convexTest(schema);
     const { strayId } = await pendingStray(t);
     fake.replies = [new Error("ECONNRESET")];
     await t.action(internal.strayPayments.refund, { strayId });
     expect(fake.refundCalls).toHaveLength(REFUND_ATTEMPTS);
     const [row] = await strays(t);
-    expect(row.status).toBe("refund_failed");
-    const team = (await notes(t, "payment.refund_failed")).find((n) => n.recipient !== "nova@r2.test");
-    expect(team?.body).toContain("if a refund already shows there, nothing else is needed");
+    // Round 2 marked this refund_failed and emailed the client "the studio has
+    // been asked to refund you", though Stripe may already have refunded.
+    expect(row.status).toBe("refund_pending");
+    expect(row.refundId).toBeUndefined();
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+    // Later the sweep retries with the same key and Stripe answers succeeded.
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    fake.replies = [{ id: "re_late", status: "succeeded" }];
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect(new Set(fake.refundCalls.map((c) => c.opts.idempotencyKey))).toEqual(new Set([refundIdempotencyKey("evt_r2_1")]));
+    expect((await strays(t))[0]).toMatchObject({ status: "refunded", refundId: "re_late" });
+    expect((await notes(t, "payment.late_refunded")).some((n) => n.recipient === "nova@r2.test")).toBe(true);
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+  });
+
+  it("Stripe never answers and the sweep cannot reach it either: the team is told once to check Stripe, the client is told nothing", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [new Error("ECONNRESET")];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect((await strays(t))[0].status).toBe("refund_pending");
+    const stuck = await notes(t, "payment.refund_stuck");
+    expect(stuck.length).toBeGreaterThan(0);
+    expect(stuck.every((n) => n.recipient !== "nova@r2.test")).toBe(true);
+    expect(stuck[0].body).toContain("if no refund shows, refund it by hand");
+    expect((await t.run((ctx) => ctx.db.query("notifications").collect())).filter((n) => n.recipient === "nova@r2.test")).toHaveLength(0);
   });
 
   it("a Stripe refusal (status failed) is not retried and says refund by hand", async () => {
