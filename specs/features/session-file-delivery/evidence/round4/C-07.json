@@ -1,0 +1,138 @@
+[
+ {
+  "accent": "#0f8f6f",
+  "page": "released",
+  "button": {
+   "label": "Download all",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(15,143,111)",
+   "ratio": 5.18,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 5.18,
+   "ink": "rgb(0,0,0)"
+  }
+ },
+ {
+  "accent": "#0f8f6f",
+  "page": "chk",
+  "button": {
+   "label": "Pay and unlock",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(15,143,111)",
+   "ratio": 5.18,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 5.18,
+   "ink": "rgb(0,0,0)"
+  }
+ },
+ {
+  "accent": "#3b63e6",
+  "page": "released",
+  "button": {
+   "label": "Download all",
+   "ink": "rgb(255,255,255)",
+   "bg": "rgb(59,99,230)",
+   "ratio": 5.11,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 5.11,
+   "ink": "rgb(255,255,255)"
+  }
+ },
+ {
+  "accent": "#3b63e6",
+  "page": "chk",
+  "button": {
+   "label": "Pay and unlock",
+   "ink": "rgb(255,255,255)",
+   "bg": "rgb(59,99,230)",
+   "ratio": 5.11,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 5.11,
+   "ink": "rgb(255,255,255)"
+  }
+ },
+ {
+  "accent": "#777777",
+  "page": "released",
+  "button": {
+   "label": "Download all",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(119,119,119)",
+   "ratio": 4.69,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 4.69,
+   "ink": "rgb(0,0,0)"
+  }
+ },
+ {
+  "accent": "#777777",
+  "page": "chk",
+  "button": {
+   "label": "Pay and unlock",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(119,119,119)",
+   "ratio": 4.69,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 4.69,
+   "ink": "rgb(0,0,0)"
+  }
+ },
+ {
+  "accent": "#fdb913",
+  "page": "released",
+  "button": {
+   "label": "Download all",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(253,185,19)",
+   "ratio": 12.13,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 12.13,
+   "ink": "rgb(0,0,0)"
+  }
+ },
+ {
+  "accent": "#fdb913",
+  "page": "chk",
+  "button": {
+   "label": "Pay and unlock",
+   "ink": "rgb(0,0,0)",
+   "bg": "rgb(253,185,19)",
+   "ratio": 12.13,
+   "fs": "15px",
+   "fw": "700"
+  },
+  "tile": {
+   "text": "MS",
+   "ratio": 12.13,
+   "ink": "rgb(0,0,0)"
+  }
+ }
+]

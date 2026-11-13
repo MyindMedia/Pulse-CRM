@@ -1,0 +1,9 @@
+
+ RUN  v4.1.6 /Users/myindsound/dev/pulse-session-delivery
+
+
+ Test Files  3 passed (3)
+      Tests  96 passed (96)
+   Start at  15:25:42
+   Duration  641ms (transform 701ms, setup 0ms, import 494ms, tests 607ms, environment 99ms)
+

@@ -1,0 +1,48 @@
+== chk
+Deliver to client Waiting for payment Jordan was emailed a pay link today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== draft
+Deliver to client Waiting for payment Dana was emailed about the balance today at 3:08 PM. $300.00 is still owed. The download link sends by itself when it is paid. Send the balance invoice so Dana can pay online. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== openok
+Deliver to client Waiting for payment Owen was emailed a pay link today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== openwrong
+Deliver to client Waiting for payment Priya was emailed about the balance today at 3:08 PM. $300.00 is still owed. The download link sends by itself when it is paid. Invoice R4-26659 is open for $250.00, but $300.00 is owed. Void or correct it so Priya can pay online. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== mismatch
+Deliver to client Waiting for payment Theo was emailed about the balance today at 3:08 PM. $360.00 is still owed. The download link sends by itself when it is paid. There is no online pay link for this balance. Send Theo an invoice for it. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== hidden
+Deliver to client Waiting for payment Nadia was emailed about the balance today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. Prices are hidden on this booking. Send Nadia an invoice to collect the balance. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== hiddenopen
+Deliver to client Waiting for payment Kai was emailed about the balance today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. Invoice R4-26660 for $180.00 is open. The files unlock when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== zeroowed
+Deliver to client Waiting for payment Nothing is owed now. Tap Resend to send the files. RESEND COPY LINK TURN OFF LINK 
+"[\"Resend\",\"Copy link\",\"Turn off link\"]"
+== noshow
+Deliver to client This booking was a no-show, so there is nothing to deliver. READY TO DELIVER 
+"[\"Ready to deliver\"]"
+== noshowcard
+Deliver to client This booking was a no-show, so there is nothing to deliver. READY TO DELIVER 
+"[\"Ready to deliver\"]"
+== cancelled
+Deliver to client This booking was cancelled, so there is nothing to deliver. READY TO DELIVER 
+"[\"Ready to deliver\"]"
+== noemail
+Deliver to client 1 file marked Final. No email on file. Add one for Remy to deliver. READY TO DELIVER 
+"[\"Ready to deliver\"]"
+== band
+Deliver to client Waiting for payment The Midnight Tape was emailed a pay link today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== label
+Deliver to client Waiting for payment Crosstown Records was emailed a pay link today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== lilbaby
+Deliver to client Waiting for payment Lil Baby was emailed a pay link today at 3:08 PM. $180.00 is still owed. The download link sends by itself when it is paid. SEND NOW ANYWAY COPY LINK TURN OFF LINK 
+"[\"Send now anyway\",\"Copy link\",\"Turn off link\"]"
+== released
+Deliver to client Sent Sent to r4.mwfl8mj5.marisol.vega@example.com today at 3:08 PM. Not opened yet · 0 downloads · link works until Dec 13 RESEND COPY LINK TURN OFF LINK 
+"[\"Resend\",\"Copy link\",\"Turn off link\"]"

@@ -1,0 +1,1251 @@
+The prop value with an expression type of TSNonNullExpression could not be resolved. Please file an issue ( https://github.com/jsx-eslint/jsx-ast-utils/issues/new ) to get this fixed immediately.
+
+/Users/myindsound/dev/pulse-session-delivery/convex/aiActions.ts
+  18:10  warning  'api' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/betaLicense.ts
+  28:7   warning  'YEAR_MS' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  34:29  warning  '_orgId' is defined but never used            @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/bookingFunnel.test.ts
+  6:15  warning  'Id' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/bookingFunnel.ts
+  21:7  warning  'STEPS' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/clerkIdRemap.ts
+  64:20  warning  '_creationTime' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/gearCheckout.test.ts
+  131:90  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/googlePlaces.ts
+  15:18  error  'internalMutation' import from './_generated/server' is restricted from being used by a pattern. Import `mutation` / `internalMutation` from convex/functions.ts. The raw constructors skip the change-feed triggers, so anything they write never reaches a synced device  no-restricted-imports
+
+/Users/myindsound/dev/pulse-session-delivery/convex/lib/entitlements.ts
+  10:10  warning  'tierForOrg' is defined but never used        @typescript-eslint/no-unused-vars
+  54:7   warning  'NAV_SET' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/marketing/posts.test.ts
+  4:15  warning  'internal' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/modules.test.ts
+  9:52  warning  'capabilitiesForTier' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/noShowShield.test.ts
+  7:7  warning  'newT' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/outreach/ghl.test.ts
+  40:28  warning  '_url' is defined but never used   @typescript-eslint/no-unused-vars
+  40:42  warning  '_init' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/patchSpecs.ts
+  10:15  warning  'Id' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/pulseWalkthrough/integration.test.ts
+   9:31   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:94   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:127  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:136  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  23:368  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  24:314  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/pulseWalkthrough/providers.ts
+  2:25  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/pulseWalkthrough/refs.ts
+  3:55  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/pulseWalkthrough/state.ts
+  2:9  error  'internalMutation' import from '../_generated/server' is restricted from being used by a pattern. Import `mutation` / `internalMutation` from convex/functions.ts. The raw constructors skip the change-feed triggers, so anything they write never reaches a synced device  no-restricted-imports
+
+/Users/myindsound/dev/pulse-session-delivery/convex/reminders.test.ts
+  7:7  warning  'DAY' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/roomBlocks.ts
+   26:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   27:61  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   37:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   47:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   64:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   70:14  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  104:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/seedDemoPatch.ts
+  370:11  warning  'trs' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/seedDemoRichClients.ts
+   44:20  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  110:85  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  111:91  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  112:91  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  119:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/convex/seedGuard.test.ts
+  34:64  warning  'subOrgId' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/sessionChanges.test.ts
+  10:7  warning  'newT' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/sessionFloor.test.ts
+  7:7  warning  'newT' is assigned a value but only used as a type  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/themeFlow.test.ts
+  121:31  warning  '_drop' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/usage.ts
+  5:15  warning  'Id' is defined but never used       @typescript-eslint/no-unused-vars
+  7:28  warning  'TierKey' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/convex/zzVerifyR4.ts
+  2:10  error  'internalMutation' import from './_generated/server' is restricted from being used by a pattern. Import `mutation` / `internalMutation` from convex/functions.ts. The raw constructors skip the change-feed triggers, so anything they write never reaches a synced device  no-restricted-imports
+
+/Users/myindsound/dev/pulse-session-delivery/marketing/remotion/src/components/ScaleGraphic.tsx
+  1:24  warning  'interpolate' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/marketing/remotion/src/promo/chaos.tsx
+  23:145  warning  'tone' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/marketing/remotion/src/promo/solution.tsx
+  68:23  warning  'i' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/marketing/remotion/src/promo/treatment.tsx
+   1:52  warning  'spring' is defined but never used           @typescript-eslint/no-unused-vars
+  82:15  warning  'startR' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/marketing/remotion/src/scenes/CTA.tsx
+  2:31  warning  'GOLD_GLOW' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/scripts/verify-go-live.mjs
+  77:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  78:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  79:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  87:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  88:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  89:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  92:3  warning  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/bookings/page.tsx
+  73:25  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/bookings/page.tsx:73:25
+  71 |   const [view, setView] = React.useState<Exclude<View, "month">>("day");
+  72 |   const [anchor, setAnchor] = React.useState<number | null>(null);
+> 73 |   React.useEffect(() => setAnchor(startOfDay(Date.now())), []);
+     |                         ^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |   const [selectedId, setSelectedId] = React.useState<string | null>(null);
+  75 |   const [sheet, setSheet] = React.useState<BookingRow | null>(null);
+  76 |   const [bookOpen, setBookOpen] = React.useState(false);  react-hooks/set-state-in-effect
+  90:9   warning  The 'rows' logical expression could make the dependencies of useMemo Hook (at line 112) change on every render. To fix this, wrap the initialization of 'rows' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/calendar/page.tsx
+  151:50  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/calendar/page.tsx:151:50
+  149 |   const [blockOpen, setBlockOpen] = useState(false);
+  150 |   const [openBlock, setOpenBlock] = useState<RoomBlock | null>(null);
+> 151 |   const blockRange = view === "agenda" ? { from: Date.now(), to: Date.now() + 90 * DAY_MS } : range;
+      |                                                  ^^^^^^^^^^ Cannot call impure function
+  152 |   const { canEdit: canBlock, blocks: roomBlocks } = useRoomBlocks(blockRange, filterRoomId);
+  153 |   const roomNames = useMemo(
+  154 |     () => Object.fromEntries((rooms ?? []).map((r) => [r._id, r.name])),                  react-hooks/purity
+  151:66  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/calendar/page.tsx:151:66
+  149 |   const [blockOpen, setBlockOpen] = useState(false);
+  150 |   const [openBlock, setOpenBlock] = useState<RoomBlock | null>(null);
+> 151 |   const blockRange = view === "agenda" ? { from: Date.now(), to: Date.now() + 90 * DAY_MS } : range;
+      |                                                                  ^^^^^^^^^^ Cannot call impure function
+  152 |   const { canEdit: canBlock, blocks: roomBlocks } = useRoomBlocks(blockRange, filterRoomId);
+  153 |   const roomNames = useMemo(
+  154 |     () => Object.fromEntries((rooms ?? []).map((r) => [r._id, r.name])),  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/(app)/pipeline/page.tsx
+  40:33  warning  'isFiltering' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/agency/settings/page.tsx
+  40:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/agency/settings/page.tsx:40:7
+  38 |   React.useEffect(() => {
+  39 |     if (summary && !seeded) {
+> 40 |       setName(summary.name ?? "");
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  41 |       setSupportEmail(summary.supportEmail ?? "");
+  42 |       setAppName(summary.appName ?? "");
+  43 |       setSeeded(true);  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/api/brand-card/[postId]/[kind]/[version]/route.tsx
+  115:28  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  115:28  warning  img elements must have an alt prop, either with meaningful text, or an empty string for decorative images                                                                                                                                                                                jsx-a11y/alt-text
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/kiosk/page.tsx
+  27:46  warning  'titleCase' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/opengraph-image.tsx
+  122:12  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  197:12  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  211:14  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/preview/claim/page.tsx
+  57:30  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/app/preview/claim/page.tsx:57:30
+  55 |     if (seeded.current || !check?.valid) return;
+  56 |     seeded.current = true;
+> 57 |     if (check.suggestedName) setStudioName(check.suggestedName);
+     |                              ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  58 |   }, [check]);
+  59 |
+  60 |   // The address follows the name until the moment they edit it themselves  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/agency-profile-menu.tsx
+  122:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/agency-profile-menu.tsx:122:7
+  120 |   React.useEffect(() => {
+  121 |     if (open) {
+> 122 |       setName(profile?.name ?? fallbackName);
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  123 |       setTitle(profile?.title ?? "");
+  124 |       setPhone(profile?.phone ?? "");
+  125 |     }  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/subaccount-billing.tsx
+  57:46  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/subaccount-billing.tsx:57:46
+  55 |
+  56 |   React.useEffect(() => {
+> 57 |     if (billing?.priceCentsOverride != null) setOverride((billing.priceCentsOverride / 100).toString());
+     |                                              ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  58 |   }, [billing?.priceCentsOverride]);
+  59 |
+  60 |   if (billing === undefined || plans === undefined) {  react-hooks/set-state-in-effect
+  84:57  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/subaccount-billing.tsx:84:57
+  82 |   const beta = billing.betaCohort === true && !billing.graduatedAt;
+  83 |   const betaLeft = billing.betaLicenseUntil
+> 84 |     ? Math.max(0, Math.ceil((billing.betaLicenseUntil - Date.now()) / 86_400_000))
+     |                                                         ^^^^^^^^^^ Cannot call impure function
+  85 |     : trialLeft;
+  86 |
+  87 |   return (                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/subaccount-table.tsx
+  76:55  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/agency/subaccount-table.tsx:76:55
+  74 |   if (!status) return <span className="text-steel/40">-</span>;
+  75 |   if (status === "trialing" && trialEndsAt) {
+> 76 |     const days = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86_400_000));
+     |                                                       ^^^^^^^^^^ Cannot call impure function
+  77 |     // A beta studio is running a licence, not a trial. Say so on the roster too,
+  78 |     // or the operator reading this list misreads the deal they were given.
+  79 |     const word = betaCohort ? "Beta" : "Trial";  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/book/membership-plans.tsx
+  111:17  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/book/membership-plans.tsx:111:17
+  109 |
+  110 |   React.useEffect(() => {
+> 111 |     if (plan) { setName(""); setEmail(""); }
+      |                 ^^^^^^^ Avoid calling setState() directly within an effect
+  112 |   }, [plan]);
+  113 |
+  114 |   async function submit() {  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/bookings/booking-sheet.tsx
+  187:38  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/bookings/booking-sheet.tsx:187:38
+  185 |                   </Badge>
+  186 |                 )}
+> 187 |                 {booking.startTime > Date.now() && booking.status !== "cancelled" && (
+      |                                      ^^^^^^^^^^ Cannot call impure function
+  188 |                   <SessionRiskBadge sessionId={booking._id} />
+  189 |                 )}
+  190 |               </div>  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/brand/brand-lockup.tsx
+  38:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  45:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  70:9   warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/brand/pulse-logo.tsx
+  43:8  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/agenda-list.tsx
+  10:46  warning  'titleCase' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/book-session-dialog.tsx
+  137:17  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/book-session-dialog.tsx:137:17
+  135 |   const slots: Slot[] = useMemo(() => {
+  136 |     if (dayStart === null) return [];
+> 137 |     const now = Date.now();
+      |                 ^^^^^^^^^^ Cannot call impure function
+  138 |     const durMs = durationMins * 60_000;
+  139 |     if (roomId && availability) {
+  140 |       return availability.slots.map((sl) => ({  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/calendar-sync-controls.tsx
+  82:28  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/calendar-sync-controls.tsx:82:28
+  80 |     const p = new URLSearchParams(window.location.search);
+  81 |     const g = p.get("google");
+> 82 |     if (g === "connected") setState({ ok: true, message: "Google connected." });
+     |                            ^^^^^^^^ Avoid calling setState() directly within an effect
+  83 |     else if (g === "error") {
+  84 |       const reason = (p.get("reason") ?? "server_error") as keyof typeof REASON_MESSAGES;
+  85 |       setState({ ok: false, message: REASON_MESSAGES[reason] ?? REASON_MESSAGES.server_error });  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/calendar/session-sheet.tsx
+  55:46  warning  'titleCase' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/area.tsx
+  8:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/chart-context.tsx
+  5:26  warning  '_Input' is defined but never used  @typescript-eslint/no-unused-vars
+  8:24  warning  '_Input' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/highlight-segment.tsx
+  37:9   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/highlight-segment.tsx:37:9
+  35 | }: HighlightSegmentProps) {
+  36 |   const clipId = useId();
+> 37 |   if (!(visible && pathRef.current)) {
+     |         ^^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  38 |     return null;
+  39 |   }
+  40 |   return (
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`  react-hooks/refs
+  50:12  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/highlight-segment.tsx:50:12
+  48 |         animate={{ opacity: 1 }}
+  49 |         clipPath={`url(#${clipId})`}
+> 50 |         d={pathRef.current.getAttribute("d") || ""}
+     |            ^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render
+  51 |         exit={{ opacity: 0 }}
+  52 |         fill="none"
+  53 |         initial={{ opacity: 0 }}                               react-hooks/refs
+  50:12  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/highlight-segment.tsx:50:12
+  48 |         animate={{ opacity: 1 }}
+  49 |         clipPath={`url(#${clipId})`}
+> 50 |         d={pathRef.current.getAttribute("d") || ""}
+     |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Passing a ref to a function may read its value during render
+  51 |         exit={{ opacity: 0 }}
+  52 |         fill="none"
+  53 |         initial={{ opacity: 0 }}                  react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/loading-sweep.tsx
+  32:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/path-stroke-utils.ts
+  61:6  warning  React Hook useEffect was passed a dependency list that is not an array literal. This means we can't statically verify whether you've passed the correct dependencies  react-hooks/exhaustive-deps
+  61:6  warning  React Hook useEffect has a missing dependency: 'pathRef'. Either include it or remove the dependency array                                                            react-hooks/exhaustive-deps
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/pattern-area.tsx
+  8:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/series-path-utils.ts
+  4:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/chart-tooltip.tsx
+  365:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/chart-tooltip.tsx:365:5
+  363 |   // Only render portals on client side after mount
+  364 |   useEffect(() => {
+> 365 |     setMounted(true);
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  366 |   }, []);
+  367 |
+  368 |   const container = containerRef.current;  react-hooks/set-state-in-effect
+  368:21  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/chart-tooltip.tsx:368:21
+  366 |   }, []);
+  367 |
+> 368 |   const container = containerRef.current;
+      |                     ^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  369 |   if (!(mounted && container)) {
+  370 |     return null;
+  371 |   }                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/refs
+  369:9   error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/chart-tooltip.tsx:369:9
+  367 |
+  368 |   const container = containerRef.current;
+> 369 |   if (!(mounted && container)) {
+      |         ^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  370 |     return null;
+  371 |   }
+  372 |
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`                                                                                                                                                                                                                                                                                    react-hooks/refs
+  416:6   warning  React Hook useEffect has a missing dependency: 'xWithMargin'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/exhaustive-deps
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/date-ticker.tsx
+  87:27  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/date-ticker.tsx:87:27
+  85 |
+  86 |   if (currentMonthIndex >= 0) {
+> 87 |     const isFirstRender = prevMonthIndexRef.current === -1;
+     |                           ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  88 |     const monthChanged = prevMonthIndexRef.current !== currentMonthIndex;
+  89 |     if (isFirstRender || monthChanged) {
+  90 |       monthY.set(-currentMonthIndex * TICKER_ITEM_HEIGHT);                                                      react-hooks/refs
+  88:26  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/date-ticker.tsx:88:26
+  86 |   if (currentMonthIndex >= 0) {
+  87 |     const isFirstRender = prevMonthIndexRef.current === -1;
+> 88 |     const monthChanged = prevMonthIndexRef.current !== currentMonthIndex;
+     |                          ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  89 |     if (isFirstRender || monthChanged) {
+  90 |       monthY.set(-currentMonthIndex * TICKER_ITEM_HEIGHT);
+  91 |       prevMonthIndexRef.current = currentMonthIndex;  react-hooks/refs
+  91:7   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/date-ticker.tsx:91:7
+  89 |     if (isFirstRender || monthChanged) {
+  90 |       monthY.set(-currentMonthIndex * TICKER_ITEM_HEIGHT);
+> 91 |       prevMonthIndexRef.current = currentMonthIndex;
+     |       ^^^^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  92 |     }
+  93 |   }
+  94 |                                                                                                                                                                                        react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx
+  57:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx:57:5
+  55 |
+  56 |   useEffect(() => {
+> 57 |     setMounted(true);
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  58 |   }, []);
+  59 |
+  60 |   const container = props.containerRef.current;  react-hooks/set-state-in-effect
+  98:14  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx:98:14
+   96 |   const [staticPosition, setStaticPosition] = useState({ left: x, top: y });
+   97 |
+>  98 |   const tw = tooltipWidthRef.current;
+      |              ^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+   99 |   const th = tooltipHeightRef.current;
+  100 |   const shouldFlipX = x + tw + offset > containerWidth;
+  101 |   const targetX = shouldFlipX ? x - offset - tw : x + offset;                                                                                                                                                                   react-hooks/refs
+  98:14  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx:98:14
+   96 |   const [staticPosition, setStaticPosition] = useState({ left: x, top: y });
+   97 |
+>  98 |   const tw = tooltipWidthRef.current;
+      |              ^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+   99 |   const th = tooltipHeightRef.current;
+  100 |   const shouldFlipX = x + tw + offset > containerWidth;
+  101 |   const targetX = shouldFlipX ? x - offset - tw : x + offset;                                                                                                                                                                   react-hooks/refs
+  99:14  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx:99:14
+   97 |
+   98 |   const tw = tooltipWidthRef.current;
+>  99 |   const th = tooltipHeightRef.current;
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  100 |   const shouldFlipX = x + tw + offset > containerWidth;
+  101 |   const targetX = shouldFlipX ? x - offset - tw : x + offset;
+  102 |   const targetY = Math.max(                                                                                                                                                                                                                   react-hooks/refs
+  99:14  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/tooltip/tooltip-box.tsx:99:14
+   97 |
+   98 |   const tw = tooltipWidthRef.current;
+>  99 |   const th = tooltipHeightRef.current;
+      |              ^^^^^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  100 |   const shouldFlipX = x + tw + offset > containerWidth;
+  101 |   const targetX = shouldFlipX ? x - offset - tw : x + offset;
+  102 |   const targetY = Math.max(                                                                                                                                                                                                                   react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-series-path.ts
+  15:21  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        @typescript-eslint/no-explicit-any
+  91:7   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-series-path.ts:91:7
+  89 |     if (!shouldAnimate) {
+  90 |       animatingRef.current = false;
+> 91 |       setAnimatedPoints(null);
+     |       ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  92 |       displayedPointsRef.current = targetPoints;
+  93 |       prevTransitionSignatureRef.current = transitionSignature;
+  94 |       return;  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-y-domains.ts
+  140:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-y-domains.ts:140:3
+  138 |   );
+  139 |   const destinationRef = useRef(destinationByAxis);
+> 140 |   destinationRef.current = destinationByAxis;
+      |   ^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  141 |   const skeletonRef = useRef(skeletonByAxis);
+  142 |   skeletonRef.current = skeletonByAxis;
+  143 |   const targetRef = useRef(targetByAxis);     react-hooks/refs
+  142:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-y-domains.ts:142:3
+  140 |   destinationRef.current = destinationByAxis;
+  141 |   const skeletonRef = useRef(skeletonByAxis);
+> 142 |   skeletonRef.current = skeletonByAxis;
+      |   ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  143 |   const targetRef = useRef(targetByAxis);
+  144 |   targetRef.current = targetByAxis;
+  145 |                             react-hooks/refs
+  144:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-y-domains.ts:144:3
+  142 |   skeletonRef.current = skeletonByAxis;
+  143 |   const targetRef = useRef(targetByAxis);
+> 144 |   targetRef.current = targetByAxis;
+      |   ^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  145 |
+  146 |   const [animatedByAxis, setAnimatedByAxis] = useState(destinationByAxis);
+  147 |   const animatedRef = useRef(animatedByAxis);  react-hooks/refs
+  150:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-animated-y-domains.ts:150:3
+  148 |   const prevPhaseRef = useRef(chartPhase);
+  149 |   const onSettledRef = useRef(onSettled);
+> 150 |   onSettledRef.current = onSettled;
+      |   ^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  151 |
+  152 |   useEffect(() => {
+  153 |     animatedRef.current = animatedByAxis;                                                       react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-chart-phase-orchestrator.ts
+   42:3   error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-chart-phase-orchestrator.ts:42:3
+  40 |   const prevStatusRef = useRef(chartStatus);
+  41 |   const phaseRef = useRef(chartPhase);
+> 42 |   phaseRef.current = chartPhase;
+     |   ^^^^^^^^^^^^^^^^ Cannot update ref during render
+  43 |
+  44 |   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: status transition branches for animation durations
+  45 |   useEffect(() => {                                                                                                                                                                                                                                                                                                                                           react-hooks/refs
+   56:11  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-chart-phase-orchestrator.ts:56:11
+  54 |       if (animationDuration <= 0) {
+  55 |         if (yDomainTweenDuration <= 0) {
+> 56 |           setPlotData(targetData);
+     |           ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  57 |           setChartPhase("revealing");
+  58 |         } else {
+  59 |           setChartPhase("gridTweenReady");  react-hooks/set-state-in-effect
+  109:11  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-chart-phase-orchestrator.ts:109:11
+  107 |       case "loading":
+  108 |         if (chartStatus === "loading") {
+> 109 |           setPlotData(skeletonData);
+      |           ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  110 |         }
+  111 |         break;
+  112 |       case "exiting":                                                         react-hooks/set-state-in-effect
+  159:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-chart-phase-orchestrator.ts:159:5
+  157 |     }
+  158 |
+> 159 |     setRevealEpoch((epoch) => epoch + 1);
+      |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  160 |     if (animationDuration <= 0) {
+  161 |       setChartPhase("ready");
+  162 |       setIsLoaded(true);                                                                       react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-enter-complete.ts
+  16:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-enter-complete.ts:16:7
+  14 |   useEffect(() => {
+  15 |     if (mountProgress.get() >= 1) {
+> 16 |       setComplete(true);
+     |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  17 |       return;
+  18 |     }
+  19 |  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-highlight-segment.ts
+  51:26  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-highlight-segment.ts:51:26
+  49 |   // of sliding in from x=0; ease on subsequent moves.
+  50 |   const wasActive = useRef(false);
+> 51 |   if (bounds.isActive && !wasActive.current) {
+     |                          ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  52 |     xSpring.jump(bounds.x);
+  53 |     widthSpring.jump(bounds.width);
+  54 |   } else {                                                                                                                               react-hooks/refs
+  51:27  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-highlight-segment.ts:51:27
+  49 |   // of sliding in from x=0; ease on subsequent moves.
+  50 |   const wasActive = useRef(false);
+> 51 |   if (bounds.isActive && !wasActive.current) {
+     |                           ^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  52 |     xSpring.jump(bounds.x);
+  53 |     widthSpring.jump(bounds.width);
+  54 |   } else {
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`  react-hooks/refs
+  58:3   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-highlight-segment.ts:58:3
+  56 |     widthSpring.set(bounds.width);
+  57 |   }
+> 58 |   wasActive.current = bounds.isActive;
+     |   ^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  59 |
+  60 |   return { xSpring, widthSpring, isActive: bounds.isActive };
+  61 | }                                                                                                                                                                                                                                    react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-mount-progress.ts
+  15:3  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/use-mount-progress.ts:15:3
+  13 |   const progress = useMotionValue(0);
+  14 |   const transitionRef = useRef(enterTransition);
+> 15 |   transitionRef.current = enterTransition;
+     |   ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  16 |
+  17 |   // replayKey intentionally retriggers enter when motion settings change
+  18 |   // biome-ignore lint/correctness/useExhaustiveDependencies: replayKey  react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/x-axis.tsx
+  564:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/x-axis.tsx:564:5
+  562 |
+  563 |   useEffect(() => {
+> 564 |     setMounted(true);
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  565 |   }, []);
+  566 |
+  567 |   const container = containerRef.current;  react-hooks/set-state-in-effect
+  567:21  error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/x-axis.tsx:567:21
+  565 |   }, []);
+  566 |
+> 567 |   const container = containerRef.current;
+      |                     ^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  568 |   if (!(mounted && container)) {
+  569 |     return null;
+  570 |   }                                                                                                                                                                                                                                                                                                                                      react-hooks/refs
+  568:9   error    Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/charts/x-axis.tsx:568:9
+  566 |
+  567 |   const container = containerRef.current;
+> 568 |   if (!(mounted && container)) {
+      |         ^^^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  569 |     return null;
+  570 |   }
+  571 |
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`                                                                                                                                                                                                                                react-hooks/refs
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/customizable-dashboard.tsx
+  129:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/customizable-dashboard.tsx:129:7
+  127 |     try {
+  128 |       const raw = localStorage.getItem(storageKey);
+> 129 |       setLayout(
+      |       ^^^^^^^^^ Avoid calling setState() directly within an effect
+  130 |         normalizeLayout(raw ? (JSON.parse(raw) as Partial<DashboardLayout>) : null, WIDGET_KEYS, DEFAULT_HIDDEN),
+  131 |       );
+  132 |     } catch {  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/device-alerts-chip.tsx
+  33:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/device-alerts-chip.tsx:33:5
+  31 |
+  32 |   React.useEffect(() => {
+> 33 |     setSupported(pushSupported());
+     |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  34 |     void currentEndpoint().then(setEndpoint);
+  35 |   }, []);
+  36 |  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/hw/ops-manager.tsx
+  29:40  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/hw/ops-manager.tsx:29:40
+  27 |   async function later(a: Doc<"opsActions">) {
+  28 |     try {
+> 29 |       await snooze({ id: a._id, until: Date.now() + DAY });
+     |                                        ^^^^^^^^^^ Cannot call impure function
+  30 |       toast.success("Snoozed until tomorrow.");
+  31 |     } catch (err) {
+  32 |       toast.error(errorMessage(err, "Could not snooze."));  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/hw/parts.tsx
+  241:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/dashboard/hw/parts.tsx:241:5
+  239 |   const [now, setNow] = React.useState<number | null>(null);
+  240 |   React.useEffect(() => {
+> 241 |     setNow(Date.now());
+      |     ^^^^^^ Avoid calling setState() directly within an effect
+  242 |     const id = window.setInterval(() => setNow(Date.now()), ms);
+  243 |     return () => window.clearInterval(id);
+  244 |   }, [ms]);  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/marketing/hero.tsx
+  400:20  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/canvas-context-menu.tsx
+  41:25  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/canvas-context-menu.tsx:41:25
+  39 |   const ref = React.useRef<HTMLDivElement>(null);
+  40 |   const [mounted, setMounted] = React.useState(false);
+> 41 |   React.useEffect(() => setMounted(true), []);
+     |                         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |
+  43 |   React.useEffect(() => {
+  44 |     if (!state) return;  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/device-node.tsx
+  474:13  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/patch-canvas.tsx
+  336:33  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/patch-canvas.tsx:336:33
+  334 |   const ago = React.useMemo(() => {
+  335 |     if (!savedAt) return null;
+> 336 |     const seconds = Math.round((Date.now() - savedAt) / 1000);
+      |                                 ^^^^^^^^^^ Cannot call impure function
+  337 |     if (seconds < 20) return "just now";
+  338 |     if (seconds < 90) return "a minute ago";
+  339 |     if (seconds < 3600) return `${Math.round(seconds / 60)} min ago`;  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/port-editor.tsx
+  29:10  warning  'Field' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/run-sheet.tsx
+  86:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/patch/run-sheet.tsx:86:5
+  84 |     el.className = "run-sheet-host";
+  85 |     document.body.appendChild(el);
+> 86 |     setHost(el);
+     |     ^^^^^^^ Avoid calling setState() directly within an effect
+  87 |     return () => {
+  88 |       document.body.removeChild(el);
+  89 |     };  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/payments/card-on-file-card.tsx
+  4:10  warning  'useQuery' is defined but never used  @typescript-eslint/no-unused-vars
+  5:10  warning  'api' is defined but never used       @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/royalties/match-line-dialog.tsx
+  48:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/royalties/match-line-dialog.tsx:48:5
+  46 |   React.useEffect(() => {
+  47 |     if (!line) return;
+> 48 |     setSearch(line.title ?? "");
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  49 |     setTitle(line.title ?? "");
+  50 |     setArtistName(line.artist ?? "");
+  51 |     setPicked(null);  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/settings/directory-panel.tsx
+  25:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/settings/directory-panel.tsx:25:7
+  23 |   React.useEffect(() => {
+  24 |     if (s && draft === null) {
+> 25 |       setDraft({ blurb: s.blurb, city: s.city, region: s.region, tags: s.tags.join(", ") });
+     |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  26 |     }
+  27 |   }, [s, draft]);
+  28 |  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/settings/white-label-panel.tsx
+  322:17  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/auth-gate.tsx
+  37:26  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/auth-gate.tsx:37:26
+  35 |
+  36 |   React.useEffect(() => {
+> 37 |     if (isAuthenticated) setReady(true);
+     |                          ^^^^^^^^ Avoid calling setState() directly within an effect
+  38 |   }, [isAuthenticated]);
+  39 |
+  40 |   if (!ready && (isLoading || !isAuthenticated)) {  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/profile-menu.tsx
+  202:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/profile-menu.tsx:202:7
+  200 |   React.useEffect(() => {
+  201 |     if (open) {
+> 202 |       setName(profile?.name ?? fallbackName);
+      |       ^^^^^^^ Avoid calling setState() directly within an effect
+  203 |       setPhone(profile?.phone ?? "");
+  204 |     }
+  205 |     // eslint-disable-next-line react-hooks/exhaustive-deps  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/sidebar.tsx
+   56:9  warning  The 'locked' conditional could make the dependencies of useMemo Hook (at line 59) change on every render. To fix this, wrap the initialization of 'locked' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+   56:9  warning  The 'locked' conditional could make the dependencies of useMemo Hook (at line 69) change on every render. To fix this, wrap the initialization of 'locked' in its own useMemo() Hook                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  react-hooks/exhaustive-deps
+  335:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/sidebar.tsx:335:7
+  333 |     try {
+  334 |       const raw = localStorage.getItem(storageKey);
+> 335 |       setOrder(raw ? (JSON.parse(raw) as string[]) : null);
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  336 |     } catch {
+  337 |       setOrder(null);
+  338 |     }  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/sign-in-brand.tsx
+  64:11  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/theme-toggle.tsx
+  19:25  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/shell/theme-toggle.tsx:19:25
+  17 |   const { theme, toggle } = useTheme();
+  18 |   const [mounted, setMounted] = React.useState(false);
+> 19 |   React.useEffect(() => setMounted(true), []);
+     |                         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  20 |
+  21 |   // Avoid a hydration mismatch: render a stable icon until mounted.
+  22 |   const isLight = mounted && theme === "light";  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/composer.tsx
+  140:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/composer.tsx:140:7
+  138 |     mixBaselineRef.current = null;
+  139 |     if (existingPost === null) {
+> 140 |       setNotFound(true);
+      |       ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  141 |       return;
+  142 |     }
+  143 |     setNotFound(false);                                                                                                                                                                  react-hooks/set-state-in-effect
+  164:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/composer.tsx:164:5
+  162 |     if (scheduleTouched || org === undefined) return;
+  163 |     const tz = org?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+> 164 |     setSchedule({ scheduledFor: scheduleSuggestions(Date.now(), tz)[0].scheduledFor, timezone: tz });
+      |     ^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  165 |   }, [org, scheduleTouched]);
+  166 |
+  167 |   const allInstagramSelected =  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/promo-dialog.tsx
+  60:7  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/promo-dialog.tsx:60:7
+  58 |     if (!open) return;
+  59 |     if (promo) {
+> 60 |       setCode(promo.code);
+     |       ^^^^^^^ Avoid calling setState() directly within an effect
+  61 |       setPct(String(promo.pct));
+  62 |       setLabel(promo.label ?? "");
+  63 |       setStarts(toDatetimeLocalValue(promo.startsAt, timezone));  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/schedule-picker.tsx
+  25:43  warning  Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/social/schedule-picker.tsx:25:43
+  23 |   disabled?: boolean;
+  24 | }) {
+> 25 |   const suggestions = scheduleSuggestions(Date.now(), value.timezone);
+     |                                           ^^^^^^^^^^ Cannot call impure function
+  26 |   const localValue = value.scheduledFor ? toDatetimeLocalValue(value.scheduledFor, value.timezone) : "";
+  27 |
+  28 |   return (  react-hooks/purity
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/songs/catalog-import-dialog.tsx
+  102:5   warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/songs/catalog-import-dialog.tsx:102:5
+  100 |   React.useEffect(() => {
+  101 |     if (!open) return;
+> 102 |     setQuery(subjectName ?? "");
+      |     ^^^^^^^^ Avoid calling setState() directly within an effect
+  103 |     setCandidates(null);
+  104 |     setPicked([]);
+  105 |     setNeedsName(false);                                                                                                                                                                                        react-hooks/set-state-in-effect
+  110:41  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/songs/catalog-import-dialog.tsx:110:41
+  108 |   }, [open, subjectName]);
+  109 |   React.useEffect(() => {
+> 110 |     if (!destination && options.length) setDestination((options.find((o) => o.eligible) ?? options[0]).orgId);
+      |                                         ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  111 |   }, [options, destination]);
+  112 |
+  113 |   const running = latest && (latest.status === "discovering" || latest.status === "importing");  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/studio/member-detail-dialog.tsx
+  46:15  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/studio/member-detail-dialog.tsx:46:15
+  44 |
+  45 |   React.useEffect(() => {
+> 46 |     if (open) setNotes(member.notes ?? "");
+     |               ^^^^^^^^ Avoid calling setState() directly within an effect
+  47 |     // eslint-disable-next-line react-hooks/exhaustive-deps
+  48 |   }, [open, member._id]);
+  49 |  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/studios/studios-browser.tsx
+  128:21  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+  138:25  warning  Using `<img>` could result in slower LCP and higher bandwidth. Consider using `<Image />` from `next/image` or a custom image loader to automatically optimize images. This may incur additional usage or cost from your provider. See: https://nextjs.org/docs/messages/no-img-element  @next/next/no-img-element
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/today/today-timeline.tsx
+  9:46  warning  'titleCase' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/ui/image-lightbox.tsx
+  36:25  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/ui/image-lightbox.tsx:36:25
+  34 |   const scrollRef = React.useRef<HTMLDivElement>(null);
+  35 |
+> 36 |   React.useEffect(() => setMounted(true), []);
+     |                         ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  37 |
+  38 |   // Reset to fit each time it opens, so a previous zoom does not decide how
+  39 |   // the next photo appears  react-hooks/set-state-in-effect
+  41:15  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/components/ui/image-lightbox.tsx:41:15
+  39 |   // the next photo appears.
+  40 |   React.useEffect(() => {
+> 41 |     if (open) setZoomed(false);
+     |               ^^^^^^^^^ Avoid calling setState() directly within an effect
+  42 |   }, [open]);
+  43 |
+  44 |   React.useEffect(() => {                                                                                              react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/src/lib/use-theme.ts
+  16:5  warning  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/Users/myindsound/dev/pulse-session-delivery/src/lib/use-theme.ts:16:5
+  14 |   React.useEffect(() => {
+  15 |     const current = (document.documentElement.dataset.theme as Theme) ?? "dark";
+> 16 |     setThemeState(current === "light" ? "light" : "dark");
+     |     ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  17 |   }, []);
+  18 |
+  19 |   const setTheme = React.useCallback((t: Theme) => {  react-hooks/set-state-in-effect
+
+/Users/myindsound/dev/pulse-session-delivery/workers/pulse-media/index.js
+  107:1  warning  Assign object to a variable before exporting as module default  import/no-anonymous-default-export
+
+✖ 165 problems (54 errors, 111 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+

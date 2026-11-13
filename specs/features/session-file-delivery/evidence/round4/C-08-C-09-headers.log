@@ -1,0 +1,20 @@
+== /delivery/<released token> (signed out)
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+Cache-Control: no-cache, must-revalidate
+== /delivery/<unknown 64 hex>
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+== /delivery/nope
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+== meta robots in HTML
+<meta name="referrer" content="no-referrer"/>
+<meta name="robots" content="noindex, nofollow"/>
+== /privacy
+200
+== /terms
+200

@@ -1,0 +1,53 @@
+{
+ "released": {
+  "requests": 40,
+  "hosts": {
+   "localhost:3311": 40,
+   "ws:localhost:3311": 1,
+   "ws:127.0.0.1:3230": 1
+  },
+  "cookies": [],
+  "ls": [],
+  "ss": [],
+  "docCookie": "",
+  "forms": 0,
+  "links": [
+   "/privacy",
+   "/terms"
+  ]
+ },
+ "chk": {
+  "requests": 40,
+  "hosts": {
+   "localhost:3311": 40,
+   "ws:localhost:3311": 1,
+   "ws:127.0.0.1:3230": 1
+  },
+  "cookies": [],
+  "ls": [],
+  "ss": [],
+  "docCookie": "",
+  "forms": 0,
+  "links": [
+   "/privacy",
+   "/terms"
+  ]
+ },
+ "bad": {
+  "requests": 40,
+  "hosts": {
+   "localhost:3311": 40,
+   "ws:localhost:3311": 1,
+   "ws:127.0.0.1:3230": 1
+  },
+  "cookies": [],
+  "ls": [],
+  "ss": [],
+  "docCookie": "",
+  "forms": 0,
+  "links": [
+   "/privacy",
+   "/terms"
+  ]
+ }
+}

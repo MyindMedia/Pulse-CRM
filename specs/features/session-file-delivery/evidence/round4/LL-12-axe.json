@@ -1,0 +1,254 @@
+[
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "unlocked",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-pay",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-invoice-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-no-target",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-hidden",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-hidden-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "locked-zero-owed",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "expired",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "dark",
+  "state": "loading",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "unlocked",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-pay",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-invoice-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-no-target",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-hidden",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-hidden-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "locked-zero-owed",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "expired",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#fdb913",
+  "theme": "light",
+  "state": "loading",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "unlocked",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-pay",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-invoice-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-no-target",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-hidden",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-hidden-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "locked-zero-owed",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "expired",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "dark",
+  "state": "loading",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "unlocked",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-pay",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-invoice-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-no-target",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-hidden",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-hidden-open",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "locked-zero-owed",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "expired",
+  "count": 0,
+  "violations": []
+ },
+ {
+  "accent": "#0f8f6f",
+  "theme": "light",
+  "state": "loading",
+  "count": 0,
+  "violations": []
+ }
+]

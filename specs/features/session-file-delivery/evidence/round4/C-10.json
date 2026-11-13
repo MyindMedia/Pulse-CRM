@@ -1,0 +1,687 @@
+[
+ {
+  "label": "390-100",
+  "page": "released",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Session Notes.pdf",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Download Session Notes.pdf",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Stems.zip",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Download Midnight Drive - Stems.zip",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Master.wav",
+    "nameLines": 2,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Master.wav",
+      "w": 44,
+      "h": 44,
+      "left": 259,
+      "right": 303,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Master.wav",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Final Mix.wav",
+    "nameLines": 2,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Final Mix.wav",
+      "w": 44,
+      "h": 44,
+      "left": 259,
+      "right": 303,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Final Mix.wav",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-100",
+  "page": "chk",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Lead vocal comp.wav",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Locked",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-100",
+  "page": "bad",
+  "sw": 390,
+  "vw": 390,
+  "rows": [],
+  "anims": 0
+ },
+ {
+  "label": "390-150",
+  "page": "released",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Session Notes.pdf",
+    "nameLines": 1,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 365,
+    "btns": [
+     {
+      "label": "Download Session Notes.pdf",
+      "w": 66,
+      "h": 66,
+      "left": 278,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Stems.zip",
+    "nameLines": 1,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 365,
+    "btns": [
+     {
+      "label": "Download Midnight Drive - Stems.zip",
+      "w": 66,
+      "h": 66,
+      "left": 278,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Master.wav",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 365,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Master.wav",
+      "w": 66,
+      "h": 66,
+      "left": 194,
+      "right": 260,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Master.wav",
+      "w": 66,
+      "h": 66,
+      "left": 278,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Final Mix.wav",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 365,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Final Mix.wav",
+      "w": 66,
+      "h": 66,
+      "left": 194,
+      "right": 260,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Final Mix.wav",
+      "w": 66,
+      "h": 66,
+      "left": 278,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-150",
+  "page": "chk",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Lead vocal comp.wav",
+    "nameLines": 1,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 365,
+    "btns": [
+     {
+      "label": "Locked",
+      "w": 66,
+      "h": 66,
+      "left": 278,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-150",
+  "page": "bad",
+  "sw": 390,
+  "vw": 390,
+  "rows": [],
+  "anims": 0
+ },
+ {
+  "label": "390-200",
+  "page": "released",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Session Notes.pdf",
+    "nameLines": 1,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 372,
+    "btns": [
+     {
+      "label": "Download Session Notes.pdf",
+      "w": 88,
+      "h": 88,
+      "left": 256,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Stems.zip",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 372,
+    "btns": [
+     {
+      "label": "Download Midnight Drive - Stems.zip",
+      "w": 88,
+      "h": 88,
+      "left": 256,
+      "right": 344,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Master.wav",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 372,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Master.wav",
+      "w": 88,
+      "h": 88,
+      "left": 177,
+      "right": 265,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Master.wav",
+      "w": 88,
+      "h": 88,
+      "left": 289,
+      "right": 377,
+      "inside": false
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Final Mix.wav",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 344,
+    "rowRight": 372,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Final Mix.wav",
+      "w": 88,
+      "h": 88,
+      "left": 177,
+      "right": 265,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Final Mix.wav",
+      "w": 88,
+      "h": 88,
+      "left": 289,
+      "right": 377,
+      "inside": false
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-200",
+  "page": "chk",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Lead vocal comp.wav",
+    "nameLines": 2,
+    "oneLine": false,
+    "nameOwnLine": true,
+    "innerRight": 329,
+    "rowRight": 357,
+    "btns": [
+     {
+      "label": "Locked",
+      "w": 88,
+      "h": 88,
+      "left": 241,
+      "right": 329,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-200",
+  "page": "bad",
+  "sw": 390,
+  "vw": 390,
+  "rows": [],
+  "anims": 0
+ },
+ {
+  "label": "1280-200",
+  "page": "released",
+  "sw": 1280,
+  "vw": 1280,
+  "rows": [
+   {
+    "name": "Session Notes.pdf",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 1211,
+    "rowRight": 1239,
+    "btns": [
+     {
+      "label": "Download Session Notes.pdf",
+      "w": 88,
+      "h": 88,
+      "left": 1123,
+      "right": 1211,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Stems.zip",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 1211,
+    "rowRight": 1239,
+    "btns": [
+     {
+      "label": "Download Midnight Drive - Stems.zip",
+      "w": 88,
+      "h": 88,
+      "left": 1123,
+      "right": 1211,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Master.wav",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 1211,
+    "rowRight": 1239,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Master.wav",
+      "w": 88,
+      "h": 88,
+      "left": 1011,
+      "right": 1099,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Master.wav",
+      "w": 88,
+      "h": 88,
+      "left": 1123,
+      "right": 1211,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Final Mix.wav",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 1211,
+    "rowRight": 1239,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Final Mix.wav",
+      "w": 88,
+      "h": 88,
+      "left": 1011,
+      "right": 1099,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Final Mix.wav",
+      "w": 88,
+      "h": 88,
+      "left": 1123,
+      "right": 1211,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "1280-200",
+  "page": "chk",
+  "sw": 1280,
+  "vw": 1280,
+  "rows": [
+   {
+    "name": "Lead vocal comp.wav",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 1211,
+    "rowRight": 1239,
+    "btns": [
+     {
+      "label": "Locked",
+      "w": 88,
+      "h": 88,
+      "left": 1123,
+      "right": 1211,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "1280-200",
+  "page": "bad",
+  "sw": 1280,
+  "vw": 1280,
+  "rows": [],
+  "anims": 0
+ },
+ {
+  "label": "390-reduced",
+  "page": "released",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Session Notes.pdf",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Download Session Notes.pdf",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Stems.zip",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Download Midnight Drive - Stems.zip",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Master.wav",
+    "nameLines": 2,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Master.wav",
+      "w": 44,
+      "h": 44,
+      "left": 259,
+      "right": 303,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Master.wav",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   },
+   {
+    "name": "Midnight Drive - Final Mix.wav",
+    "nameLines": 2,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Play Midnight Drive - Final Mix.wav",
+      "w": 44,
+      "h": 44,
+      "left": 259,
+      "right": 303,
+      "inside": true
+     },
+     {
+      "label": "Download Midnight Drive - Final Mix.wav",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-reduced",
+  "page": "chk",
+  "sw": 390,
+  "vw": 390,
+  "rows": [
+   {
+    "name": "Lead vocal comp.wav",
+    "nameLines": 1,
+    "oneLine": true,
+    "nameOwnLine": false,
+    "innerRight": 359,
+    "rowRight": 373,
+    "btns": [
+     {
+      "label": "Locked",
+      "w": 44,
+      "h": 44,
+      "left": 315,
+      "right": 359,
+      "inside": true
+     }
+    ],
+    "clipped": false
+   }
+  ],
+  "anims": 0
+ },
+ {
+  "label": "390-reduced",
+  "page": "bad",
+  "sw": 390,
+  "vw": 390,
+  "rows": [],
+  "anims": 0
+ }
+]

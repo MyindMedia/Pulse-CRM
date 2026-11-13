@@ -1,0 +1,452 @@
+
+ RUN  v4.1.6 /Users/myindsound/dev/pulse-session-delivery
+
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > with a pay target: the amount, the Pay button and the usual line 27ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > no pay target: no button, and the studio will send a way to pay (C-14) 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > hidden prices: the heading has no amount and nothing on the page shows one (G-23) 1ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > an unusable pay link counts as none 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > R4-04: nothing owed: Payment received, no Balance due pill, no pay wording, no button 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > R4-04: a blank studio name reads as The studio in the nothing-owed line 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > P4-02: no pay target and an open invoice: pay with the invoice the studio sent 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > P4-02: no open invoice: the studio will send a way to pay, as before 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > P4-02: with a pay target, an open invoice changes nothing 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > P4-02: nothing owed stays Payment received, open invoice or not (R4-04) 0ms
+ ✓ src/components/delivery/lock-copy.test.ts > lockCopy > balanceDue is true for an amount, and for hidden prices 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no money sight (A-11) > with balanceCents null, no state shows a dollar sign or an amount 40ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no money sight (A-11) > says a balance is owed without the amount 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: actions follow the server's permissions > never offers Send now anyway or Turn off link when the server says no 4ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: actions follow the server's permissions > offers them when allowed and a balance is owed 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: actions follow the server's permissions > someone who cannot upload sees no Ready, Resend or Copy link 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > shows the owed amount with cents for money sight 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > waiting with nothing owed says only the Resend line, and offers Resend 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > no email on file names the client and disables Ready 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > no Final files and no email gives both lines 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > a cancelled booking says there is nothing to deliver, with Ready disabled 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > Opened shows only the time today and the date on another day 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: copy (F2-27) > released shows who it went to and offers Resend 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > tells a caller who sees money what to do, for each reason, word for word 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > uses the client fallback when there is no first name 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > a caller without money sight sees only that a balance is owed: no reason line, no dollar sign 5ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > with no pay link, the card does not say a pay link was emailed 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > with an online pay target there is no reason line and the pay link copy stays 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > nothing owed keeps the Resend line only, whatever the pay target 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: no online pay link (R3-05) > the reason line is a caution line of its own 0ms
+ ✓ src/lib/delivery-card-view.test.ts > toasts > say pay link only when there is one 0ms
+ ✓ src/lib/delivery-card-view.test.ts > toasts > name the email when sent, and explain the wait otherwise 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice with the wrong amount (R4-01) > a caller with money sight is told to void or correct it, naming the invoice and both amounts 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice with the wrong amount (R4-01) > never tells staff to send another invoice when one is already open 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice with the wrong amount (R4-01) > uses the client fallback with no first name 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice with the wrong amount (R4-01) > the send-an-invoice line stays only for the no-open-invoice reason 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice with the wrong amount (R4-01) > without money sight (balanceCents or openInvoice null) no string has a dollar sign or an invoice number 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > cards off with an open invoice for exactly what is owed: pay that invoice, never 'open for $180.00, but $180.00 is owed' 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > hidden prices with an open invoice: pay that invoice, never 'Send an invoice' 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > hidden prices with an open invoice for another amount: the void or correct line 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > whatever the reason, the open invoice decides: same amount pays it, another amount is voided or corrected 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > no open invoice: the line for the reason, as before 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > with an online pay target there is no extra line, open invoice or not 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: an open invoice decides the line first (P4-01) > without money sight: only that a balance is owed, with no invoice number and no amount 5ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: a no-show booking (R4-02) > says there is nothing to deliver, in every state, with Ready disabled like a cancelled booking 1ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: a no-show booking (R4-02) > offers nothing to a caller who cannot upload, and shows no amount 0ms
+ ✓ src/lib/delivery-card-view.test.ts > deliveryCardView: a no-show booking (R4-02) > the same buttons as a cancelled booking 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > adds rows as queued and starts at most two, oldest first 3ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > the cap of two holds across bookings, and each row stays on its own booking 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > cancel on a queued row: it never runs; on a running row: its signal aborts and the next starts 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > after commit, cancel is ignored and the row ends Uploaded (F2-24) 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > commit after a cancel throws an AbortError so the job stops before its writes 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > a failure shows the job's reason on that row only 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > keeps running with nobody watching, and a new watcher sees the rows (panel closed and reopened) 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > finished rows clear after four seconds; failed and canceled rows wait to be dismissed 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > returns the same rows array until something changes (useSyncExternalStore needs that) 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > holds the beforeunload guard while anything is queued or running, and drops it after 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > refuse adds a failed row with the reason and uploads nothing 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager > announces started, uploaded, failed and canceled once each, per booking 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: the Files section's status line (V3-01) > say() puts another control's result on the same line, per booking 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: the Files section's status line (V3-01) > joins with an upload event that lands at the same moment 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: the Files section's status line (V3-01) > ignores an empty line 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > uses the addendum's copy 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > the same identity again changes nothing 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > another user: queued rows are canceled with the reason, running ones are aborted, nothing more starts 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > signing out (no user) and switching studio both count as a change 1ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > a row past the point of no return is left to finish 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > files added before the identity was known take the first one, and are not canceled by it 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > demo mode (no signed-in user) is a stable identity, not a change 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > R4-07: an org id of null is a refresh, not a studio change > org null with the same user is ignored, and the org coming back changes nothing 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > R4-07: an org id of null is a refresh, not a studio change > a different non-null org id is a change 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > R4-07: an org id of null is a refresh, not a studio change > a user id that is null or different is a change, even when the org is null too 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > R4-07: an org id of null is a refresh, not a studio change > a user with no org yet adopts the org that arrives, without canceling their own uploads 0ms
+ ✓ src/lib/upload-manager.test.ts > upload manager: who added each file (R3-07) > files added after the change upload as the new user 0ms
+ ✓ src/lib/upload-manager.test.ts > isFolderDrop > is true only for a directory entry 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-01 files ready: exact subject, heading, button and every file with its size 17ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-01 the wrapped email carries the studio name, its accent and a readable button 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-02 pay to unlock: exact subject, the amount and the Pay and unlock button 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > drops the comma and the name when there is no first name 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-03 a hostile name, title or file name is escaped and never raw 1ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-04 a light accent gets dark button ink and a dark accent gets light ink 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > E-06 no em dash in any output 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > B-04 the button sits in the body under the file list and above the small print, as in the mockup 1ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > B-04 the button is the layout's own button, in the studio accent with readable ink 1ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > V3-06 a title that already ends with session is not followed by a second session 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > V3-06 the message log copy has a blank line between the heading and the body 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > R3-02 the pay email without an online target: no button, and the studio will send a way to pay 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > P4-03 no online target and an invoice already open: pay it with the invoice the studio sent 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > P4-03 no open invoice: the studio will send a way to pay, as before; with a target: the button, as before 0ms
+ ✓ convex/lib/emailTemplates/sessionDelivery.test.ts > session delivery emails > formatBytes: decimal units, three significant figures 0ms
+ ✓ convex/subaccountDeletion.test.ts > step 1: what dies > counts the real data and warns about what makes it worse 309ms
+ ✓ convex/deliverySender.test.ts > delivery email sender (F2-11) > F2-11 delivery.ready and delivery.pay come from the studio via Pulse 281ms
+ ✓ convex/deliverySender.test.ts > delivery email sender (F2-11) > F2-11 a hostile studio name cannot add an address or a header 7ms
+ ✓ convex/deliverySender.test.ts > delivery email sender (F2-11) > F2-11 other notification kinds keep today's sender 7ms
+ ✓ convex/deliverySender.test.ts > delivery email sender (F2-11) > F2-11 studioSender keeps ordinary names and falls back when nothing is left 0ms
+ ✓ convex/dataRights.test.ts > GDPR data rights - export + erasure > exports the subject's data bundle 418ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > refuses to delete without a request 6ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > refuses a name that is not an exact match 9ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > refuses without the phrase 6ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > refuses a token from a different studio 3ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > refuses an expired confirmation 4ms
+ ✓ convex/subaccountDeletion.test.ts > the three gates > cancelling clears the pending request 8ms
+ ✓ convex/subaccountDeletion.test.ts > the deletion itself > removes the workspace and everything in it 15ms
+ ✓ convex/subaccountDeletion.test.ts > the deletion itself > leaves every other studio completely untouched 14ms
+ ✓ convex/subaccountDeletion.test.ts > the deletion itself > cannot erase the evidence of itself 8ms
+ ✓ convex/subaccountDeletion.test.ts > the deletion itself > keeps a beta signature record and detaches it from the dead workspace 16ms
+ ✓ convex/dataRights.test.ts > GDPR data rights - export + erasure > anonymizes the client and scrubs their identity from records 9ms
+ ✓ convex/dataRights.test.ts > GDPR data rights - export + erasure > scrubs the session file delivery copies: the designed email html and the delivery's sentTo 9ms
+ ✓ convex/dataRights.test.ts > GDPR data rights - export + erasure > cannot erase a client in another org (tenant isolation) 16ms
+ ✓ convex/dataRights.test.ts > GDPR data rights - export + erasure > is idempotent - erasing twice is a no-op the second time 4ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 an engineer uploads and the file is listed with its name and size 422ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 a signed-out caller gets null from list and an error from prepareUpload 13ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 a member of studio B gets null for studio A's booking 13ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 downloadUrl returns a signed URL for staff 14ms
+ ✓ convex/payments.test.ts > settlePayment (pinned behavior) > R-02 a deposit on an unpaid booking records the deposit, confirms a tentative booking and emails the client once 57ms
+ ✓ convex/payments.test.ts > settlePayment (pinned behavior) > R-02 a balance payment pays the booking in full and emails the client once, and the team is alerted 27ms
+ ✓ convex/payments.test.ts > settlePayment (pinned behavior) > R-02 settling a fully paid booking throws 6ms
+ ✓ convex/payments.test.ts > settlePayment (pinned behavior) > R-02 a cancelled booking throws 9ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 an engineer can delete their own file and not another member's 61ms
+ ✓ convex/sessionFiles.test.ts > session files (pinned behavior) > R-01 an owner can delete any file 14ms
+ ✓ src/lib/format.test.ts > moneyExact > always shows two decimals 16ms
+ ✓ src/lib/format.test.ts > moneyExact > groups thousands 0ms
+ ✓ src/lib/format.test.ts > moneyExact > never prints NaN or Infinity 0ms
+stderr | node_modules/convex-test/dist/index.js:1111:41
+Error when running scheduled function notifications:deliver Error [EnvironmentTeardownError]: Cannot load '/convex/lib/text.ts' imported from /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts after the environment was torn down. This is not a bug in Vitest. The last recorded callstack:
+- /convex/lib/text.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts
+- /Users/myindsound/dev/pulse-session-delivery/node_modules/convex-test/dist/index.js
+- /Users/myindsound/dev/pulse-session-delivery/convex/testing/sessionDelivery.fixture.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/payments.test.ts
+    at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:546:14)
+    at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+    at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+    at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+    at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+    at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1 {
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:547:64)
+      at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+      at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+      at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+      at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+      at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1
+}
+Error when running scheduled function notifications:deliver Error [EnvironmentTeardownError]: Cannot load '/convex/lib/text.ts' imported from /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts after the environment was torn down. This is not a bug in Vitest. The last recorded callstack:
+- /convex/lib/text.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts
+- /Users/myindsound/dev/pulse-session-delivery/node_modules/convex-test/dist/index.js
+- /Users/myindsound/dev/pulse-session-delivery/convex/testing/sessionDelivery.fixture.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/payments.test.ts
+    at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:546:14)
+    at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+    at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+    at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+    at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+    at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1 {
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:547:64)
+      at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+      at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+      at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+      at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+      at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1
+}
+Error when running scheduled function notifications:deliver Error [EnvironmentTeardownError]: Cannot load '/convex/lib/text.ts' imported from /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts after the environment was torn down. This is not a bug in Vitest. The last recorded callstack:
+- /convex/lib/text.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts
+- /Users/myindsound/dev/pulse-session-delivery/node_modules/convex-test/dist/index.js
+- /Users/myindsound/dev/pulse-session-delivery/convex/testing/sessionDelivery.fixture.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/payments.test.ts
+    at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:546:14)
+    at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+    at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+    at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+    at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+    at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1 {
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:547:64)
+      at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+      at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+      at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+      at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+      at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1
+}
+Error when running scheduled function notifications:deliver Error [EnvironmentTeardownError]: Cannot load '/convex/lib/text.ts' imported from /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts after the environment was torn down. This is not a bug in Vitest. The last recorded callstack:
+- /convex/lib/text.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts
+- /Users/myindsound/dev/pulse-session-delivery/node_modules/convex-test/dist/index.js
+- /Users/myindsound/dev/pulse-session-delivery/convex/testing/sessionDelivery.fixture.ts
+- /Users/myindsound/dev/pulse-session-delivery/convex/payments.test.ts
+    at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:546:14)
+    at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+    at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+    at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+    at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+    at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+    at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1 {
+  runnerError: Error: RunnerError
+      at reviveInvokeError (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:547:64)
+      at Object.invoke (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:562:33)
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at VitestModuleRunner.getModuleInformation (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1194:7)
+      at request (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1211:83)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/lib/email.ts:8:1
+      at VitestModuleEvaluator._runInlinedModule (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vitest/dist/module-evaluator.js:206:4)
+      at VitestModuleRunner.directRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1254:59)
+      at VitestModuleRunner.cachedRequest (file:///Users/myindsound/dev/pulse-session-delivery/node_modules/vite/dist/node/module-runner.js:1161:73)
+      at /Users/myindsound/dev/pulse-session-delivery/convex/notifications.ts:7:1
+}
+
+ ✓ src/lib/upload-queue.test.ts > queueReducer > adds items as queued with nothing sent 2ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > start, progress and done move one item and leave the others alone 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > clamps progress to the file size and never moves backwards 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > a failure keeps its reason on that row only 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > cancel works on queued and uploading rows, and ignores late events after it 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > cancel does not touch a finished row 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > remove drops one row 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > after commit (the point of no return) cancel is ignored and the row ends done 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > commit only applies to an uploading row 1ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > refuse adds a row that is already failed with its reason 0ms
+ ✓ src/lib/upload-queue.test.ts > queueReducer > a zero byte file can still finish 0ms
+ ✓ src/lib/upload-queue.test.ts > nextToStart > allows at most MAX_PARALLEL uploads at once, oldest first 0ms
+ ✓ src/lib/upload-queue.test.ts > nextToStart > a canceled or failed upload frees a slot and the others keep going 0ms
+ ✓ src/lib/upload-queue.test.ts > etaText > is empty before two seconds of data 0ms
+ ✓ src/lib/upload-queue.test.ts > etaText > says a few seconds when the end is near 0ms
+ ✓ src/lib/upload-queue.test.ts > etaText > counts minutes 0ms
+ ✓ src/lib/upload-queue.test.ts > etaText > counts hours for very slow links 0ms
+ ✓ src/lib/upload-queue.test.ts > etaText > is empty when finished or the clock is odd 0ms
+ ✓ convex/subaccountDeletion.test.ts > banking and receipt cleanup > deletes the studio's receipt files and schedules encrypted Plaid cleanup while keeping other studios 185ms
+ ✓ convex/subaccountDeletion.test.ts > catalog and royalty tables > every org-owned catalog/royalty table dies with the workspace 0ms
+ ✓ convex/subaccountDeletion.test.ts > session delivery and media library tables (F2-08) > every org-owned session delivery and media library table is listed 0ms
+ ✓ convex/subaccountDeletion.test.ts > session delivery and media library tables (F2-08) > a deleted workspace takes its delivery rows with it, and leaves another studio's alone 14ms
+ ✓ src/lib/press-guard.test.ts > createPressGuard > runs the first press and refuses repeats of the same key until it settles 1ms
+ ✓ src/lib/press-guard.test.ts > createPressGuard > different keys run side by side 1ms
+ ✓ src/lib/press-guard.test.ts > createPressGuard > anyBusy covers a group of controls that share one request at a time 0ms
+ ✓ src/lib/press-guard.test.ts > createPressGuard > a failed request frees the key and the error reaches the caller 0ms
+ ✓ src/lib/press-guard.test.ts > createPressGuard > a function that throws synchronously also frees the key 0ms
+ ✓ src/lib/press-guard.test.ts > focusRescue > waits while the pressed button is still on the page 0ms
+ ✓ src/lib/press-guard.test.ts > focusRescue > moves focus when the button is gone and focus fell to the page or the dialog container 0ms
+ ✓ src/lib/press-guard.test.ts > focusRescue > leaves focus alone when the person moved to something else themselves 0ms
+ ✓ src/lib/press-guard.test.ts > focusRescue > gives up after the window closes, even if focus is lost 0ms
+ ✓ src/components/delivery/row-layout.test.ts > row stacking threshold (V4-03) > is the icon, gaps, an 8rem name and the controls, in rem 2ms
+ ✓ src/components/delivery/row-layout.test.ts > row stacking threshold (V4-03) > the class names carry the computed numbers 0ms
+ ✓ src/components/delivery/row-layout.test.ts > row stacking threshold (V4-03) > the controls wrap and may shrink when stacked, and never take a fixed width 1ms
+ ✓ src/components/delivery/row-layout.test.ts > row layout on a 390 px phone (V4-03) > the row's container is 328 px at 100% text 0ms
+ ✓ src/components/delivery/row-layout.test.ts > row layout on a 390 px phone (V4-03) > audio row (two controls): one line at 100%, stacked at 150% and 200% 0ms
+ ✓ src/components/delivery/row-layout.test.ts > row layout on a 390 px phone (V4-03) > single-control row: one line at 100%, stacked at 150% and 200% 0ms
+ ✓ src/components/delivery/row-layout.test.ts > row layout on a 390 px phone (V4-03) > inline, the name keeps at least 8rem 0ms
+ ✓ convex/subaccountDeletion.test.ts > session delivery and media library tables (F2-08) > agency._deleteSubaccount takes the delivery rows too 166ms
+ ✓ convex/subaccountDeletion.test.ts > session delivery and media library tables (F2-08) > wiping demo bookings one by one deletes their delivery rows (deleteDeliveryForSession) 53ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > picks only black or white 2ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > every result reads at 4.5:1 or better on the accent 0ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > picks the higher ratio of the two 0ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > known picks 0ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > the Pulse gold fallback follows the same rule 0ms
+ ✓ src/components/delivery/format.test.ts > inkFor (V4-02) > contrastRatio matches the WCAG reference values 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > reads the light surfaces it expects 1ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > every text color is at least 4.5:1 on every light surface 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > the focus ring (gold text) is at least 3:1 on every light surface 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > the gold is the mockup's text gold 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > the light theme's own gold and signal tokens fail as text, which is why these exist 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: light theme > never applies under the dark-only hardware kit 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: dark theme (stock tokens) > gold, positive, critical and caution are at least 4.5:1 on every dark surface 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: hardware kit (dark only) > the kit's red is under 4.5:1 on its raised face, so the module replaces it 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: hardware kit (dark only) > gold and positive text read at 4.5:1 on the faces text sits on 0ms
+ ✓ src/components/delivery/text-safe.test.ts > text-safe colors: hardware kit (dark only) > icons on the high face (file tiles) clear 3:1 0ms
+ ✓ src/components/delivery/platform.test.ts > isTouchApple > catches iPhone and iPad, including iPadOS reporting as a Mac 1ms
+ ✓ src/components/delivery/platform.test.ts > isTouchApple > catches other iOS browsers (all of them are WebKit underneath) 0ms
+ ✓ src/components/delivery/platform.test.ts > isTouchApple > leaves a real Mac, Android and Windows alone 0ms
+ ✓ src/components/delivery/platform.test.ts > downloadMethod (R3-06) > iPhone and iPad load one file by navigating the page; the attachment header keeps the page in place 0ms
+ ✓ src/components/delivery/platform.test.ts > downloadMethod (R3-06) > desktop and Android keep a hidden frame per file 0ms
+ ✓ src/components/delivery/platform.test.ts > downloadMethod (R3-06) > never chains page navigations for several files, even on iPhone 0ms
+ ✓ src/lib/format-bytes.test.ts > formatBytes (decimal, same as the delivery email) > uses decimal units and three significant figures 1ms
+ ✓ src/lib/format-bytes.test.ts > formatBytes (decimal, same as the delivery email) > says 1 MB rather than 1000 KB 0ms
+ ✓ src/lib/format-bytes.test.ts > formatBytes (decimal, same as the delivery email) > is 0 B for nothing, a negative or a non-number 0ms
+ ✓ src/lib/format-bytes.test.ts > formatBytes (decimal, same as the delivery email) > gives the same text as the backend for every size the app shows 0ms
+ ✓ convex/notifications.test.ts > notificationEmailHtml > renders a row without html exactly as before 2ms
+ ✓ convex/notifications.test.ts > notificationEmailHtml > wraps a designed body (which carries its own button) with the studio accent on the header bar 1ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (a) rate $400, $100 paid, $300 invoice paid, rate raised to $450: owed $50, no button 586ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (b) rate $400, $100 paid, $300 invoice sent, a $100 package hour redeemed: owed $200, no button 30ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (c) a $300 DRAFT invoice: owed $300, no button, invoice_not_sent; once sent, the invoice for $300 73ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (d) rate $360, nothing paid, no invoice, the room takes no deposit: the checkout, $360 12ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (d) nothing paid and the room sells paid in full: the checkout, $360 11ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 (d) nothing paid and the checkout offers a deposit or the full amount: no single amount, no button 8ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 a part-paid booking with no invoice: the checkout charges the balance, which is what is owed 9ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-23 (e) hidden prices: no button, no amount on the page, in the pay email or in its log copy 8ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-21 G-23 (e) V4-01 hidden prices with an open invoice for exactly what is owed: no button on the page or in the email; paying the invoice unlocks the page by itself 12ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > V4-01 hidden prices never get a target, whatever is open, drafted or owed (prices_hidden) 29ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R4-03 rate $400, deposit $120, nothing paid, discounted to $100: the checkout shows a $120 deposit, so no button 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R4-03 the deposit shown equals what is owed: the checkout is still offered 8ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-22 (f) R3-03 an old row whose deposit is only the depositPaid flag: owed $300, its $300 invoice is the target, paying it releases 10ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-22 R3-03 the same old row with the invoice already paid: nothing owed, Ready releases at once 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > G-22 R3-03 the old row with no invoice: the checkout would charge the whole $400 for $300 owed, so no button 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-01 a studio that cannot take cards online gets no button, whatever the invoices say 8ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-01 a cancelled booking offers nowhere to pay 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-01 two open invoices that add up to what is owed: no button (neither charges it) 7ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-01 nothing owed: nothing_owed, and Ready releases 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-02 the pay email without a target: no button, the amount and how it will be paid 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay button only for the exact amount (Addendum 3) > R3-02 the pay email with a target is as before: the amount on its button, which goes to the delivery page 4ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: an open invoice that is not what is owed (R4-01) > R4-01 one open invoice for less than is owed: open_invoice_wrong_amount, and the card names the invoice 6ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: an open invoice that is not what is owed (R4-01) > R4-01 viewed and overdue count as open, and so do two open invoices that only add up to what is owed 17ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: an open invoice that is not what is owed (R4-01) > R4-01 without money sight the open invoice is not returned at all 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: an open invoice that is not what is owed (R4-01) > R4-01 no open invoice: amount_mismatch stays, openInvoice null; a draft or paid or void invoice is not open 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: an open invoice that is not what is owed (R4-01) > R4-01 an open invoice that is the target is still reported to the card 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 true for a sent, viewed or overdue invoice; no invoice number and no invoice amount on the page 16ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 false with no invoice, or only a draft, paid or void one 18ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 the open invoice that is the target: true, and payUrl and balanceCents are what they were 4ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 hidden prices with an open invoice: true, still no button and no amount 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 cards off with the open invoice for what is owed: true, no button, the amount as before 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: page.invoiceOpen (P4-02) > P4-02 false once the page is unlocked, even with an invoice still open 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the pay email when an invoice is already open (P4-03) > P4-03 an open invoice for another amount: no button, pay it with the invoice the studio sent 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the pay email when an invoice is already open (P4-03) > P4-03 cards off with the open invoice for exactly what is owed: no button, pay it with the invoice 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the pay email when an invoice is already open (P4-03) > P4-03 decided when the email is built: a resend after the invoice goes out says to pay it 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the pay email when an invoice is already open (P4-03) > P4-03 with a target the email is as before, even though that target is an open invoice 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: a no-show booking delivers nothing (R4-02) > R4-02 Ready to deliver is refused on a no-show: no row, no email; the card says no-show, not cancelled 25ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: a no-show booking delivers nothing (R4-02) > R4-02 the no-show is billed and recorded exactly as before (the shield's fee, the deposit kept, a draft for the rest) 3ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: a no-show booking delivers nothing (R4-02) > R4-02 a waiting delivery whose booking becomes a no-show: dead link, never releases, even once everything is paid 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > A-08 a signed-out caller cannot call any staff function 54ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > A-09 a member of another studio cannot call any staff function on this booking 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > A-10 an engineer cannot releaseNow or turnOff 10ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > A-11 an engineer never receives the balance amount; an owner does 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > setFinal marks and unmarks a file, and the session file list reports it 8ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-01 paid first, then Ready: released and one files ready email 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-02 Ready first, then paid: one pay to unlock email, then one files ready email when the payment settles 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-03 a deposit that leaves a balance does not release 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-04 a Stripe payment releases the same way as a manual one 56ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-05 a comp that leaves nothing owed releases 36ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-05 a discount that still leaves a balance does not release 18ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-06 release happens once: a second settle call sends no second email 10ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-07 the settling payment sends one client email, not two; with no delivery Paid in full still goes 27ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-08 markReady refuses with no Final files: clear error, no row, no email 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-09 markReady refuses with no client email, and status says there is none 4ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-10 an owner or manager's Send now anyway releases without payment and records who did it 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-12 resend sends again to the booked email and starts a fresh 30 days 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-12 resend on a waiting delivery sends the pay email again 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-13 Ready to deliver after Turn off issues a new token; the old one stays dead 10ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > G-14 a cancelled booking cannot be marked ready, and a delivery on it does not release 37ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > B-01 a payment that cannot release (no Final file left) leaves the delivery row unchanged and Paid in full still goes 17ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > B-01 the client row is gone: the payment lands, the delivery row is unchanged, the team is told 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > B-01 onBalanceSettled writes nothing and returns false when it cannot send the files email 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > B-03 the message log (forSession, recent) carries no amount, no link and no designed html 13ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > RF-3 two Ready to deliver taps leave one row and one email 13ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > RF-3 the same holds for a paid booking (released on the first tap) 8ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > RF-4 a booking comped to 0 before anyone taps Ready releases straight away 8ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: staff side and the payment trigger > A-15 the message log copy carries no link token 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > page: an unlocked delivery lists the Final files only, newest first, with the studio's brand 13ms
+stdout | convex/sessionDeliveryPay.test.ts > session delivery: the Pay rule over random bookings (G-21 property) > G-21 R4-06 for 600 random bookings: owed matches an independent sum; a button only for exactly what is owed; cancelled and no-show never pay or release; released only at 0 owed
+[G-21 property] seed 20261113 { invoice: 10, checkout: 22, none: 568, released: 148, closed: 183 }
+
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: a no-show booking delivers nothing (R4-02) > R4-02 a released delivery whose booking becomes a no-show: the page and every file link go dead 8ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: a no-show booking delivers nothing (R4-02) > R4-02 a cancelled booking still says cancelled, and noShow is false 5ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay rule over random bookings (G-21 property) > G-21 R4-06 for 600 random bookings: owed matches an independent sum; a button only for exactly what is owed; cancelled and no-show never pay or release; released only at 0 owed 1133ms
+ ✓ convex/sessionDeliveryPay.test.ts > session delivery: the Pay rule over random bookings (G-21 property) > checkoutKindsOffered agrees with the checkout page's own checkoutView for every payment mode, deposit and status 0ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > page: a waiting delivery is locked with the balance and the booking's checkout 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-01 unknown, malformed, off and expired tokens all get the same null from page 16ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-02 fileUrl refuses while the delivery is waiting for payment 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-03 fileUrl refuses a file that is not marked Final 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-04 fileUrl refuses a Final file from another booking of the same studio 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-05 fileUrl refuses a file from another studio 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-06 fileUrl refuses after Turn off link and after expiry 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-07 page never returns a file URL, an R2 key or the token 12ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-07 with a studio logo: the logo is a public media URL and nothing from the private bucket appears 8ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-07 a logo that points at a private-bucket file is not signed onto the public page 10ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-12 unmarking Final removes the file from the page and from fileUrl at once 8ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-13 deleting a Final file removes it from the client page 20ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-14 fileUrl is rate limited: 120 an hour, the 121st refused, the next window allowed 100ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > F2-09 a play is not counted as a download, but every mint counts toward the rate limit 80ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > A-15 public results carry no token 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > G-11 a released delivery stays released after the rate is raised 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > G-13 the old link stays dead after a new Ready to deliver 30ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 refresh releases a waiting delivery once nothing is owed, exactly once 12ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 refresh with a balance still owed changes nothing 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 refresh never throws for a bad token, and a dead link never releases 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 a package redemption that leaves nothing owed releases 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 a shorter session that leaves nothing owed releases 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > B-02 a recorded deposit that covers the whole rate releases 5ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > opened stamps first and last opened at most once a minute, and never throws 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > RF-1 safeDownloadName: quotes, slashes, backslashes and newlines are gone, letters stay 1ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > RF-1 a hostile file name downloads under a safe name and the header stays whole 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > RF-2 a Final file with a newer version: the page lists and serves only the latest 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: public page and downloads > RF-5 every Final file unmarked, or deleted, or the booking cancelled: the page answers like an unknown link 29ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-15 Ready first, then the balance invoice is paid online: released, one files email, no separate invoice receipt 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-15 with no delivery on the booking the invoice receipt still goes 4ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-16 balance invoice paid first, then Ready: released at once, no pay to unlock email 5ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-17 marking the invoice paid by hand releases the same way, with one email 40ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-17 charging a saved card releases the same way 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-18 a paid invoice smaller than what is owed does not release 5ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-18 a void invoice and a draft invoice count for nothing 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-18 an invoice from another studio naming this booking counts for nothing 4ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-18 a paid fee invoice on a cancelled booking delivers nothing 4ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-19 the locked page's Pay button goes to the open invoice when one exists, to checkout only with no invoice, and nowhere while a draft waits (Addendum 3) 10ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-20 a non-finite or negative rate never releases 11ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > G-20 setComp refuses a non-finite amount and writes nothing 4ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > F2-03 settleDeliveryQuietly swallows a failure, logs only its message and returns false 2ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > F2-03 every caller outside sessionDelivery.ts goes through the guarded helper 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04) > F2-03 a payment that leaves nothing owed through invoices plus a deposit releases (no stale caller check) 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: erasure (F2-02) > A-16 erasing a client turns their link off and the old link answers like an unknown one 20ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: erasure (F2-02) > F2-02 erasure also revokes the client's portal links (the same class: a live credential left behind) 3ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: erasure reads grants through bounded indexes (V3-04) > V3-04 eraseArtist never collects collaboratorGrants; every grant read is an index narrowed to this client with a bound 1ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: erasure reads grants through bounded indexes (V3-04) > V3-04 erasure revokes every grant of the client, past the first page, and no one else's 45ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > V3-02 greetingName: a person by first name, a band, label or other client by the whole name 2ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > R4-05 greetingName: a stage name or a short first word is greeted whole; an erased client is not greeted 1ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > R4-05 an erased client is greeted by no name on the card 1ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > V3-02 a band is greeted by its whole name on the card, in both emails and on the page 5ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > V3-02 a label is greeted as itself; a person still by first name 2ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: who the client is greeted as (V3-02) and the title (V3-06) > V3-06 a booking titled Writing session: the emails say it once, and the log copy has a blank line after the heading 5ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: moving a file (F2-05) > A-17 a Final file moved to another booking is no longer Final 9ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: moving a file (F2-05) > A-17 editing a Final file without moving it keeps it Final 7ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: resend throttle (F2-06) > A-18 resend within 2 minutes of the last send is refused and sends nothing 6ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: many working files (F2-07) > F2-07 a booking with 205 working files and 3 Final files lists all 3 13ms
+ ✓ convex/sessionDelivery.test.ts > session delivery: dates in the studio's zone (F2-10) > C-13 a session at 11 PM Pacific shows the same date in the email and on the page 8ms
+
+ Test Files  20 passed (20)
+      Tests  321 passed (321)
+   Start at  15:03:53
+   Duration  5.19s (transform 7.77s, setup 0ms, import 9.09s, tests 5.70s, environment 2.31s)
+
+exit 0

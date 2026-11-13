@@ -1,0 +1,146 @@
+[
+ {
+  "k": "chk",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are finished, Jordan Your Vocal tracking session from November 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Pay $180.00 and unlock Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Jordan | Your Vocal tracking session from November 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "draft",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": false,
+  "text": "Your files are finished, Dana Your Demo vocals session from November 10 is finished and waiting. There is a $300.00 balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Dana | Your Demo vocals session from November 10 is finished and waiting. There is a balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "openok",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are finished, Owen Your Mix revisions session from November 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Pay $180.00 and unlock Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Owen | Your Mix revisions session from November 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "openok",
+  "kind": "delivery.ready",
+  "subject": "Your files from Mix revisions are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, Owen Everything from your Mix revisions session on November 10 is ready to download. Payment received: $180.00. Thank you. Lead vocal comp.wav 41.3 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, Owen | Everything from your Mix revisions session on November 10 is ready to download. Payment received. Thank you. | - Lead vocal comp.wav (41.3 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ },
+ {
+  "k": "openwrong",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": false,
+  "text": "Your files are finished, Priya Your Guitar overdubs session from November 10 is finished and waiting. There is a $300.00 balance on this booking. Pay it with the invoice Myind Sound sent you. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Priya | Your Guitar overdubs session from November 10 is finished and waiting. There is a balance on this booking. Pay it with the invoice Myind Sound sent you. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "mismatch",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": false,
+  "text": "Your files are finished, Theo Your Writing session from November 10 is finished and waiting. There is a $360.00 balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Theo | Your Writing session from November 10 is finished and waiting. There is a balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "hidden",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": false,
+  "text": "Your files are finished, Nadia Your Acoustic set session from November 10 is finished and waiting. There is a balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Nadia | Your Acoustic set session from November 10 is finished and waiting. There is a balance on this booking. Myind Sound will send you a way to pay it. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "hiddenopen",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": false,
+  "text": "Your files are finished, Kai Your Piano session from November 10 is finished and waiting. There is a balance on this booking. Pay it with the invoice Myind Sound sent you. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Kai | Your Piano session from November 10 is finished and waiting. There is a balance on this booking. Pay it with the invoice Myind Sound sent you. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "band",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are finished, The Midnight Tape Your Live tracking session from November 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Pay $180.00 and unlock Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, The Midnight Tape | Your Live tracking session from November 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "band",
+  "kind": "delivery.ready",
+  "subject": "Your files from Live tracking are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, The Midnight Tape Everything from your Live tracking session on November 10 is ready to download. Payment received: $180.00. Thank you. Lead vocal comp.wav 41.3 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, The Midnight Tape | Everything from your Live tracking session on November 10 is ready to download. Payment received. Thank you. | - Lead vocal comp.wav (41.3 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ },
+ {
+  "k": "label",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are finished, Crosstown Records Your Label showcase session from November 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Pay $180.00 and unlock Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Crosstown Records | Your Label showcase session from November 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "label",
+  "kind": "delivery.ready",
+  "subject": "Your files from Label showcase are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, Crosstown Records Everything from your Label showcase session on November 10 is ready to download. Payment received: $180.00. Thank you. Lead vocal comp.wav 41.3 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, Crosstown Records | Everything from your Label showcase session on November 10 is ready to download. Payment received. Thank you. | - Lead vocal comp.wav (41.3 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ },
+ {
+  "k": "lilbaby",
+  "kind": "delivery.pay",
+  "subject": "Your files are ready. One step left",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are finished, Lil Baby Your Feature verse session from November 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away. Lead vocal comp.wav 41.3 MB Pay $180.00 and unlock Already paid? Reply to this email and the studio will sort it out.",
+  "logBody": "Your files are finished, Lil Baby | Your Feature verse session from November 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away. | - Lead vocal comp.wav (41.3 MB) | Already paid? Reply to this email and the studio will sort it out."
+ },
+ {
+  "k": "lilbaby",
+  "kind": "delivery.ready",
+  "subject": "Your files from Feature verse are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, Lil Baby Everything from your Feature verse session on November 10 is ready to download. Payment received: $180.00. Thank you. Lead vocal comp.wav 41.3 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, Lil Baby | Everything from your Feature verse session on November 10 is ready to download. Payment received. Thank you. | - Lead vocal comp.wav (41.3 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ },
+ {
+  "k": "released",
+  "kind": "delivery.ready",
+  "subject": "Your files from Midnight Drive mixdown are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, Marisol Everything from your Midnight Drive mixdown session on November 10 is ready to download. Session Notes.pdf 212 KB Midnight Drive - Stems.zip 1.42 GB Midnight Drive - Master.wav 61.4 MB Midnight Drive - Final Mix.wav 58.2 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, Marisol | Everything from your Midnight Drive mixdown session on November 10 is ready to download. | - Session Notes.pdf (212 KB) | - Midnight Drive - Stems.zip (1.42 GB) | - Midnight Drive - Master.wav (61.4 MB) | - Midnight Drive - Final Mix.wav (58.2 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ },
+ {
+  "k": "late",
+  "kind": "delivery.ready",
+  "subject": "Your files from Late night vocals are ready",
+  "accent": "#fdb913",
+  "hasButton": true,
+  "text": "Your files are ready, Iris Everything from your Late night vocals session on November 10 is ready to download. Lead vocal comp.wav 41.3 MB Download your files The link works until December 13, 2026. If it stops working, reply to this email for a new one.",
+  "logBody": "Your files are ready, Iris | Everything from your Late night vocals session on November 10 is ready to download. | - Lead vocal comp.wav (41.3 MB) | The link works until December 13, 2026. If it stops working, reply to this email for a new one."
+ }
+]
