@@ -156,10 +156,28 @@ describe("session delivery: staff side and the payment trigger", () => {
   });
 
   it("G-04 a Stripe payment releases the same way as a manual one", async () => {
+    // Through the real webhook handler (billingWebhooks.handle), with the event
+    // Stripe sends when the booking's checkout on the studio's connected
+    // account completes. Only the signature check in the HTTP route is skipped.
     await finalFile(s);
     await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
-    await settle(s, s.A.sessionId, "balance", "stripe");
+    await s.t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { stripeAccountId: "acct_studio_a" });
+    });
+    const event = (id: string, account: string) => ({
+      id, type: "checkout.session.completed", account,
+      data: { object: { id: `cs_${id}`, payment_intent: `pi_${id}`, metadata: { sessionId: s.A.sessionId, kind: "balance" } } },
+    });
+    // Another studio's Stripe account cannot settle this booking.
+    await s.t.mutation(internal.billingWebhooks.handle, { event: event("evt_wrong", "acct_someone_else") });
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+
+    await s.t.mutation(internal.billingWebhooks.handle, { event: event("evt_paid", "acct_studio_a") });
     expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+    // Stripe retries the same event: nothing more is sent.
+    expect(await s.t.mutation(internal.billingWebhooks.handle, { event: event("evt_paid", "acct_studio_a") })).toEqual({ duplicate: true });
     expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
   });
 
@@ -609,6 +627,44 @@ describe("session delivery: public page and downloads", () => {
     expect(json).not.toContain(`${R2_KEY_PREFIX}/studio_`);
     for (const k of await s.t.run(async (ctx) => (await ctx.db.query("mediaFiles").take(50)).map((m) => m.key))) expect(json).not.toContain(k);
     expect(json).not.toContain(w.token);
+  });
+
+  it("A-07 with a studio logo: the logo is a public media URL and nothing from the private bucket appears", async () => {
+    const { token } = await released(s);
+    await s.t.run(async (ctx) => {
+      const logo = await ctx.db.insert("mediaFiles", {
+        orgId: "studio_a", bucket: "media", key: `${R2_KEY_PREFIX}/studio_a/logo/mark-1.png`, purpose: "logo",
+        fileName: "mark.png", mimeType: "image/png", size: 2048, status: "ready", uploadedBy: "u_owner", createdAt: Date.now(),
+      });
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { logoId: logo });
+    });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.studio.logoUrl).toBe(`https://media.example.test/${R2_KEY_PREFIX}/studio_a/logo/mark-1.png`);
+    const json = JSON.stringify(p);
+    expect(json).not.toContain("r2.cloudflarestorage.com");
+    expect(json).not.toContain("X-Amz");
+    expect(json).not.toContain("pulse-private");
+    const privateKeys = await s.t.run(async (ctx) =>
+      (await ctx.db.query("mediaFiles").take(50)).filter((m) => m.bucket === "private").map((m) => m.key),
+    );
+    expect(privateKeys.length).toBeGreaterThan(0);
+    for (const k of privateKeys) expect(json).not.toContain(k);
+    expect(json).not.toContain(token);
+  });
+
+  it("A-07 a logo that points at a private-bucket file is not signed onto the public page", async () => {
+    const { a, token } = await released(s);
+    await s.t.run(async (ctx) => {
+      const version = await ctx.db.get(a.versionId);
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { logoId: version!.mediaId });
+    });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.studio.logoUrl).toBeNull();
+    const json = JSON.stringify(p);
+    expect(json).not.toContain("X-Amz");
+    expect(json).not.toContain("r2.cloudflarestorage.com");
   });
 
   it("A-12 unmarking Final removes the file from the page and from fileUrl at once", async () => {

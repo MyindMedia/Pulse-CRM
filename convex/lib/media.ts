@@ -150,6 +150,17 @@ export async function fileUrl(ctx: Reader, ref: FileRef | null | undefined, opts
   return await ctx.storage.getUrl(ref as Id<"_storage">);
 }
 
+/** A URL for a file that is public by nature: a media-bucket file (its public
+ *  CDN URL) or a legacy Convex storage file. Never signs a private-bucket file,
+ *  so it is safe on a page anyone with a link can open; such a file answers
+ *  null, as does a missing or unfinished one. */
+export async function publicFileUrl(ctx: Reader, ref: FileRef | null | undefined): Promise<string | null> {
+  if (!ref) return null;
+  const row = await asMedia(ctx, ref);
+  if (row) return row.status === "ready" && row.bucket === "media" ? publicUrl(row.key, rowBucket(row)) : null;
+  return await ctx.storage.getUrl(ref as Id<"_storage">);
+}
+
 /** RFC 5987 percent-encoding for a `filename*` value. */
 function rfc5987(s: string): string {
   return encodeURIComponent(s).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);

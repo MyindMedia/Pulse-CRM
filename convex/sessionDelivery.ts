@@ -8,7 +8,7 @@ import { currentMoneySight } from "./lib/tenant";
 import { notify } from "./lib/notify";
 import { appUrl } from "./lib/links";
 import { orgTz } from "./lib/tz";
-import { fileUrl as storedFileUrl, signedDownloadUrl } from "./lib/media";
+import { publicFileUrl, signedDownloadUrl } from "./lib/media";
 import { filesReadyEmail, payToUnlockEmail } from "./lib/emailTemplates/sessionDelivery";
 
 /* ============================================================
@@ -634,7 +634,9 @@ export const page = query({
     return {
       studio: {
         name: org?.name ?? "Your studio",
-        logoUrl: org?.logoId ? await storedFileUrl(ctx, org.logoId) : null,
+        // A public page: only a file that is public anyway, never a signed
+        // private-bucket URL, whatever logoId points at.
+        logoUrl: org?.logoId ? await publicFileUrl(ctx, org.logoId) : null,
         accent: accent && HEX_RE.test(accent) ? accent : null,
       },
       booking: {
