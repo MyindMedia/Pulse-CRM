@@ -17,7 +17,7 @@ import {
   serverMessage,
   usd,
 } from "./format";
-import { downloadInFrame, isTouchApple } from "./platform";
+import { downloadByNavigating, downloadInFrame, downloadMethod, isTouchApple } from "./platform";
 import safe from "./text-safe.module.css";
 import { createPressGuard } from "@/lib/press-guard";
 
@@ -34,7 +34,9 @@ import { createPressGuard } from "@/lib/press-guard";
    File bytes never pass through this page or Convex: each click mints one ten
    minute signed R2 link (sessionDelivery.fileUrl). A download loads that link
    in its own hidden frame (the server sends it as an attachment), so the page
-   never navigates away and several downloads never cancel each other. Play
+   never navigates away and several downloads never cancel each other. On
+   iPhone and iPad, which offer one file per tap, the tapped file's link loads
+   in the page itself instead (the attachment header keeps the page in place). Play
    asks for its link with purpose "play", which the server does not count as a
    download.
 
@@ -65,11 +67,13 @@ function rememberLink(cache: LinkCache, id: string, url: string): void {
   cache.set(id, { url, at: Date.now() });
 }
 
-/** Starts one download in a hidden frame. False when the link is unusable. */
-function startDownload(url: string): boolean {
+/** Starts one download, in a hidden frame or (iPhone and iPad, one file) by
+ *  loading it in the page. False when the link is unusable. */
+function startDownload(url: string, method: "navigate" | "frame" = "frame"): boolean {
   const safe = safeHttpUrl(url);
   if (!safe) return false;
-  downloadInFrame(safe);
+  if (method === "navigate") downloadByNavigating(safe);
+  else downloadInFrame(safe);
   return true;
 }
 
@@ -246,6 +250,10 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
       return next;
     });
 
+  // iPhone and iPad start one download per tap, so they get a line instead
+  // of Download all, and each tap loads its file in the page (R3-06).
+  const touchApple = useTouchApple();
+
   // V3-01: Download stays focusable while its link is fetched; a repeat
   // press is refused here instead of by `disabled` (which drops focus).
   const [guard] = React.useState(createPressGuard);
@@ -256,7 +264,8 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
       setBusy((b) => ({ ...b, [versionId]: true }));
       try {
         const { url } = await fileUrl({ token, versionId, purpose: "download" });
-        if (!startDownload(url)) setMessage(versionId, "That file is not available.");
+        const method = downloadMethod({ touchApple, files: 1 });
+        if (!startDownload(url, method)) setMessage(versionId, "That file is not available.");
       } catch (err) {
         setMessage(versionId, serverMessage(err, "That file is not available."));
       } finally {
@@ -267,9 +276,6 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
 
   const [step, setStep] = React.useState<{ at: number; of: number } | null>(null);
   const running = React.useRef(false);
-  // iPhone and iPad start one download per tap, so they get a line instead
-  // of Download all.
-  const touchApple = useTouchApple();
 
   async function downloadAll() {
     if (running.current) return;

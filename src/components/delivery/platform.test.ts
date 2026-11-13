@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isTouchApple } from "./platform";
+import { downloadMethod, isTouchApple } from "./platform";
 
 const IPHONE =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1";
@@ -31,5 +31,20 @@ describe("isTouchApple", () => {
     expect(isTouchApple({ userAgent: ANDROID, maxTouchPoints: 5 })).toBe(false);
     expect(isTouchApple({ userAgent: WINDOWS, maxTouchPoints: 10 })).toBe(false);
     expect(isTouchApple({})).toBe(false);
+  });
+});
+
+describe("downloadMethod (R3-06)", () => {
+  it("iPhone and iPad load one file by navigating the page; the attachment header keeps the page in place", () => {
+    expect(downloadMethod({ touchApple: true, files: 1 })).toBe("navigate");
+  });
+
+  it("desktop and Android keep a hidden frame per file", () => {
+    expect(downloadMethod({ touchApple: false, files: 1 })).toBe("frame");
+    expect(downloadMethod({ touchApple: false, files: 5 })).toBe("frame");
+  });
+
+  it("never chains page navigations for several files, even on iPhone", () => {
+    expect(downloadMethod({ touchApple: true, files: 3 })).toBe("frame");
   });
 });

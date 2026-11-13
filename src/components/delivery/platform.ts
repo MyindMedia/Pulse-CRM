@@ -11,6 +11,23 @@ export function isTouchApple(nav: { userAgent?: string; maxTouchPoints?: number 
   return /\bMacintosh\b/.test(ua) && (nav.maxTouchPoints ?? 0) > 1;
 }
 
+/** How one press of a Download button starts its file (R3-06).
+ *  - "navigate": iPhone and iPad, one file. Safari there does not reliably
+ *    start a download from a hidden frame, so the page itself loads the
+ *    signed link; the server sends it as an attachment, so the page stays
+ *    where it is.
+ *  - "frame": everywhere else, and for more than one file anywhere. Several
+ *    page navigations in a row cancel each other, so they are never chained. */
+export function downloadMethod(opts: { touchApple: boolean; files: number }): "navigate" | "frame" {
+  return opts.touchApple && opts.files === 1 ? "navigate" : "frame";
+}
+
+/** Starts one download by loading the signed link in this page (see
+ *  downloadMethod). Takes a URL that has already passed safeHttpUrl. */
+export function downloadByNavigating(url: string): void {
+  window.location.assign(url);
+}
+
 /** How long a download frame stays in the page. A signed link lives ten
  *  minutes, but the browser has the response (and the download has started)
  *  long before two. */
