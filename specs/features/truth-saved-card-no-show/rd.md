@@ -48,7 +48,7 @@ The audit descriptions are correct.
 
 Files: `convex/billingWebhooks.ts`, `convex/cardOnFile.ts`, `convex/sessions.ts`, `convex/schema.ts`, `src/components/payments/card-capture.tsx`, tests in `convex/cardOnFile.test.ts` (new) and `convex/billing.test.ts`.
 **Schema:** add index `by_stripe_customer` on `artists` (`stripeCustomerId`). Additive, no data migration.
-**Stripe configuration:** the Connect webhook endpoint must be subscribed to `setup_intent.succeeded`. The owner checks this in the Stripe dashboard (Developers, Webhooks, the Connect endpoint) for staging first, then production.
+**Stripe configuration:** the Connect webhook endpoint must be subscribed to **both** `setup_intent.succeeded` (a card staff add with "Add a card") **and** `payment_intent.succeeded` (the card a client saves at checkout under the agreement, and settling a no-show fee charge whose action never heard back). Without `payment_intent.succeeded`, cards saved at checkout are never recorded and no fee is ever charged (it fails safe, but the feature does not work). The owner checks this in the Stripe dashboard (Developers, Webhooks, the Connect endpoint) for staging first, then production.
 **One-time data correction:** cards already saved on Stripe customers are unknown to Pulse. Options: leave them (staff re-add cards), or a one-off script that lists each connected account's customers' payment methods and fills `defaultPaymentMethodId`. Recommend leaving them: a card typed months ago without a clear "you may charge this later" consent is the wrong card to start charging automatically.
 
 ## Decisions for the owner
@@ -63,3 +63,13 @@ Ship the B1 wording change now: tagline to something like "Book it, take the dep
 - A bug in the webhook branch could attach a card to the wrong client (wrong account, wrong customer). The account check, metadata check and customer lookup are the guards; tests must cover each.
 - Turning this on makes `chargeFee` live for the first time: real off-session charges on the studios' Stripe accounts. `chargeFee` has never run in production, so it must get its own tests (amount, idempotency, failure path) before the save goes live.
 - **Rollback:** remove the webhook branch (cards stop saving, behaviour returns to today) and, if charges misfire, clear `defaultPaymentMethodId` on affected artists, which stops `canAutoCharge` immediately. Refunds for any wrong charge are done in the studio's Stripe dashboard.
+
+## Round 2: review findings fixed (2026-11-12)
+Owner decisions applied (from `docs/feature-truth/HIGH-RISK-BUILD.md`, round 2, #205):
+- The saved card is charged automatically **only for a no-show**, never for a cancellation of any kind. A late cancel stays a drafted invoice that staff choose to send (H205-02, H205-04).
+- The charge is never more than the fee minus everything the client already paid for that session (deposit or more). If they paid at least the fee, nothing is charged and no fee invoice is raised (H205-01, H205-03).
+- The charge runs no sooner than 15 minutes after staff mark the no-show (`NO_SHOW_CHARGE_DELAY_MS`). Undoing the no-show in that time cancels it. A session that had not started when it was marked a no-show is never auto-charged (H205-07).
+
+Other fixes: a Stripe customer from a previous or test-mode connection is never reused, and checkout never blocks payment over saving a card (H205-05, H205-06); a charge whose action died is checked against Stripe 15 minutes later and settled or surfaced (H205-08, H205-09); a late fee-charge webhook on an invoice already paid or voided another way, or for a different amount, alerts staff (H205-10, H205-11); the Stripe configuration above names both events (H205-12).
+
+New optional fields: `artists.stripeCustomerAccountId` (the account the customer was made or confirmed on), `sessions.noShowFeeInvoiceId`. No data correction is needed: a legacy customer id with no account recorded is checked with Stripe the next time it is used.
