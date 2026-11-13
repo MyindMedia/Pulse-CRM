@@ -155,3 +155,13 @@ RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 - A-08 names `copyLink`; the function is `link`. Same check.
 - R-05: `npm run check` already exits non-zero on `develop` (53 lint errors, 3 failing tests, one of them not in `docs/ENVIRONMENTS.md`). The bar for this branch is no new failure.
 - E-05: booking emails come from "Pulse", not "Studio via Pulse" as the first correction said. The delivery emails are being changed to "Studio via Pulse" to match the approved mockup; other booking emails keep their sender.
+
+## Added after round 2 (2026-11-13)
+| ID | Check | How to verify | Result | Evidence |
+|---|---|---|---|---|
+| G-21 | A Pay button is offered only when what it will charge equals the amount shown; otherwise there is no button | convex-test: scenarios (a) to (f) in plan Addendum 3, each comparing the target's charge with `page.balanceCents` | PENDING | |
+| G-22 | An old booking whose deposit is recorded only by the `depositPaid` flag releases once its balance invoice is paid | convex-test | PENDING | |
+| G-23 | A booking with hidden prices never shows the client an amount, on the page or in the email | convex-test + browser | PENDING | |
+| C-14 | Locked page with no pay target: no Pay button, and the line telling the client the studio will send a way to pay | browser | PENDING | |
+
+- Change to an approved behavior (Lawrence to confirm at the staging gate): the mockup's "Pay and unlock" button now appears only when its amount is certain. When the booking has an unsent draft invoice, hidden prices, or amounts that disagree, the client is told the studio will send a way to pay, and the team card tells staff to send the invoice. Reason: Pulse's checkout and its invoices each compute their own amount, and a button labeled $50 that charges $350 is worse than no button.

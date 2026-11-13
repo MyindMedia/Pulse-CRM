@@ -301,3 +301,40 @@ src/lib/format-bytes.ts: export function formatBytes(n: number): string  // deci
 - S-06: the pay link carries the booking id, as every existing pay email does.
 - S-02: whether the sign-in script ever sees the page address is checked on staging with a network log.
 - Client page light theme, uppercase button labels, file order: the app's own conventions.
+
+---
+
+## Addendum 3: round 3 fix list (2026-11-13, from the round 2 review)
+
+Round 2 review: 0 critical, 3 major, 1 minor, 2 unconfirmed, all in one area: **what the client is asked to pay, and where the Pay button sends them.** Pulse keeps two payment records (booking payments in `amountPaidCents`, and invoices). Checkout charges `rateCents - amountPaidCents`; an invoice charges its own stored amount; the page shows a third number. Patching each mismatch one by one has now failed twice, so this round replaces the approach with one rule.
+
+### The rule (replaces the `payUrl` logic from F2-01)
+**The page and the pay email offer an online Pay button only when the amount that target will charge is exactly the amount shown. Otherwise there is no button.** One function decides it, and everything reads from it:
+
+```ts
+// convex/sessionDelivery.ts
+export type PayTarget =
+  | { kind: "invoice"; url: string; cents: number }    // an invoice with status sent, viewed or overdue on this booking
+  | { kind: "checkout"; url: string; cents: number }   // the booking checkout
+  | { kind: "none"; reason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" };
+export async function payTargetFor(ctx, session, org): Promise<PayTarget>
+```
+- `owed` (R3-03): `max(0, rateCents - max(amountPaidCents ?? 0, depositPaid ? depositCents : 0) - paid invoices on the booking)`, the same credit rule `createCompletionInvoice` uses.
+- `invoice`: exactly one invoice on the booking has status `sent`, `viewed` or `overdue`, and its `amountCents === owed`.
+- `checkout`: the booking has NO invoice at all other than void ones (no draft, no open, no paid), the booking is not `pricingHidden`, and `rateCents - (amountPaidCents ?? 0) === owed` (what checkout will really charge).
+- `none` otherwise: `invoice_not_sent` when a draft invoice exists and nothing else disqualifies; `prices_hidden` for a `pricingHidden` booking with no matching open invoice; `amount_mismatch` for everything else.
+- `page.payUrl` = the target's `url` or `null`. `page.balanceCents` = `owed`, or `null` for a `pricingHidden` booking (never show a figure the studio chose to hide).
+- `status` adds `onlinePay: "invoice" | "checkout" | "none"` and `onlinePayReason` (the `none` reason or null), so the team card can say what to do.
+
+### Fixes
+| ID | From | Side | Fix |
+|---|---|---|---|
+| R3-01 | R2-01, R2-02, R2-04 | backend | Implement `payTargetFor` and use it in `page`, `status` and the pay email. Tests, one per scenario, each asserting that when a URL is offered the target's charge equals `page.balanceCents`: (a) rate $400, $100 paid, $300 invoice paid, rate raised to $450: owed $50, no button; (b) rate $400, $100 paid, $300 invoice sent, a $100 package hour redeemed: owed $200, no button; (c) rate $400, $100 paid, $300 DRAFT invoice: owed $300, no button, reason `invoice_not_sent`; then the invoice is sent: button to the invoice, $300; (d) rate $360, nothing paid, no invoice: button to checkout, $360; (e) `pricingHidden`: no button, `balanceCents` null; (f) legacy `depositPaid` row with no `amountPaidCents`: owed $300 after its $300 invoice... see R3-03. For the checkout case, assert against the amount the real checkout code computes (call the same function `booking.ts` / `payments.ts` use, do not re-derive it in the test). |
+| R3-02 | R2-01 | backend | Pay email without a target: no button; body `Your <title> session from <date> is finished and waiting. There is a <amount> balance on this booking. <Studio> will send you a way to pay it. Once it is paid, your download link arrives right away.` For a `pricingHidden` booking leave out the amount: `There is a balance on this booking.` With a target, the email is as before and its button still goes to the delivery page. |
+| R3-03 | R2-03 | backend | `owed` credits `max(amountPaidCents, depositPaid ? depositCents : 0)`. Test: rate $400, `depositCents` $100, `depositPaid` true, no `amountPaidCents`, $300 invoice paid: nothing owed, releases. |
+| R3-04 | review | backend | G-18 only proves the fee case on a cancelled booking. Add a test on a no-show booking with a paid fee invoice: state exactly what is owed and that the gate agrees with it. If no-show bookings should not deliver at all, say so in the report instead of guessing. |
+| R3-05 | R2-01 | frontend | Client page, locked, `payUrl` null: no Pay button; under the heading show `<Studio> will send you a way to pay. Your files unlock here as soon as it is paid.` With `balanceCents` null the heading is `Your files are ready once the balance is paid`. Team card, waiting state, `onlinePay: "none"`: for callers who see money, `invoice_not_sent` shows `Send the balance invoice so <first name> can pay online.`; `amount_mismatch` shows `There is no online pay link for this balance. Send <first name> an invoice for it.`; `prices_hidden` shows `Prices are hidden on this booking. Send <first name> an invoice to collect the balance.` Callers without money sight see only `A balance is still owed.` Cover the new copy in `deliveryCardView` tests. |
+| R3-06 | R2-05 | frontend | On iPhone and iPad (the existing `isTouchApple` check), a single file's Download navigates the page to the signed URL (the server's attachment header keeps the page in place) instead of using a hidden frame. Desktop keeps frames. |
+| R3-07 | R2-06 | frontend | The upload store records who added each file (user id and studio id from the app's existing auth hooks). When either changes, queued uploads are canceled with `Signed out before this upload started.` and running ones are aborted. Unit test on the store. |
+
+Same working rules as Addendum 2 (file ownership by side, `git add <paths>` only, nobody runs the app, never edit `eval.md`, no em dashes).
