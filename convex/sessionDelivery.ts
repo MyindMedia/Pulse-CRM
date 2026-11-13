@@ -135,16 +135,23 @@ async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null
   return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files };
 }
 
-/** Queues the email for the delivery's state to the booked email. Returns the
- *  address, or null when nothing could be sent (no email on file, or no Final
- *  file left: a delivery email never goes out empty). */
-async function sendFor(
-  ctx: MutationCtx,
+type Email = Parameters<typeof notify>[1];
+
+/* Every function below that writes reads and checks everything first, then
+   writes. settlePayment catches a failure from onBalanceSettled (a payment must
+   never be undone by a delivery problem), and a Convex mutation has no
+   sub-transaction: a write made before a throw would stay. So the email is
+   rendered and every patch is computed before the first write. */
+
+/** The email for the delivery's state to the booked email, rendered but not
+ *  queued. Null when it cannot go: no email on file, or no Final file left (a
+ *  delivery email never goes out empty). Reads nothing, writes nothing. */
+function emailFor(
   delivery: Pick<Delivery, "orgId" | "sessionId" | "token" | "expiresAt">,
   f: Facts,
   kind: "ready" | "pay",
   paidCents?: number,
-): Promise<string | null> {
+): Email | null {
   const email = f.artist?.email?.trim();
   if (!email || f.files.length === 0) return null;
   const tz = orgTz(f.org);
@@ -159,7 +166,7 @@ async function sendFor(
     kind === "ready"
       ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents })
       : payToUnlockEmail({ ...common, balanceCents: owed(f.session) });
-  await notify(ctx, {
+  return {
     orgId: delivery.orgId,
     channel: "email",
     recipient: email,
@@ -171,31 +178,58 @@ async function sendFor(
     ctaLabel: m.ctaLabel,
     ctaUrl: m.ctaUrl,
     accent: f.org?.accentColor,
-  });
-  return email;
+  };
 }
 
-/** The one place a delivery becomes released. Starts a fresh 30 days and sends
- *  the files email. Returns true when the email went out. */
-async function release(ctx: MutationCtx, delivery: Delivery, by: string, f: Facts, paidCents?: number): Promise<boolean> {
-  const now = Date.now();
+type ReleasePlan = {
+  patch: Pick<Delivery, "status" | "releasedAt" | "releasedBy" | "expiresAt" | "sentTo" | "lastSentAt" | "sendCount">;
+  email: Email;
+};
+
+/** What releasing would write: a fresh 30 days and the files email. Null when
+ *  the files email cannot go, in which case nothing is released. Pure. */
+function planRelease(
+  delivery: Pick<Delivery, "orgId" | "sessionId" | "token" | "sendCount">,
+  by: string,
+  f: Facts,
+  now: number,
+  paidCents?: number,
+): ReleasePlan | null {
   const expiresAt = now + LINK_TTL_MS;
-  const sentTo = await sendFor(ctx, { ...delivery, expiresAt }, f, "ready", paidCents);
-  await ctx.db.patch(delivery._id, {
-    status: "released",
-    releasedAt: now,
-    releasedBy: by,
-    expiresAt,
-    ...(sentTo ? { sentTo, lastSentAt: now, sendCount: delivery.sendCount + 1 } : {}),
-  });
-  return sentTo !== null;
+  const email = emailFor({ ...delivery, expiresAt }, f, "ready", paidCents);
+  if (!email) return null;
+  return {
+    patch: {
+      status: "released",
+      releasedAt: now,
+      releasedBy: by,
+      expiresAt,
+      sentTo: email.recipient,
+      lastSentAt: now,
+      sendCount: delivery.sendCount + 1,
+    },
+    email,
+  };
+}
+
+/** The one place an existing delivery becomes released. Every read happened
+ *  before (the caller's `facts`) and every check happens here before the first
+ *  write. Returns false, having written nothing, when the files email cannot
+ *  go; true when the delivery was released and the email queued. */
+async function release(ctx: MutationCtx, delivery: Delivery, by: string, f: Facts, paidCents?: number): Promise<boolean> {
+  const plan = planRelease(delivery, by, f, Date.now(), paidCents);
+  if (!plan) return false;
+  await ctx.db.patch(delivery._id, plan.patch);
+  await notify(ctx, plan.email);
+  return true;
 }
 
 /** Called from payments.settlePayment when a payment leaves nothing owed, and
- *  from sessions.setComp when a comp does. Releases a delivery that was waiting
- *  for payment, exactly once. Returns true only when it released one AND the
- *  files email went out (so the caller can skip its own "Paid in full" email);
- *  any other case writes nothing and returns false. */
+ *  from sessions.setComp when a comp does. Releases a delivery that was waiting for payment, exactly once. Returns
+ *  true only when it released one and queued the files email (so the caller can
+ *  skip its own "Paid in full" email). Any other case, including one where the
+ *  files email cannot go (no email on file, no Final file left), writes nothing
+ *  and returns false. */
 export async function onBalanceSettled(
   ctx: MutationCtx,
   sessionId: Id<"sessions">,
@@ -285,20 +319,22 @@ export const markReady = mutation({
     if (existing && existing.orgId !== orgId) throw new ConvexError("Session not found.");
     if (existing && existing.status !== "off") return { state: existing.status };
 
+    // Every read and check first; the row and the email are written last.
     const now = Date.now();
-    const fresh = {
+    const f: Facts = { session, org: await orgRow(ctx, orgId), artist, files };
+    const base = {
       orgId,
       sessionId,
-      status: "awaiting_payment" as const,
+      status: "awaiting_payment" as Delivery["status"],
       token: newToken(),
       expiresAt: now + LINK_TTL_MS,
       readyAt: now,
       readyBy: access.actorName,
-      releasedAt: undefined,
-      releasedBy: undefined,
+      releasedAt: undefined as number | undefined,
+      releasedBy: undefined as string | undefined,
       offAt: undefined,
-      sentTo: undefined,
-      lastSentAt: undefined,
+      sentTo: undefined as string | undefined,
+      lastSentAt: undefined as number | undefined,
       sendCount: 0,
       firstOpenedAt: undefined,
       lastOpenedAt: undefined,
@@ -306,23 +342,27 @@ export const markReady = mutation({
       urlWindowStart: undefined,
       urlCount: undefined,
     };
-    let id: Id<"sessionDeliveries">;
-    if (existing) {
-      await ctx.db.patch(existing._id, fresh);
-      id = existing._id;
-    } else {
-      id = await ctx.db.insert("sessionDeliveries", fresh);
-    }
-    const delivery = (await ctx.db.get(id))!;
-    const f: Facts = { session, org: await orgRow(ctx, orgId), artist, files };
-
+    let row: typeof base;
+    let email: Email;
+    let state: "awaiting_payment" | "released";
     if (owed(session) === 0) {
-      await release(ctx, delivery, "payment", f);
-      return { state: "released" };
+      const plan = planRelease(base, "payment", f, now);
+      if (!plan) throw new ConvexError("Add an email for this client first.");
+      row = { ...base, ...plan.patch };
+      email = plan.email;
+      state = "released";
+    } else {
+      const pay = emailFor(base, f, "pay");
+      if (!pay) throw new ConvexError("Add an email for this client first.");
+      row = { ...base, sentTo: pay.recipient, lastSentAt: now, sendCount: 1 };
+      email = pay;
+      state = "awaiting_payment";
     }
-    const sentTo = await sendFor(ctx, delivery, f, "pay");
-    if (sentTo) await ctx.db.patch(id, { sentTo, lastSentAt: now, sendCount: 1 });
-    return { state: "awaiting_payment" };
+
+    if (existing) await ctx.db.patch(existing._id, row);
+    else await ctx.db.insert("sessionDeliveries", row);
+    await notify(ctx, email);
+    return { state };
   },
 });
 
@@ -340,7 +380,7 @@ export const releaseNow = mutation({
     const f = await facts(ctx, delivery);
     if (!f || f.files.length === 0) throw new ConvexError("Mark at least one file Final first.");
     if (!f.artist?.email?.trim()) throw new ConvexError("Add an email for this client first.");
-    await release(ctx, delivery, access.actorName, f);
+    if (!(await release(ctx, delivery, access.actorName, f))) throw new ConvexError("Add an email for this client first.");
     return null;
   },
 });
@@ -375,16 +415,15 @@ export const resend = mutation({
     // Waiting, but nothing is owed any more (a payment path that did not reach
     // the trigger): release instead of asking for money again.
     if (delivery.status === "awaiting_payment" && owed(f.session) === 0) {
-      await release(ctx, delivery, "payment", f);
+      if (!(await release(ctx, delivery, "payment", f))) throw new ConvexError("Add an email for this client first.");
       return null;
     }
     const now = Date.now();
     const expiresAt = now + LINK_TTL_MS;
-    const sentTo = await sendFor(ctx, { ...delivery, expiresAt }, f, delivery.status === "released" ? "ready" : "pay");
-    await ctx.db.patch(delivery._id, {
-      expiresAt,
-      ...(sentTo ? { sentTo, lastSentAt: now, sendCount: delivery.sendCount + 1 } : {}),
-    });
+    const email = emailFor({ ...delivery, expiresAt }, f, delivery.status === "released" ? "ready" : "pay");
+    if (!email) throw new ConvexError("Add an email for this client first.");
+    await ctx.db.patch(delivery._id, { expiresAt, sentTo: email.recipient, lastSentAt: now, sendCount: delivery.sendCount + 1 });
+    await notify(ctx, email);
     return null;
   },
 });

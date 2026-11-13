@@ -309,6 +309,67 @@ describe("session delivery: staff side and the payment trigger", () => {
     expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
   });
 
+  /* ── B-01: no partial write behind settlePayment's catch ─── */
+
+  it("B-01 a payment that cannot release (no Final file left) leaves the delivery row unchanged and Paid in full still goes", async () => {
+    const f = await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: false });
+    const [before] = await deliveryRow(s, s.A.sessionId);
+    await settle(s, s.A.sessionId, "balance");
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([before]);
+    const session = await s.t.run(async (ctx) => await ctx.db.get(s.A.sessionId));
+    expect(session!.amountPaidCents).toBe(36000);
+    const mails = await clientEmails(s.t, s.A.sessionId);
+    expect(mails.filter((m) => m.subject === "Paid in full - Vocal tracking")).toHaveLength(1);
+    expect(mails.filter((m) => m.kind === "delivery.ready")).toHaveLength(0);
+  });
+
+  it("B-01 the client row is gone: the payment lands, the delivery row is unchanged, the team is told", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await s.t.run(async (ctx) => { await ctx.db.delete(s.A.artistId); });
+    const [before] = await deliveryRow(s, s.A.sessionId);
+    await settle(s, s.A.sessionId, "balance");
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([before]);
+    const { session, team, ready } = await s.t.run(async (ctx) => {
+      const rows = await ctx.db.query("notifications").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).take(50);
+      return {
+        session: await ctx.db.get(s.A.sessionId),
+        team: rows.filter((r) => r.kind === "payment.received"),
+        ready: rows.filter((r) => r.kind === "delivery.ready"),
+      };
+    });
+    expect(session!.amountPaidCents).toBe(36000);
+    expect(team).toHaveLength(1);
+    expect(ready).toHaveLength(0);
+  });
+
+  it("B-01 onBalanceSettled writes nothing and returns false when it cannot send the files email", async () => {
+    const f = await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { amountPaidCents: 36000 }); });
+    const [before] = await deliveryRow(s, s.A.sessionId);
+    const mailsBefore = await clientEmails(s.t, s.A.sessionId);
+
+    // No email on file.
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { email: undefined }); });
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([before]);
+
+    // Email back, but no Final file left.
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { email: "jordan.ellis@example.com" }); });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: false });
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([before]);
+    expect(await clientEmails(s.t, s.A.sessionId)).toEqual(mailsBefore);
+
+    // Both back: it releases, once.
+    await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: true });
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(true);
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", sendCount: 2 });
+  });
+
   /* ── Review Focus ───────────────────────────────────────── */
 
   it("RF-3 two Ready to deliver taps leave one row and one email", async () => {
