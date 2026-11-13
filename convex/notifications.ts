@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
 import { sendEmail, studioReplyTo } from "./lib/email";
-import { studioEmailHtml } from "./lib/emailTemplates/layout";
+import { studioEmailHtml, readableEmailInk } from "./lib/emailTemplates/layout";
 import { sendSms } from "./lib/sms";
 
 /* Notifications - the confirmation / reminder log. Written by the notify()
@@ -32,6 +32,28 @@ export const _setStatus = internalMutation({
   },
 });
 
+/** The HTML a queued email row is sent as. A row with a designed body (`html`)
+ *  gets it inside the studio layout with its button and the studio's accent;
+ *  every other row renders exactly as before, from the plain `body`. */
+export function notificationEmailHtml(n: {
+  orgName: string;
+  body: string;
+  html?: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  accent?: string;
+}): string {
+  if (!n.html) return studioEmailHtml({ studioName: n.orgName, bodyText: n.body });
+  return studioEmailHtml({
+    studioName: n.orgName,
+    bodyHtml: n.html,
+    ctaLabel: n.ctaLabel,
+    ctaUrl: n.ctaUrl,
+    accent: n.accent,
+    accentInk: n.accent ? readableEmailInk(n.accent) : undefined,
+  });
+}
+
 /** Actually deliver a queued notification. Email goes out via Resend, SMS via
     the configured provider; either helper degrades to "simulated" when its
     provider isn't configured, so unconfigured deployments just keep the log. */
@@ -43,7 +65,7 @@ export const deliver = internalAction({
     let status: "sent" | "failed" | "simulated";
     if (n.channel === "email") {
       // Branded studio-framed email (escapes + linkifies pay URLs internally).
-      const html = studioEmailHtml({ studioName: n.orgName, bodyText: n.body });
+      const html = notificationEmailHtml(n);
       // Replies go to the studio: the bodies say "Reply to this email".
       status = await sendEmail({ to: n.recipient, subject: n.subject, html, replyTo: n.replyTo });
     } else {

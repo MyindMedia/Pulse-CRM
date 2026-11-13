@@ -23,6 +23,14 @@ export async function notify(
     body: string;
     kind: string;
     sessionId?: Id<"sessions">;
+    /** A designed email body (inner HTML, already escaped by its template).
+     *  Email only; `body` stays the plain copy for the message log. */
+    html?: string;
+    /** Button under the body, email only. */
+    ctaLabel?: string;
+    ctaUrl?: string;
+    /** The studio's accent for the header bar and button (hex). */
+    accent?: string;
   },
 ): Promise<void> {
   // STOP is honored on every text: a number that opted out (smsOptOuts) gets
