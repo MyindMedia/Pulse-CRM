@@ -17,6 +17,13 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
+import {
+  autoChargeDecision,
+  feeEmailBody,
+  feeStillOwedCents,
+  NO_SHOW_CHARGE_DELAY_MS,
+} from "./lib/cardConsent";
+import { paidTowardSessionAll } from "./lib/sessionPaid";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -578,9 +585,17 @@ async function assessNoShowShield(
 
   const fee = Math.round((s.rateCents * feePct) / 100);
   const depositForfeitCents = s.depositPaid ? s.depositCents : 0;
-  // The deposit already in hand is applied toward the fee; only the remainder
-  // needs collecting.
-  const additionalCents = Math.max(0, fee - depositForfeitCents);
+  // Everything already in hand for this session (the deposit, or more when
+  // the client paid in full) is applied toward the fee; only the remainder
+  // needs collecting. A client who paid at least the fee owes nothing more.
+  // Paid invoices for the session count too (paying an invoice never updates
+  // amountPaidCents), so a completed session paid by invoice and then marked
+  // a no-show is not charged again.
+  const paidCents = await paidTowardSessionAll(ctx, s);
+  const additionalCents = feeStillOwedCents(fee, paidCents);
+  // The deposit is forfeited once per booking: a no-show that was undone and
+  // marked again does not count it as recovered a second time.
+  const depositAlreadyForfeited = s.depositForfeited === true;
 
   await ctx.db.patch(s._id, {
     cancellationFeeCents: fee,
@@ -593,7 +608,7 @@ async function assessNoShowShield(
   const reason = status === "no_show" ? "no-show" : "late cancellation";
 
   // The kept deposit is recovered money the moment it is forfeited.
-  if (depositForfeitCents > 0) {
+  if (depositForfeitCents > 0 && !depositAlreadyForfeited) {
     await ctx.runMutation(internal.recovery.record, {
       orgId: s.orgId,
       kind: "deposit_forfeited",
@@ -608,46 +623,59 @@ async function assessNoShowShield(
     // and notify the client. The fee counts as won back when the invoice is
     // paid, not now (lib/recoveryOnPaid.ts), so unpaid fees are never claimed.
     const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
+    if (invoiceId) await ctx.db.patch(s._id, { noShowFeeInvoiceId: invoiceId });
 
-    // Best-effort auto-charge when a card is on file for this client on the
-    // studio's connected Stripe account. Off-session charge runs in an action;
-    // on success it settles the fee invoice. Falls back to the invoice + notice
-    // above when no card is saved (the common case until card capture ships).
-    const canAutoCharge =
-      Boolean(process.env.STRIPE_SECRET_KEY) &&
-      Boolean(org?.stripeAccountId) &&
-      Boolean(org?.stripeChargesEnabled) &&
-      Boolean(artist?.stripeCustomerId) &&
-      Boolean(artist?.defaultPaymentMethodId);
-    if (canAutoCharge && invoiceId) {
-      await ctx.scheduler.runAfter(0, internal.cardOnFile.chargeFee, {
-        sessionId: s._id,
-        invoiceId,
-        amountCents: additionalCents,
-      });
+    // Charge the client's saved card only when the studio switched it on, the
+    // client agreed at checkout and that same card is still on file
+    // (lib/cardConsent.ts). Otherwise the fee stays a draft invoice, as before.
+    const decision = autoChargeDecision({
+      stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+      switchOn: org?.noShowAutoCharge === true,
+      stripeAccountId: org?.stripeAccountId,
+      chargesEnabled: Boolean(org?.stripeChargesEnabled),
+      stripeCustomerId: artist?.stripeCustomerId,
+      stripeCustomerAccountId: artist?.stripeCustomerAccountId,
+      defaultPaymentMethodId: artist?.defaultPaymentMethodId,
+      consent: s.cardConsent,
+      status,
+      feeCents: fee,
+      chargeCents: additionalCents,
+      paidCents,
+      startTime: s.startTime,
+      now: Date.now(),
+    });
+    const autoCharge = decision.charge && invoiceId !== null;
+    if (autoCharge && invoiceId) {
+      // "pending" is the one state chargeFee runs from, so a second schedule
+      // or a retry can never charge twice. The charge waits at least
+      // NO_SHOW_CHARGE_DELAY_MS so staff can undo a mis-marked no-show
+      // (applyStatus -> undoNoShowCharge) before any money moves.
+      await ctx.db.patch(invoiceId, { autoCharge: { status: "pending", at: Date.now() } });
+      await ctx.scheduler.runAfter(NO_SHOW_CHARGE_DELAY_MS, internal.cardOnFile.chargeFee, { invoiceId });
     }
 
-    if (artist?.email) {
+    // With a charge scheduled, the client is told once the result is known
+    // (cardOnFile._feeChargeOutcome), so the email says what really happened.
+    if (artist?.email && !autoCharge) {
       const nice = `${label[0].toUpperCase()}${label.slice(1)}`;
-      const depositLine =
-        depositForfeitCents > 0
-          ? ` Your ${money(depositForfeitCents)} deposit has been applied toward it.`
-          : "";
       await notify(ctx, {
         orgId: s.orgId,
         channel: "email",
         recipient: artist.email,
         subject: `${nice} - ${s.title}`,
-        body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
-          fee,
-        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} ${
-          // The fee invoice is a draft until the studio sends it, so do not
-          // say it was sent. Promise a card charge only when one was
-          // scheduled above (same condition).
-          canAutoCharge && invoiceId
-            ? `The ${money(additionalCents)} balance will be charged to your card on file.`
-            : `The studio will send you an invoice for the ${money(additionalCents)} balance.`
-        } Reply here with any questions - we would love to get you rebooked.`,
+        // The fee invoice is a draft until the studio sends it, so it is never
+        // described as sent.
+        body: feeEmailBody({
+          clientName: artist.name,
+          label,
+          status,
+          title: s.title,
+          feeCents: fee,
+          depositForfeitCents,
+          paidAppliedCents: Math.min(paidCents, fee),
+          balanceCents: additionalCents,
+          outcome: "invoice_to_follow",
+        }),
         kind: `session.${feeKind}`,
         sessionId: s._id,
       });
@@ -663,6 +691,52 @@ async function assessNoShowShield(
     entityType: "session",
     entityId: s._id,
     accent: "gold",
+  });
+}
+
+/**
+ * Staff moved a booking off no-show. A fee charge still waiting is cancelled
+ * (the 15-minute window exists for exactly this). A charge already made, or
+ * in flight, cannot be taken back here: staff are told to check it and refund
+ * in Stripe. A draft fee invoice whose charge was cancelled is voided; one
+ * with no charge scheduled (switch off) is left as it always was.
+ */
+async function undoNoShowCharge(ctx: MutationCtx, s: Doc<"sessions">): Promise<void> {
+  if (!s.noShowFeeInvoiceId) return;
+  const inv = await ctx.db.get(s.noShowFeeInvoiceId);
+  if (!inv || inv.orgId !== s.orgId || inv.sessionId !== s._id || !inv.autoCharge) return;
+  if (inv.autoCharge.status === "pending") {
+    // The fee no longer applies, so its draft invoice is voided with the
+    // charge. If staff mark the no-show again, a fresh fee invoice is made
+    // and a fresh charge scheduled (assessNoShowShield).
+    const voidIt = inv.status === "draft";
+    await ctx.db.patch(inv._id, {
+      ...(voidIt ? { status: "void" as const } : {}),
+      autoCharge: { status: "skipped", at: Date.now(), message: "no-show undone by staff before the charge ran" },
+    });
+    await ctx.db.insert("activity", {
+      orgId: s.orgId,
+      kind: "invoice.auto_charge_cancelled",
+      summary: voidIt
+        ? `No-show undone on ${s.title}: the card charge was cancelled and invoice ${inv.number} was voided.`
+        : `No-show undone on ${s.title}: the card charge was cancelled. Invoice ${inv.number} was already ${inv.status}; check it.`,
+      entityType: "invoice",
+      entityId: inv._id,
+      accent: "info",
+    });
+    return;
+  }
+  const charged = inv.autoCharge.status === "charging" || inv.autoCharge.status === "succeeded";
+  if (!charged) return;
+  await ctx.db.insert("insights", {
+    orgId: s.orgId,
+    kind: "risk",
+    severity: "warning",
+    title: `Check the no-show fee on invoice ${inv.number}: the no-show was undone`,
+    body: `${s.title} is no longer marked a no-show, but its ${money(inv.amountCents)} fee was ${inv.autoCharge.status === "succeeded" ? "already charged" : "being charged"} to the client's saved card${inv.autoCharge.reference ? ` (${inv.autoCharge.reference})` : ""}. Refund it in Stripe if the fee no longer applies.`,
+    entityType: "invoice",
+    entityId: inv._id,
+    status: "new",
   });
 }
 
@@ -732,6 +806,11 @@ export async function applyStatus(
     // proving the subscription pays for itself. Only fires on a fresh transition.
     if ((status === "cancelled" || status === "no_show") && wasActive) {
       await assessNoShowShield(ctx, s, status);
+    }
+
+    // Undoing a no-show cancels a card charge that has not run yet.
+    if (s.status === "no_show" && status !== "no_show") {
+      await undoNoShowCharge(ctx, s);
     }
 
     if (status === "no_show") {
@@ -1048,7 +1127,43 @@ export const getCancellationPolicy = query({
     return {
       cancellationWindowHours: org?.cancellationWindowHours ?? null,
       cancellationFeePct: org?.cancellationFeePct ?? null,
+      noShowAutoCharge: org?.noShowAutoCharge === true,
+      // Charging needs the studio's own Stripe account taking card payments.
+      stripeReady: Boolean(org?.stripeAccountId && org?.stripeChargesEnabled),
     };
+  },
+});
+
+/** Turn on (or off) charging a no-show / late-cancel fee to the card a client
+ *  saved at checkout. OFF by default. Owner only: it moves clients' money.
+ *  Off, checkout does not save cards and fees are drafted as invoices. */
+export const setNoShowAutoCharge = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    const role = "role" in viewer ? viewer.role : undefined;
+    if (role !== "owner") {
+      throw new ConvexError("Only the studio owner can turn card charging on or off.");
+    }
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("No workspace to configure.");
+    if ((org.noShowAutoCharge === true) === enabled) return { ok: true };
+    await ctx.db.patch(org._id, { noShowAutoCharge: enabled });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "settings.no_show_auto_charge",
+      summary: enabled
+        ? "No-show fees will be charged to cards clients saved and agreed to at checkout"
+        : "No-show fees will be billed by invoice only; saved cards are not charged",
+      entityType: "org",
+      entityId: org._id,
+      accent: "info",
+    });
+    return { ok: true };
   },
 });
 

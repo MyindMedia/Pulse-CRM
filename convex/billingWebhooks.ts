@@ -7,6 +7,7 @@ import { tierForPriceId } from "./lib/stripe";
 import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
+import { handlePaymentIntentSucceeded, handleSetupIntentSucceeded } from "./lib/cardOnFileWebhook";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
@@ -145,6 +146,18 @@ export const handle = internalMutation({
       });
       await markProcessed(ctx, event.id, e.type);
       return { ok: true };
+    }
+
+    // A client's card on file, on a studio's connected account
+    // (lib/cardOnFileWebhook.ts): the only path that records a saved card.
+    if (e.type === "setup_intent.succeeded" || e.type === "payment_intent.succeeded") {
+      const r = e.type === "setup_intent.succeeded"
+        ? await handleSetupIntentSucceeded(ctx, event.account, obj)
+        : await handlePaymentIntentSucceeded(ctx, event.account, obj);
+      if (r.handled) {
+        await markProcessed(ctx, event.id, `${e.type}${r.suffix}`);
+        return { ok: true };
+      }
     }
 
     if (e.type === "checkout.session.completed") {

@@ -18,6 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -39,6 +40,9 @@ export default function CheckoutPage() {
 
   const [choice, setChoice] = React.useState<PayChoice>("deposit");
   const [busy, setBusy] = React.useState(false);
+  // The client's agreement to have their card saved (studios that switched
+  // card charging on). Paying is blocked until it is ticked.
+  const [agreed, setAgreed] = React.useState(false);
 
   // Loading
   if (booking === undefined) {
@@ -79,7 +83,12 @@ export default function CheckoutPage() {
   async function pay(kind: "deposit" | "balance" | "full") {
     setBusy(true);
     try {
-      const stripe = await payViaStripe({ sessionId: sessionId as Id<"sessions">, kind });
+      const stripe = await payViaStripe({
+        sessionId: sessionId as Id<"sessions">,
+        kind,
+        // The exact sentence shown and ticked; the server checks it matches.
+        ...(booking?.cardSave && agreed ? { cardConsentText: booking.cardSave.text } : {}),
+      });
       if (!stripe.url) {
         throw new Error(
           "Secure checkout could not be started. Please try again or contact the studio.",
@@ -93,6 +102,22 @@ export default function CheckoutPage() {
       setBusy(false);
     }
   }
+
+  const cardSave = booking.cardSave;
+  const needsAgreement = Boolean(cardSave) && !agreed;
+  const agreement = cardSave ? (
+    <label className="flex items-start gap-2.5 rounded-md border border-gold/30 bg-gold/[0.06] px-3 py-2.5 text-xs leading-relaxed text-bone">
+      <Checkbox
+        checked={agreed}
+        onCheckedChange={(v) => setAgreed(v === true)}
+        className="mt-0.5"
+        aria-label="I agree to have my card saved under the studio's cancellation policy"
+      />
+      <span>
+        {cardSave.text} <span className="text-steel">Tick to agree before you pay.</span>
+      </span>
+    </label>
+  ) : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-8">
@@ -198,6 +223,8 @@ export default function CheckoutPage() {
             {view.note}
           </div>
 
+          {booking.stripeCheckout && agreement}
+
           <div className="border-t border-graphite/50 pt-4">
             {booking.stripeCheckout ? (
               <StripePayButton
@@ -206,6 +233,7 @@ export default function CheckoutPage() {
                 }
                 actionLabel={choice === "deposit" && !fullOnly ? "Pay deposit" : "Pay in full"}
                 busy={busy}
+                blocked={needsAgreement}
                 onClick={() => pay(choice === "deposit" && !fullOnly ? "deposit" : "full")}
               />
             ) : (
@@ -233,12 +261,14 @@ export default function CheckoutPage() {
             {money(booking.balanceCents)} is still due on this session. You can
             settle it now or up to 2 hours before your start time.
           </p>
+          {booking.stripeCheckout && agreement}
           <div className="border-t border-graphite/50 pt-4">
             {booking.stripeCheckout ? (
               <StripePayButton
                 amountCents={booking.balanceCents}
                 actionLabel="Pay balance"
                 busy={busy}
+                blocked={needsAgreement}
                 onClick={() => pay("balance")}
               />
             ) : (
@@ -322,11 +352,14 @@ function StripePayButton({
   amountCents,
   actionLabel,
   busy,
+  blocked = false,
   onClick,
 }: {
   amountCents: number;
   actionLabel: string;
   busy: boolean;
+  /** The card-saving agreement is not ticked yet. */
+  blocked?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -335,7 +368,7 @@ function StripePayButton({
         type="button"
         size="lg"
         className="w-full"
-        disabled={busy || amountCents <= 0}
+        disabled={busy || blocked || amountCents <= 0}
         onClick={onClick}
       >
         {busy ? (

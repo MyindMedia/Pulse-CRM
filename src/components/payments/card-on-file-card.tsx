@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { toast } from "sonner";
 import { CreditCard, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,21 +23,44 @@ const CardCapture = dynamic(
 
 /* Card on file, on the client's own profile.
 
-   The point of holding a card is the No-Show Shield: a late cancel or a
-   no-show becomes a charge against the studio's stated policy instead of a
-   lost night. Saying that out loud here is deliberate - a studio that does not
-   know why it is asking will not ask. */
+   Staff see whether a card is saved (and which), and can remove it. A fee is
+   charged to a saved card only when the studio owner switched card charging
+   on and the client agreed at checkout for that booking; otherwise fees go
+   out as an invoice. The panel says which applies, plainly. */
 
 export function CardOnFileCard({
   artistId,
-  hasCard,
   clientName,
 }: {
   artistId: Id<"artists">;
-  hasCard: boolean;
   clientName: string;
 }) {
+  const status = useQuery(api.cardOnFile.cardStatus, { artistId });
+  const removeCard = useMutation(api.cardOnFile.removeCard);
   const [adding, setAdding] = React.useState(false);
+  const [removing, setRemoving] = React.useState(false);
+
+  // No money access (or still loading): nothing to show.
+  if (!status) return null;
+  const { hasCard } = status;
+  const which = status.last4 ? `${status.brand ?? "Card"} ending ${status.last4}` : "A card";
+
+  async function onRemove() {
+    if (!window.confirm(`Remove ${clientName}'s saved card? Pulse will not charge it again.`)) return;
+    setRemoving(true);
+    try {
+      await removeCard({ artistId });
+      toast.success("Card removed. It will not be charged.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not remove the card.");
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  const how = !status.autoChargeOn
+    ? "Card charging is off for this studio, so late-cancel and no-show fees go out as an invoice."
+    : "Only a no-show fee is charged to a card, and only for bookings where the client agreed at checkout. Late-cancel fees and anything else go out as an invoice.";
 
   return (
     <Card>
@@ -58,8 +82,8 @@ export function CardOnFileCard({
             </div>
             <p className="mt-0.5 text-xs text-steel">
               {hasCard
-                ? `${clientName} has a card saved. Pulse does not charge saved cards yet, so late-cancel and no-show fees go out as a bill.`
-                : `${clientName} can enter a card themselves, and you never see the number. Pulse does not charge saved cards yet. No-show fees go out as a bill.`}
+                ? `${which} is saved for ${clientName}${status.savedVia === "checkout" ? " (saved at checkout)" : ""}. ${how}`
+                : `${clientName} has no card saved. ${how}`}
             </p>
           </div>
         </div>
@@ -77,7 +101,7 @@ export function CardOnFileCard({
         {(adding || hasCard) && (
           <div className="rounded-md border border-graphite/50 bg-coal/30 p-3">
             {hasCard && !adding ? (
-              <p className="flex items-center gap-1.5 text-xs text-steel/80">
+              <p className="flex flex-wrap items-center gap-1.5 text-xs text-steel/80">
                 <ShieldCheck className="size-3.5 text-positive" />
                 Stored with Stripe on your connected account.{" "}
                 <button
@@ -86,6 +110,15 @@ export function CardOnFileCard({
                   className="text-gold underline-offset-2 hover:underline"
                 >
                   Replace it
+                </button>
+                <span aria-hidden>·</span>
+                <button
+                  type="button"
+                  onClick={onRemove}
+                  disabled={removing}
+                  className="text-critical underline-offset-2 hover:underline disabled:opacity-50"
+                >
+                  {removing ? "Removing…" : "Remove card"}
                 </button>
               </p>
             ) : (
