@@ -3,7 +3,8 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { currentOrgWithCapability } from "./lib/tenant";
+import { currentOrgWithCapability, DEMO_ORG } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 import { memberPay, hoursBetween, payableEntries, needsClockOut } from "./lib/payroll";
 import { orgTz, whenLabel } from "./lib/tz";
 
@@ -11,8 +12,10 @@ import { orgTz, whenLabel } from "./lib/tz";
    Payroll - the admin side of the time clock. Per-staff hours +
    pay over a period (hours x rate, or prorated salary), manual
    corrections, and a one-click "post to expenses" that drops the
-   period's labor cost into the P&L. Reads are insights.read;
-   corrections are schedule.manage; posting is invoices.send.
+   period's labor cost into the P&L. Reads are insights.read; the pay
+   schedule is schedule.manage; timesheet corrections and posting change
+   what someone is paid, so both are invoices.send, and nobody corrects
+   their own hours.
    ============================================================ */
 
 /* Pay-period schedule preference. A studio is paid either monthly (calendar
@@ -64,7 +67,9 @@ export const setSchedule = mutation({
 export const summary = query({
   args: { start: v.number(), end: v.number() },
   handler: async (ctx, { start, end }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const viewer = await requireCapability(ctx, "insights.read");
+    const orgId = viewer.orgId ?? DEMO_ORG;
+    const selfId = viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null;
     const now = Date.now();
     const members = await ctx.db
       .query("members")
@@ -97,6 +102,8 @@ export const summary = query({
           memberId: m._id,
           name: m.name,
           role: m.role,
+          // Nobody corrects their own hours; the page leaves them out of the editor.
+          isYou: m._id === selfId,
           payType: m.payType ?? null,
           payRateCents: m.payRateCents ?? null,
           hours,
@@ -124,7 +131,9 @@ export const summary = query({
 export const listEntries = query({
   args: { start: v.number(), end: v.number(), memberId: v.optional(v.id("members")) },
   handler: async (ctx, { start, end, memberId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const viewer = await requireCapability(ctx, "insights.read");
+    const orgId = viewer.orgId ?? DEMO_ORG;
+    const selfId = viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null;
     const now = Date.now();
     let rows = await ctx.db
       .query("timeEntries")
@@ -140,6 +149,7 @@ export const listEntries = query({
         ...r,
         memberName: names.get(r.memberId)!,
         voided: Boolean(r.voidedAt),
+        mine: r.memberId === selfId,
         needsClockOut: needsClockOut(r, now),
         hours: r.voidedAt ? 0 : hoursBetween(r.clockInAt, r.clockOutAt ?? now),
       });
@@ -147,6 +157,23 @@ export const listEntries = query({
     return out;
   },
 });
+
+/** Timesheet corrections change wages: the same permission as posting
+ *  payroll (a manager the owner has kept away from money does not hold it),
+ *  and never on your own hours, whatever your role. */
+async function payrollEditor(ctx: MutationCtx): Promise<{ orgId: string; selfId: string | null }> {
+  const viewer = await requireCapability(ctx, "invoices.send");
+  return {
+    orgId: viewer.orgId ?? DEMO_ORG,
+    selfId: viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null,
+  };
+}
+
+function refuseOwnHours(selfId: string | null, memberId: string) {
+  if (selfId !== null && selfId === memberId) {
+    throw new Error("You can't change your own hours. Ask the owner or another manager.");
+  }
+}
 
 /** Who made a timesheet change, for the log. */
 async function actorName(ctx: MutationCtx): Promise<{ name: string; subject: string | null }> {
@@ -174,9 +201,10 @@ export const addManualEntry = mutation({
     note: v.optional(v.string()),
   },
   handler: async (ctx, { memberId, clockInAt, clockOutAt, note }) => {
-    const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
+    const { orgId, selfId } = await payrollEditor(ctx);
     const member = await ctx.db.get(memberId);
     if (!member || member.orgId !== orgId) throw new Error("That team member isn't in this studio.");
+    refuseOwnHours(selfId, memberId);
     if (clockOutAt <= clockInAt) throw new Error("Clock-out must be after clock-in.");
     if (clockOutAt > Date.now() + FUTURE_SLACK_MS) throw new Error("Clock-out can't be in the future.");
     if (note !== undefined && note.length > NOTE_MAX) throw new Error("Keep the note under 500 characters.");
@@ -215,9 +243,10 @@ export const adjustEntry = mutation({
     note: v.optional(v.string()),
   },
   handler: async (ctx, { entryId, clockInAt, clockOutAt, note }) => {
-    const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
+    const { orgId, selfId } = await payrollEditor(ctx);
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
+    refuseOwnHours(selfId, entry.memberId);
     if (entry.voidedAt) throw new Error("This entry was removed. Add a new one instead.");
     if (note !== undefined && note.length > NOTE_MAX) throw new Error("Keep the note under 500 characters.");
     const fields: Record<string, unknown> = {};
@@ -269,9 +298,10 @@ export const adjustEntry = mutation({
 export const removeEntry = mutation({
   args: { entryId: v.id("timeEntries"), reason: v.optional(v.string()) },
   handler: async (ctx, { entryId, reason }) => {
-    const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
+    const { orgId, selfId } = await payrollEditor(ctx);
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
+    refuseOwnHours(selfId, entry.memberId);
     if (entry.voidedAt) return;
     const who = await actorName(ctx);
     const why = reason?.trim().slice(0, 300) || undefined;

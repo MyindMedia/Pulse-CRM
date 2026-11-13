@@ -498,3 +498,76 @@ describe("a period is posted only once it is over, and hours added later still l
     expect(second).toMatchObject({ created: 0, adjusted: 0, skipped: 2 });
   });
 });
+
+describe("who may correct hours (H208-04)", () => {
+  async function withOwnEntries(t: T, orgId = "org_p") {
+    return await t.run(async (ctx) => {
+      const mia = (await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()).find((m) => m.name === "Mia")!;
+      const own = (await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()).find((m) => m.name === "Owner")!;
+      await ctx.db.patch(mia._id, { payType: "hourly", payRateCents: 3_000 });
+      const miaEntry = await ctx.db.insert("timeEntries", {
+        orgId, memberId: mia._id, clockInAt: START + 2 * DAY, clockOutAt: START + 2 * DAY + 2 * HOUR, status: "completed",
+        rateCentsSnapshot: 3_000, source: "self",
+      });
+      const ownEntry = await ctx.db.insert("timeEntries", {
+        orgId, memberId: own._id, clockInAt: START + 2 * DAY, clockOutAt: START + 2 * DAY + 2 * HOUR, status: "completed", source: "self",
+      });
+      return { miaId: mia._id, ownId: own._id, miaEntry, ownEntry };
+    });
+  }
+
+  it("a manager the owner keeps away from money cannot add, adjust or remove anyone's hours", async () => {
+    const t = newT();
+    const { orgId, engId, entryId } = await studio(t);
+    await t.run(async (ctx) => {
+      const org = (await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!;
+      await ctx.db.patch(org._id, { managersSeeMoney: false });
+    });
+    const mgr = as(t, "mgr");
+    await expect(mgr.mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + 5 * DAY, clockOutAt: START + 5 * DAY + HOUR,
+    })).rejects.toThrow();
+    await expect(mgr.mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 9 * HOUR })).rejects.toThrow();
+    await expect(mgr.mutation(api.payroll.removeEntry, { entryId })).rejects.toThrow();
+    const e = (await t.run((ctx) => ctx.db.get(entryId)))!;
+    expect(e.clockOutAt).toBe(START + DAY + 4 * HOUR);
+    expect(e.voidedAt).toBeUndefined();
+  });
+
+  it("a manager cannot add to, adjust or remove their own hours", async () => {
+    const t = newT();
+    await studio(t);
+    const { miaId, miaEntry } = await withOwnEntries(t);
+    const mgr = as(t, "mgr");
+    await expect(mgr.mutation(api.payroll.addManualEntry, {
+      memberId: miaId, clockInAt: START + 5 * DAY, clockOutAt: START + 5 * DAY + 10 * HOUR,
+    })).rejects.toThrow(/your own hours/);
+    await expect(mgr.mutation(api.payroll.adjustEntry, { entryId: miaEntry, clockOutAt: START + 2 * DAY + 9 * HOUR }))
+      .rejects.toThrow(/your own hours/);
+    await expect(mgr.mutation(api.payroll.removeEntry, { entryId: miaEntry })).rejects.toThrow(/your own hours/);
+    const rows = await t.run(async (ctx) => (await ctx.db.query("timeEntries").collect()).filter((e) => e.memberId === miaId));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].clockOutAt).toBe(START + 2 * DAY + 2 * HOUR);
+  });
+
+  it("the owner cannot change their own hours either, but can change a manager's", async () => {
+    const t = newT();
+    await studio(t);
+    const { ownEntry, miaEntry } = await withOwnEntries(t);
+    await expect(as(t, "own").mutation(api.payroll.adjustEntry, { entryId: ownEntry, clockOutAt: START + 2 * DAY + 9 * HOUR }))
+      .rejects.toThrow(/your own hours/);
+    await as(t, "own").mutation(api.payroll.adjustEntry, { entryId: miaEntry, clockOutAt: START + 2 * DAY + 3 * HOUR });
+    expect((await t.run((ctx) => ctx.db.get(miaEntry)))!.clockOutAt).toBe(START + 2 * DAY + 3 * HOUR);
+  });
+
+  it("the timesheet marks the viewer's own entries and own row, so the page offers no edit on them", async () => {
+    const t = newT();
+    await studio(t);
+    const { miaEntry, miaId } = await withOwnEntries(t);
+    const list = await as(t, "mgr").query(api.payroll.listEntries, { start: START, end: END });
+    expect(list.find((e) => e._id === miaEntry)?.mine).toBe(true);
+    expect(list.filter((e) => e.mine)).toHaveLength(1);
+    const sum = await as(t, "mgr").query(api.payroll.summary, { start: START, end: END });
+    expect(sum.rows.filter((r) => r.isYou).map((r) => r.memberId)).toEqual([miaId]);
+  });
+});

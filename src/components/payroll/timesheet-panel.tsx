@@ -37,6 +37,8 @@ type Entry = {
   hours: number;
   note?: string;
   voided: boolean;
+  /** The viewer's own entry: nobody corrects their own hours. */
+  mine: boolean;
   voidReason?: string;
   needsClockOut: boolean;
   autoClosedReason?: string;
@@ -224,7 +226,7 @@ export function TimesheetPanel({
                   )}
                 </span>
                 <span className="shrink-0 font-mono text-sm tabular-nums text-bone">{e.hours.toFixed(2)}h</span>
-                {canEdit && !e.voided && (
+                {canEdit && !e.voided && !e.mine && (
                   <span className="flex shrink-0 gap-1">
                     <IconButton variant="ghost" size="icon" label={`Edit ${e.memberName}'s entry`} onClick={() => openEdit(e)}>
                       <Pencil className="size-4" />

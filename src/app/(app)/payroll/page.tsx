@@ -244,8 +244,8 @@ export default function PayrollPage() {
       <TimesheetPanel
         start={start}
         end={end}
-        canEdit={can("schedule.manage")}
-        members={(data?.rows ?? []).map((r) => ({ memberId: r.memberId, name: r.name }))}
+        canEdit={can("invoices.send")}
+        members={(data?.rows ?? []).filter((r) => !r.isYou).map((r) => ({ memberId: r.memberId, name: r.name }))}
       />
 
       <SetPayDialog target={payTarget} open={payOpen} onOpenChange={(o) => { setPayOpen(o); if (!o) setPayTarget(undefined); }} />
