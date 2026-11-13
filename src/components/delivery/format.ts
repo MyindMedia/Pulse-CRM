@@ -7,9 +7,6 @@ import { moneyExact } from "@/lib/format";
 
 /** The Pulse gold, used when a studio has no accent of its own. */
 export const PULSE_GOLD = "#fdb913";
-const GOLD_INK = "#241900";
-const DARK_INK = "#1a1a1f";
-const LIGHT_INK = "#ffffff";
 const HEX_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 
 /** Only a plain hex color may reach a style attribute. Anything else (a
@@ -23,23 +20,27 @@ export function safeAccent(value: unknown): string {
   return `#${h.length === 3 ? h.split("").map((c) => c + c).join("") : h}`;
 }
 
+/** WCAG relative luminance of a six digit hex color (sRGB transfer function). */
 function luminance(hex: string): number {
   const h = hex.slice(1);
   const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-  const f = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  const f = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
   return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
 }
 
-function contrast(a: number, b: number): number {
-  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+/** WCAG contrast ratio between two six digit hex colors, 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-/** Button text on the accent: dark ink on light accents, light ink on dark
- *  ones, whichever reads better (WCAG contrast). Takes a safeAccent value. */
+/** Text and icon color on the studio accent (V4-02): black or white,
+ *  whichever has the higher WCAG contrast ratio. One of the two always
+ *  reaches at least 4.58:1, so the 4.5:1 floor holds for every hex accent.
+ *  Takes a safeAccent value. The same rule as the delivery email. */
 export function inkFor(accent: string): string {
-  const dark = accent === PULSE_GOLD ? GOLD_INK : DARK_INK;
-  const bg = luminance(accent);
-  return contrast(bg, luminance(dark)) >= contrast(bg, 1) ? dark : LIGHT_INK;
+  return contrastRatio(accent, "#000000") >= contrastRatio(accent, "#ffffff") ? "#000000" : "#ffffff";
 }
 
 /** Decimal file sizes, the same text as the delivery email (one source). */
