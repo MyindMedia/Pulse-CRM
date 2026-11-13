@@ -58,6 +58,52 @@ describe("lockCopy", () => {
     );
   });
 
+  it("P4-02: no pay target and an open invoice: pay with the invoice the studio sent", () => {
+    const LINE = "Pay with the invoice Myind Sound sent you. Your files unlock here as soon as it is paid.";
+    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 30000, payUrl: null, invoiceOpen: true })).toEqual({
+      heading: "Pay $300.00 to unlock your files",
+      body: LINE,
+      payUrl: null,
+      balanceDue: true,
+    });
+    // Hidden prices: still no amount anywhere.
+    const hidden = lockCopy({ studioName: "Myind Sound", balanceCents: null, payUrl: null, invoiceOpen: true });
+    expect(hidden.body).toBe(LINE);
+    expect(`${hidden.heading} ${hidden.body}`).not.toMatch(/\$|\d/);
+    // An unusable link counts as none here too.
+    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "javascript:alert(1)", invoiceOpen: true }).body).toBe(LINE);
+    // A blank studio name.
+    expect(lockCopy({ studioName: " ", balanceCents: 18000, payUrl: null, invoiceOpen: true }).body).toBe(
+      "Pay with the invoice The studio sent you. Your files unlock here as soon as it is paid.",
+    );
+  });
+
+  it("P4-02: no open invoice: the studio will send a way to pay, as before", () => {
+    for (const invoiceOpen of [false, undefined]) {
+      expect(lockCopy({ studioName: "Myind Sound", balanceCents: 30000, payUrl: null, invoiceOpen }).body).toBe(
+        "Myind Sound will send you a way to pay. Your files unlock here as soon as it is paid.",
+      );
+    }
+  });
+
+  it("P4-02: with a pay target, an open invoice changes nothing", () => {
+    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "https://x.test/pay", invoiceOpen: true })).toEqual({
+      heading: "Pay $180.00 to unlock your files",
+      body: "Downloads open on this page as soon as the payment goes through.",
+      payUrl: "https://x.test/pay",
+      balanceDue: true,
+    });
+  });
+
+  it("P4-02: nothing owed stays Payment received, open invoice or not (R4-04)", () => {
+    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: null, invoiceOpen: true })).toEqual({
+      heading: "Payment received",
+      body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
+      payUrl: null,
+      balanceDue: false,
+    });
+  });
+
   it("balanceDue is true for an amount, and for hidden prices", () => {
     expect(lockCopy({ studioName: "S", balanceCents: 100, payUrl: null }).balanceDue).toBe(true);
     expect(lockCopy({ studioName: "S", balanceCents: null, payUrl: null }).balanceDue).toBe(true);

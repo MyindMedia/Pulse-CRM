@@ -2,7 +2,8 @@ import { safeHttpUrl, usd } from "./format";
 
 /* What the locked client page says (R3-05). The server offers a Pay link only
    when that link charges exactly the amount shown (payTargetFor); otherwise
-   payUrl is null and the page says the studio will send a way to pay. A
+   payUrl is null and the page says to pay the invoice the studio sent when one
+   is open (invoiceOpen, P4-02), or that the studio will send a way to pay. A
    booking with hidden prices has balanceCents null: no figure anywhere. */
 
 export type LockCopy = {
@@ -13,7 +14,13 @@ export type LockCopy = {
   balanceDue: boolean;
 };
 
-export function lockCopy(input: { studioName: string; balanceCents: number | null; payUrl: string | null | undefined }): LockCopy {
+export function lockCopy(input: {
+  studioName: string;
+  balanceCents: number | null;
+  payUrl: string | null | undefined;
+  /** The booking has an open (sent, viewed or overdue) invoice (page.invoiceOpen). */
+  invoiceOpen?: boolean;
+}): LockCopy {
   const studio = input.studioName.trim() || "The studio";
   // R4-04: a locked page with nothing owed is only waiting for the studio's
   // own release; it says so and talks about no payment.
@@ -32,6 +39,8 @@ export function lockCopy(input: { studioName: string; balanceCents: number | nul
       : `Pay ${usd(input.balanceCents)} to unlock your files`;
   const body = payUrl
     ? "Downloads open on this page as soon as the payment goes through."
-    : `${studio} will send you a way to pay. Your files unlock here as soon as it is paid.`;
+    : input.invoiceOpen === true
+      ? `Pay with the invoice ${studio} sent you. Your files unlock here as soon as it is paid.`
+      : `${studio} will send you a way to pay. Your files unlock here as soon as it is paid.`;
   return { heading, body, payUrl, balanceDue: true };
 }

@@ -302,6 +302,12 @@ async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | n
   return { owed: ledger.owed, target, invoices: ledger.invoices };
 }
 
+/** Whether any of the booking's invoices is sent, viewed or overdue: the
+ *  client already holds an invoice to pay (P4-02, P4-03). */
+function hasOpenInvoice(invoices: Array<Pick<Doc<"invoices">, "status">>): boolean {
+  return invoices.some((inv) => OPEN_INVOICE.has(inv.status));
+}
+
 /** The open invoice the status card names: the first one that is sent, viewed
  *  or overdue and is not for what is owed, else the first open one. Null when
  *  none is open. */
@@ -828,6 +834,10 @@ export const page = query({
     // (payTargetFor); the amount itself never for a booking with hidden prices.
     const payUrl = pay && pay.target.kind !== "none" ? pay.target.url : null;
     const balanceCents = pay && session.pricingHidden !== true ? shownCents(pay.owed) : null;
+    // P4-02: locked, whether the client already holds an open invoice, so the
+    // page says to pay it. A yes or no only: never its number or amount, and
+    // fine for hidden prices (it reveals no price). False once unlocked.
+    const invoiceOpen = !!pay && hasOpenInvoice(pay.invoices);
     const accent = org?.accentColor?.trim();
     // Dates are formatted here, in the studio's zone, the same zone the email
     // uses, so the page and the email never disagree about the day.
@@ -857,6 +867,7 @@ export const page = query({
       totalBytes: files.reduce((sum, f) => sum + f.version.size, 0),
       balanceCents,
       payUrl,
+      invoiceOpen,
       expiresAt: delivery.expiresAt,
       expiresLabel: shortDate(delivery.expiresAt, tz),
     };

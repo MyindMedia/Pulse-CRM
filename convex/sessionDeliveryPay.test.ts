@@ -432,6 +432,80 @@ describe("session delivery: an open invoice that is not what is owed (R4-01)", (
   });
 });
 
+/* ── P4-02: the page knows an invoice is open, and nothing more ── */
+
+describe("session delivery: page.invoiceOpen (P4-02)", () => {
+  beforeEach(() => { r2Env(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("P4-02 true for a sent, viewed or overdue invoice; no invoice number and no invoice amount on the page", async () => {
+    for (const st of ["sent", "viewed", "overdue"] as const) {
+      const s = await setup();
+      const inv = await invoice(s, st, 25000);
+      const number = (await s.t.run(async (ctx) => await ctx.db.get(inv)))!.number;
+      const token = await ready(s);
+      const v = await noButton(s, token, 18000, "open_invoice_wrong_amount");
+      expect(v.page.invoiceOpen, st).toBe(true);
+      const json = JSON.stringify(v.page);
+      expect(json).not.toContain(number);
+      expect(json).not.toContain("25000");
+      expect(json).not.toContain(inv);
+    }
+  });
+
+  it("P4-02 false with no invoice, or only a draft, paid or void one", async () => {
+    for (const make of [
+      async () => {},
+      async (s: S) => { await invoice(s, "draft", 5000); },
+      async (s: S) => { await invoice(s, "void", 18000); },
+      async (s: S) => { await invoice(s, "paid", 5000); },
+    ]) {
+      const s = await setup();
+      await make(s);
+      const token = await ready(s);
+      expect((await look(s, token)).page.invoiceOpen).toBe(false);
+    }
+  });
+
+  it("P4-02 the open invoice that is the target: true, and payUrl and balanceCents are what they were", async () => {
+    const s = await setup();
+    const inv = await invoice(s, "sent", 18000);
+    const token = await ready(s);
+    const v = await look(s, token);
+    expect(v.page).toMatchObject({ state: "locked", invoiceOpen: true, payUrl: `${APP_URL}/pay/invoice/${inv}`, balanceCents: 18000 });
+  });
+
+  it("P4-02 hidden prices with an open invoice: true, still no button and no amount", async () => {
+    const s = await setup({ pricingHidden: true });
+    await invoice(s, "sent", 18000);
+    const token = await ready(s);
+    const v = await noButton(s, token, null, "prices_hidden");
+    expect(v.page.invoiceOpen).toBe(true);
+  });
+
+  it("P4-02 cards off with the open invoice for what is owed: true, no button, the amount as before", async () => {
+    const s = await setup();
+    await invoice(s, "sent", 18000);
+    await s.t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { stripeChargesEnabled: false });
+    });
+    const token = await ready(s);
+    const v = await noButton(s, token, 18000, "open_invoice_wrong_amount");
+    expect(v.page.invoiceOpen).toBe(true);
+  });
+
+  it("P4-02 false once the page is unlocked, even with an invoice still open", async () => {
+    const s = await setup();
+    await invoice(s, "sent", 5000);
+    const token = await ready(s);
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.invoiceOpen).toBe(true);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.releaseNow, { sessionId: s.A.sessionId });
+    const page = (await s.t.query(api.sessionDelivery.page, { token }))!;
+    expect(page).toMatchObject({ state: "unlocked", invoiceOpen: false, payUrl: null, balanceCents: null });
+  });
+});
+
 /* ── R4-02: a no-show booking is treated exactly like a cancelled one ── */
 
 describe("session delivery: a no-show booking delivers nothing (R4-02)", () => {
