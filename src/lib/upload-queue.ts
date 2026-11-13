@@ -1,7 +1,7 @@
-/* The upload queue for the session Files panel, as plain data. The component
-   in session-upload-queue.tsx owns the side effects (XHR, Convex calls); this
-   file only decides what the rows look like and which one starts next, so it
-   can be tested without a browser. */
+/* The upload queue for the session Files panel, as plain data. The store in
+   upload-manager.ts owns the side effects (running jobs, timers); this file
+   only decides what the rows look like and which one starts next, so it can be
+   tested without a browser. */
 
 export const MAX_PARALLEL = 2;
 
@@ -16,6 +16,9 @@ export type QueueItem = {
   error?: string;
   /** When the bytes started moving (ms). Feeds etaText. */
   startedAt?: number;
+  /** Past the point of no return (the bytes are in and the server writes have
+   *  begun): cancel is ignored and the row ends as Uploaded. */
+  committed?: boolean;
 };
 
 export type QueueAction =
@@ -24,7 +27,9 @@ export type QueueAction =
   | { type: "progress"; id: string; sent: number }
   | { type: "done"; id: string }
   | { type: "fail"; id: string; error: string }
+  | { type: "commit"; id: string }
   | { type: "cancel"; id: string }
+  | { type: "refuse"; item: { id: string; name: string; size: number }; error: string }
   | { type: "remove"; id: string };
 
 function patch(state: QueueItem[], id: string, apply: (item: QueueItem) => QueueItem): QueueItem[] {
@@ -51,8 +56,17 @@ export function queueReducer(state: QueueItem[], action: QueueAction): QueueItem
       return patch(state, action.id, (i) => (i.status === "uploading" ? { ...i, status: "done", sent: i.size, error: undefined } : i));
     case "fail":
       return patch(state, action.id, (i) => (i.status === "uploading" ? { ...i, status: "failed", error: action.error } : i));
+    case "commit":
+      return patch(state, action.id, (i) => (i.status === "uploading" ? { ...i, committed: true } : i));
     case "cancel":
-      return patch(state, action.id, (i) => (i.status === "queued" || i.status === "uploading" ? { ...i, status: "canceled" } : i));
+      return patch(state, action.id, (i) =>
+        (i.status === "queued" || i.status === "uploading") && !i.committed ? { ...i, status: "canceled" } : i,
+      );
+    case "refuse":
+      return [
+        ...state,
+        { id: action.item.id, name: action.item.name, size: action.item.size, sent: 0, status: "failed", error: action.error },
+      ];
     case "remove":
       return state.filter((i) => i.id !== action.id);
   }
@@ -80,18 +94,4 @@ export function etaText(sent: number, total: number, startedAt: number, now: num
   const minutes = Math.round(secondsLeft / 60);
   if (minutes < 90) return `about ${minutes} min left`;
   return `about ${Math.round(minutes / 60)} hr left`;
-}
-
-/** "612 MB", "1.08 GB", "212 KB". */
-export function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  if (units[i] === "GB") return `${v.toFixed(2)} GB`;
-  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }

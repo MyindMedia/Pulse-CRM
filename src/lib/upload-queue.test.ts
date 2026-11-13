@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_PARALLEL, etaText, formatBytes, nextToStart, queueReducer, type QueueItem } from "./upload-queue";
+import { MAX_PARALLEL, etaText, nextToStart, queueReducer, type QueueItem } from "./upload-queue";
 
 const add = (state: QueueItem[], ...names: string[]) =>
   queueReducer(state, { type: "add", items: names.map((n, i) => ({ id: n, name: n, size: 1000 * (i + 1) })) });
@@ -67,6 +67,31 @@ describe("queueReducer", () => {
     expect(s.map((i) => i.id)).toEqual(["b"]);
   });
 
+  it("after commit (the point of no return) cancel is ignored and the row ends done", () => {
+    let s = add([], "a");
+    s = queueReducer(s, { type: "start", id: "a", at: 0 });
+    s = queueReducer(s, { type: "commit", id: "a" });
+    expect(s[0]).toMatchObject({ status: "uploading", committed: true });
+    s = queueReducer(s, { type: "cancel", id: "a" });
+    expect(s[0].status).toBe("uploading");
+    s = queueReducer(s, { type: "done", id: "a" });
+    expect(s[0].status).toBe("done");
+  });
+
+  it("commit only applies to an uploading row", () => {
+    let s = add([], "a");
+    s = queueReducer(s, { type: "commit", id: "a" });
+    expect(s[0].committed).toBeUndefined();
+    s = queueReducer(s, { type: "cancel", id: "a" });
+    expect(s[0].status).toBe("canceled");
+  });
+
+  it("refuse adds a row that is already failed with its reason", () => {
+    const s = queueReducer(add([], "a"), { type: "refuse", item: { id: "f", name: "Session folder", size: 0 }, error: "Folders cannot be uploaded. Zip it first." });
+    expect(s[1]).toMatchObject({ id: "f", status: "failed", error: "Folders cannot be uploaded. Zip it first." });
+    expect(nextToStart(s)).toEqual(["a"]);
+  });
+
   it("a zero byte file can still finish", () => {
     let s = queueReducer([], { type: "add", items: [{ id: "z", name: "z.txt", size: 0 }] });
     s = queueReducer(s, { type: "start", id: "z", at: 0 });
@@ -119,14 +144,5 @@ describe("etaText", () => {
   it("is empty when finished or the clock is odd", () => {
     expect(etaText(100, 100, 0, 9000)).toBe("");
     expect(etaText(50, 100, 9000, 3000)).toBe("");
-  });
-});
-
-describe("formatBytes", () => {
-  it("matches the mockup style", () => {
-    expect(formatBytes(612 * 1024 * 1024)).toBe("612 MB");
-    expect(formatBytes(1.08 * 1024 ** 3)).toBe("1.08 GB");
-    expect(formatBytes(212 * 1024)).toBe("212 KB");
-    expect(formatBytes(0)).toBe("0 B");
   });
 });
