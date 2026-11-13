@@ -244,10 +244,14 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
         variant={a.variant}
         className={cn(BTN, "aria-disabled:opacity-40 aria-busy:cursor-wait")}
         data-card-action={a.key}
-        disabled={a.disabled}
         aria-busy={busy === a.key || undefined}
-        aria-disabled={(busy !== null && busy !== a.key) || undefined}
-        onClick={() => run(a.key)}
+        aria-disabled={a.disabled || (busy !== null && busy !== a.key) || undefined}
+        onClick={() => {
+          // A button that cannot act (no Final file, a cancelled or no-show
+          // booking) stays focusable and refuses the press (R4-02, V3-01).
+          if (a.disabled) return;
+          run(a.key);
+        }}
       >
         {a.key === "ready" && <Send className="size-3.5" aria-hidden />}
         {a.key === "copy" && <Link2 className="size-3.5" aria-hidden />}

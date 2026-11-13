@@ -32,10 +32,15 @@ export type DeliveryStatus = {
   canRelease: boolean;
   canTurnOff: boolean;
   cancelled: boolean;
+  /** The booking was a no-show (R4-02): treated like cancelled. */
+  noShow: boolean;
+  /** The first open invoice (sent, viewed or overdue), with its amount only
+   *  for callers with money sight (R4-01). */
+  openInvoice: { number: string; cents: number } | null;
   /** Where the client can pay online for exactly what is owed (payTargetFor). */
   onlinePay: "invoice" | "checkout" | "none" | (string & {});
   /** Why there is no online pay target, or null when there is one. */
-  onlinePayReason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" | (string & {}) | null;
+  onlinePayReason: "invoice_not_sent" | "amount_mismatch" | "open_invoice_wrong_amount" | "prices_hidden" | "nothing_owed" | (string & {}) | null;
 };
 
 export type CardActionKey = "ready" | "release" | "resend" | "copy" | "off";
@@ -54,6 +59,7 @@ export const PAY_LINK_TOAST = "Pay link sent. The files unlock when the balance 
 /** The same moment when the email carries no Pay button (onlinePay "none"). */
 export const BALANCE_EMAIL_TOAST = "Balance email sent. The files unlock when the balance is paid.";
 export const CANCELLED_LINE = "This booking was cancelled, so there is nothing to deliver.";
+export const NO_SHOW_LINE = "This booking was a no-show, so there is nothing to deliver.";
 export const NOTHING_OWED_LINE = "Nothing is owed now. Tap Resend to send the files.";
 
 export function sentToast(email: string | null): string {
@@ -66,14 +72,19 @@ export function payToast(onlinePay: DeliveryStatus["onlinePay"]): string {
   return onlinePay === "none" ? BALANCE_EMAIL_TOAST : PAY_LINK_TOAST;
 }
 
-/** R3-05: what to do when there is no online pay link, for callers with
- *  money sight. Exact copy from the plan's Addendum 3. */
-function noPayLinkLine(reason: DeliveryStatus["onlinePayReason"], name: string): string | null {
-  switch (reason) {
+/** R3-05 and R4-01: what to do when there is no online pay link, for callers
+ *  with money sight. Exact copy from the plan's addenda. The open-invoice line
+ *  names the invoice and both amounts, so it needs both of them; without them
+ *  there is no line at all (never "send an invoice": one is already open). */
+function noPayLinkLine(status: DeliveryStatus, name: string): string | null {
+  switch (status.onlinePayReason) {
     case "invoice_not_sent":
       return `Send the balance invoice so ${name} can pay online.`;
     case "amount_mismatch":
       return `There is no online pay link for this balance. Send ${name} an invoice for it.`;
+    case "open_invoice_wrong_amount":
+      if (!status.openInvoice || status.balanceCents === null) return null;
+      return `Invoice ${status.openInvoice.number} is open for ${moneyExact(status.openInvoice.cents)}, but ${moneyExact(status.balanceCents)} is owed. Void or correct it so ${name} can pay online.`;
     case "prices_hidden":
       return `Prices are hidden on this booking. Send ${name} an invoice to collect the balance.`;
     default:
@@ -111,8 +122,10 @@ export function deliveryCardView(status: DeliveryStatus, opts: { canUpload: bool
   const off: CardAction[] = status.canTurnOff ? [{ key: "off", label: "Turn off link", variant: "ghost" }] : [];
   const resend: CardAction[] = canUpload ? [{ key: "resend", label: "Resend", variant: "secondary" }] : [];
 
-  if (status.cancelled) {
-    return { pill: null, lines: [line(CANCELLED_LINE)], actions: canUpload ? [ready(true)] : [] };
+  // A no-show bills a fee, not the rate, so there is nothing to deliver for it
+  // either (R4-02): the same card as a cancelled booking.
+  if (status.cancelled || status.noShow) {
+    return { pill: null, lines: [line(status.cancelled ? CANCELLED_LINE : NO_SHOW_LINE)], actions: canUpload ? [ready(true)] : [] };
   }
 
   if (status.state === "awaiting_payment") {
@@ -133,7 +146,7 @@ export function deliveryCardView(status: DeliveryStatus, opts: { canUpload: bool
     const owed =
       seesMoney && status.balanceCents! > 0 ? `${moneyExact(status.balanceCents!)} is still owed.` : "A balance is still owed.";
     const lines: CardLine[] = [line(sent, strong(owed), " The download link sends by itself when it is paid.")];
-    const todo = seesMoney && noLink ? noPayLinkLine(status.onlinePayReason, name) : null;
+    const todo = seesMoney && noLink ? noPayLinkLine(status, name) : null;
     if (todo) lines.push({ parts: [{ text: todo }], tone: "caution" });
     const release: CardAction[] = status.canRelease ? [{ key: "release", label: "Send now anyway", variant: "secondary" }] : [];
     return { pill, lines, actions: [...release, ...copy, ...off] };
