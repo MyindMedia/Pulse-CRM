@@ -224,7 +224,7 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     for (const text of [mail.html!, mail.body]) {
       expect(text).not.toMatch(/\$\s?\d/);
       expect(text).not.toContain("180");
-      expect(text).toContain("There is a balance on this booking. Studio A will send you a way to pay it.");
+      expect(text).toContain("There is a balance on this booking. Studio A will be in touch about payment.");
     }
     expect(mail.html).not.toContain("</a>");
     // The team (with money sight) still sees the amount on the card.
@@ -239,9 +239,10 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     const [mail] = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
     expect(mail.html).not.toContain("</a>");
     expect(mail.html).not.toMatch(/\$\s?\d/);
-    // P4-03: the invoice is already open, so the email says to pay it.
-    expect(mail.html).toContain("There is a balance on this booking. Pay it with the invoice Studio A sent you.");
-    expect(mail.html).not.toContain("will send you a way to pay");
+    // R5-01: no target, so one neutral sentence: no invoice, no method.
+    expect(mail.html).toContain("There is a balance on this booking. Studio A will be in touch about payment.");
+    expect(mail.html!.toLowerCase()).not.toContain("invoice");
+    expect(mail.html).not.toContain("sent you");
     // The client pays the invoice the studio sent, through the real webhook.
     await payThrough(s, { kind: "invoice", url: `${APP_URL}/pay/invoice/${inv}`, cents: 18000 });
     expect((await row(s)).status).toBe("released");
@@ -354,18 +355,18 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     expect(st).toMatchObject({ onlinePay: "none", onlinePayReason: "nothing_owed", balanceDue: false });
   });
 
-  it("R3-02 the pay email without a target: no button, the amount and how it will be paid", async () => {
+  it("R3-02 R5-01 the pay email without a target: no button, the amount and the one neutral sentence", async () => {
     const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
     await invoice(s, "draft", 30000);
     await ready(s);
     const [mail] = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
     expect(mail.html).toContain(
-      "Your Vocal tracking session from November 10 is finished and waiting. There is a $300.00 balance on this booking. Studio A will send you a way to pay it. Once it is paid, your download link arrives right away.",
+      "Your Vocal tracking session from November 10 is finished and waiting. There is a $300.00 balance on this booking. Studio A will be in touch about payment. Once it is paid, your download link arrives right away.",
     );
     expect(mail.html).not.toContain("</a>");
     expect(mail.html).not.toContain("and unlock");
     // The log copy keeps no amount.
-    expect(mail.body).toContain("There is a balance on this booking. Studio A will send you a way to pay it.");
+    expect(mail.body).toContain("There is a balance on this booking. Studio A will be in touch about payment.");
     expect(mail.body).not.toContain("$");
   });
 
@@ -375,7 +376,7 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     const [mail] = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
     expect(mail.html).toContain(`href="${APP_URL}/delivery/${token}"`);
     expect(mail.html).toContain(">Pay $180.00 and unlock</a>");
-    expect(mail.html).not.toContain("will send you a way to pay");
+    expect(mail.html).not.toContain("in touch");
   });
 });
 
@@ -570,68 +571,105 @@ describe("session delivery: status.payFacts and page.nothingOwed (R5-01, R5-03)"
   });
 });
 
-/* ── P4-03: the pay email with no target names the open invoice ── */
+/* ── R5-01: no client surface points at a payment unless it is the exact target ── */
 
-describe("session delivery: the pay email when an invoice is already open (P4-03)", () => {
+describe("session delivery: client surfaces name no invoice without a target (R5-01)", () => {
   beforeEach(() => { r2Env(); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
-  const PAY_IT = "Pay it with the invoice Studio A sent you. Once it is paid, your download link arrives right away.";
   const payMails = async (s: S) => (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
-
-  it("P4-03 an open invoice for another amount: no button, pay it with the invoice the studio sent", async () => {
-    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
-    await invoice(s, "sent", 25000);
-    const token = await ready(s);
-    await noButton(s, token, 30000, "open_invoice_wrong_amount");
-    const [mail] = await payMails(s);
-    expect(mail.html).toContain(`There is a $300.00 balance on this booking. ${PAY_IT}`);
-    expect(mail.html).not.toContain("</a>");
-    expect(mail.html).not.toContain("will send you a way to pay");
-    expect(mail.body).toContain(`There is a balance on this booking. ${PAY_IT}`);
-    expect(mail.body).not.toContain("$");
-  });
-
-  it("P4-03 cards off with the open invoice for exactly what is owed: no button, pay it with the invoice", async () => {
-    const s = await setup();
-    await invoice(s, "overdue", 18000);
+  const cardsOff = async (s: S) => {
     await s.t.run(async (ctx) => {
       const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
       await ctx.db.patch(org!._id, { stripeChargesEnabled: false });
     });
-    const token = await ready(s);
-    await noButton(s, token, 18000, "open_invoice_wrong_amount");
-    const [mail] = await payMails(s);
-    expect(mail.html).toContain(`There is a $180.00 balance on this booking. ${PAY_IT}`);
-    expect(mail.html).not.toContain("</a>");
-  });
+  };
+  const LINE = "Studio A will be in touch about payment. Once it is paid, your download link arrives right away.";
+  const OPENING = "Your Vocal tracking session from November 10 is finished and waiting.";
 
-  it("P4-03 decided when the email is built: a resend after the invoice goes out says to pay it", async () => {
-    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
-    const inv = await invoice(s, "draft", 25000);
-    await ready(s);
-    expect((await payMails(s))[0].html).toContain("Studio A will send you a way to pay it.");
-    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: inv, status: "sent" });
-    // Past the resend gap.
-    const d = await row(s);
-    await s.t.run(async (ctx) => { await ctx.db.patch(d._id, { lastSentAt: Date.now() - 24 * 3_600_000 }); });
-    await s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
-    const mails = await payMails(s);
-    expect(mails).toHaveLength(2);
-    const latest = mails.find((m) => m.html!.includes("Pay it with the invoice"));
-    expect(latest).toBeDefined();
-    expect(latest!.html).toContain(PAY_IT);
-    expect(latest!.html).not.toContain("will send you a way to pay");
-  });
+  /** Neither the page nor the email (html or plain text) says invoice or sent you. */
+  function noInvoiceWords(...outs: string[]) {
+    for (const out of outs) {
+      expect(out.toLowerCase()).not.toContain("invoice");
+      expect(out).not.toContain("sent you");
+    }
+  }
 
-  it("P4-03 with a target the email is as before, even though that target is an open invoice", async () => {
+  const situations: Array<{ name: string; patch?: Partial<Doc<"sessions">>; make: (s: S) => Promise<void>; owed: number; shown: number | null; reason: string }> = [
+    {
+      name: "wrong amount: one open $250 invoice, $300 owed",
+      patch: { rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 },
+      make: async (s) => { await invoice(s, "sent", 25000); },
+      owed: 30000, shown: 30000, reason: "open_invoice_wrong_amount",
+    },
+    {
+      name: "two open invoices that add up to what is owed",
+      make: async (s) => { await invoice(s, "sent", 9000); await invoice(s, "overdue", 9000); },
+      owed: 18000, shown: 18000, reason: "open_invoice_wrong_amount",
+    },
+    {
+      name: "a duplicate: two open invoices, each for exactly what is owed",
+      make: async (s) => { await invoice(s, "sent", 18000); await invoice(s, "viewed", 18000); },
+      owed: 18000, shown: 18000, reason: "open_invoice_wrong_amount",
+    },
+    {
+      name: "cards off with a draft for exactly what is owed",
+      make: async (s) => { await invoice(s, "draft", 18000); await cardsOff(s); },
+      owed: 18000, shown: 18000, reason: "amount_mismatch",
+    },
+    {
+      name: "hidden prices with an open invoice for exactly what is owed",
+      patch: { pricingHidden: true },
+      make: async (s) => { await invoice(s, "sent", 18000); },
+      owed: 18000, shown: null, reason: "prices_hidden",
+    },
+  ];
+
+  for (const x of situations) {
+    it(`R5-01 ${x.name}: no button, the one sentence, and no client surface says invoice or sent you`, async () => {
+      const s = await setup(x.patch);
+      await x.make(s);
+      const token = await ready(s);
+      const v = await noButton(s, token, x.shown, x.reason);
+      expect(v.owed).toBe(x.owed);
+      expect(v.page).toMatchObject({ state: "locked", payUrl: null, balanceCents: x.shown, nothingOwed: false });
+      expect(v.page).not.toHaveProperty("invoiceOpen");
+
+      const balance = x.shown === null ? "There is a balance on this booking." : `There is a $${(x.shown / 100).toFixed(2)} balance on this booking.`;
+      const mails = await payMails(s);
+      expect(mails).toHaveLength(1);
+      const [mail] = mails;
+      expect(mail.html).toContain(`${OPENING} ${balance} ${LINE}`);
+      expect(mail.body).toContain(`${OPENING} There is a balance on this booking. ${LINE}`);
+      expect(mail.html).not.toContain("</a>");
+      expect(mail.body).not.toContain("$");
+      noInvoiceWords(JSON.stringify(v.page), mail.html!, mail.body, mail.subject ?? "");
+
+      // A resend builds the email again: the same sentence.
+      const d = await row(s);
+      await s.t.run(async (ctx) => { await ctx.db.patch(d._id, { lastSentAt: Date.now() - 24 * 3_600_000 }); });
+      await s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
+      const again = await payMails(s);
+      expect(again).toHaveLength(2);
+      for (const m of again) {
+        expect(m.html).toContain(`${OPENING} ${balance} ${LINE}`);
+        noInvoiceWords(m.html!, m.body);
+      }
+      noInvoiceWords(JSON.stringify((await s.t.query(api.sessionDelivery.page, { token }))!));
+    });
+  }
+
+  it("R5-01 only the exact-match target points at a payment: the Pay button, and the email is as before", async () => {
     const s = await setup();
-    await invoice(s, "sent", 18000);
+    const inv = await invoice(s, "sent", 18000);
     const token = await ready(s);
+    const v = await look(s, token);
+    expect(v.page).toMatchObject({ state: "locked", payUrl: `${APP_URL}/pay/invoice/${inv}`, balanceCents: 18000, nothingOwed: false });
     const [mail] = await payMails(s);
     expect(mail.html).toContain(`href="${APP_URL}/delivery/${token}"`);
     expect(mail.html).toContain(">Pay $180.00 and unlock</a>");
-    expect(mail.html).not.toContain("Pay it with the invoice");
+    expect(mail.html).toContain(`${OPENING} There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away.`);
+    expect(mail.html).not.toContain("in touch");
   });
 });
 

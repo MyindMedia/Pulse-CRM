@@ -193,8 +193,9 @@ function shownCents(owed: number): number | null {
    The rule: the delivery page and the pay email offer an online Pay button
    only when the amount that target will charge is exactly what is owed (the
    amount the client is shown). Otherwise there is no button and the client is
-   told to pay the invoice the studio sent when one is open (P4-02, P4-03), or
-   that the studio will send a way to pay. Pulse keeps two payment records and
+   told only that the studio will be in touch about payment: no client surface
+   names an invoice, a link or a method without a target (R5-01). The team card
+   gets the facts instead (status.payFacts). Pulse keeps two payment records and
    each pay page computes its own amount, so a button is offered only where the
    two agree, never by guessing which one is right.
 
@@ -304,12 +305,6 @@ async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | n
   return { owed: ledger.owed, target, invoices: ledger.invoices, cardsOn };
 }
 
-/** Whether any of the booking's invoices is sent, viewed or overdue: the
- *  client already holds an invoice to pay (P4-02, P4-03). */
-function hasOpenInvoice(invoices: Array<Pick<Doc<"invoices">, "status">>): boolean {
-  return invoices.some((inv) => OPEN_INVOICE.has(inv.status));
-}
-
 /** How many open invoices the status card lists by number and amount. */
 const LISTED_OPEN_INVOICES = 5;
 
@@ -409,8 +404,6 @@ type Facts = {
   owed: number;
   /** Where the client can pay exactly `owed` online, if anywhere. */
   target: PayTarget;
-  /** An invoice on the booking is sent, viewed or overdue (P4-03). */
-  invoiceOpen: boolean;
 };
 
 async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null> {
@@ -429,7 +422,6 @@ async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null
     files,
     owed: pay.owed,
     target: pay.target,
-    invoiceOpen: hasOpenInvoice(pay.invoices),
   };
 }
 
@@ -466,8 +458,8 @@ function emailFor(
   if (kind === "pay" && shownCents(f.owed) === null) throw new ConvexError(PRICE_BROKEN);
   // A booking with hidden prices never shows the client an amount, not even
   // what they just paid. Without a pay target the pay email has no button and
-  // says to pay the invoice the studio sent when one is open now (P4-03), or
-  // that the studio will send a way to pay (payTargetFor).
+  // the one neutral sentence: the studio will be in touch about payment
+  // (R5-01; it names no invoice and no method).
   const m =
     kind === "ready"
       ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents: hidden ? undefined : paidCents })
@@ -475,7 +467,6 @@ function emailFor(
           ...common,
           balanceCents: hidden ? null : f.owed,
           payOnline: f.target.kind !== "none",
-          invoiceOpen: f.invoiceOpen,
           studioName: f.org?.name?.trim() || "The studio",
         });
   return {
@@ -685,7 +676,7 @@ export const markReady = mutation({
     const org = await orgRow(ctx, orgId);
     const pay = await payFacts(ctx, session, org);
     const owed = pay.owed;
-    const f: Facts = { session, org, artist, files, owed, target: pay.target, invoiceOpen: hasOpenInvoice(pay.invoices) };
+    const f: Facts = { session, org, artist, files, owed, target: pay.target };
     const base = {
       orgId,
       sessionId,
