@@ -223,3 +223,23 @@
 - [ ] **Step 2:** Run `npm run check` and `npm run build`. Expected: build succeeds; note the route's First Load JS.
 - [ ] **Step 3:** Local demo: with a released delivery, a waiting one and a bad token, check each state at 1280 px and 390 px, reduced motion, and 200% text. `curl -sI http://localhost:<port>/delivery/x` shows 200 and both headers. Save screenshots under `specs/features/session-file-delivery/evidence/build/`.
 - [ ] **Step 4:** Commit: `Session delivery: public download page`.
+
+---
+
+## Addendum 1 (after the backend round, 2026-11-13)
+
+Tasks 1 to 4 are committed (`e231c65`, `934cf00`, `0abba4e`, `2b808df`). The fixture lives at `convex/testing/sessionDelivery.fixture.ts` (two dots, so Convex does not bundle it). Three agents now work in this worktree at the same time: backend fixes (below), Task 5 and Task 6. Each commits only its own paths with `git add <paths>` (never `git add -A` or `git add .`, never `git stash`), and retries after a few seconds on an `index.lock` error. A type or lint error in a file outside your task is another agent mid-edit: wait a minute and re-run, never edit it.
+
+Nobody runs the app in this round (no `convex dev`, no `next dev`): a separate verifier sets up one local backend afterwards. Task 5 Step 4 and Task 6 Step 3 are therefore skipped; `npm run check` and, for Task 6, `npm run build` are the bar.
+
+### Backend fixes (findings from triage of the backend round)
+| ID | Class | Fix |
+|---|---|---|
+| B-01 | partial write behind a caught error | `settlePayment` catches a failure from `onBalanceSettled`. A Convex mutation has no sub-transaction, so writes made before the throw would stay. Make `onBalanceSettled` and `release` do every read and check before their first write. Test: force a failure (for example the client row is gone) and assert the delivery row is unchanged and the "Paid in full" email is still queued. |
+| B-02 | missed trigger | Any path that lowers what is owed without calling the hook (a rate edit, a future feature) would leave a delivery waiting forever. Add `export const refresh: mutation({ token: v.string() }) => null`: when the delivery is `awaiting_payment`, not expired, the booking is not cancelled and nothing is owed, release it (by `payment`) through the same `release`. Never throws for a bad token. Tests: lower `rateCents` to the paid amount with a direct patch, `refresh` releases and queues one files email; a second `refresh` queues none; with a balance still owed it changes nothing. |
+| B-03 | money and link shown to staff without money sight | The stored `notifications.body` of the pay email must not contain the amount (use `There is a balance on this booking.`); the `html` keeps it. Every query that returns notification rows to a client (`forSession`, `recent`, `activityFeed`, any other) must omit `html` and any link fields. Tests for both. |
+| B-04 | mockup mismatch | In the mockup the small print sits under the button. Have the template put the button inside its own `html` (same markup and readable ink as `studioEmailHtml`'s button, colored by an `accent` argument) followed by the small print, and stop passing a separate button. Remove `ctaLabel` and `ctaUrl` from the schema, `notify` and `deliver` if nothing else uses them; keep `accent` for the header bar. Update the tests. |
+| B-05 | undeclared dependency | `convex/lib/media.ts` imports `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`, which are only present transitively. Add both to `package.json` `dependencies` at the exact versions already in `package-lock.json`. |
+
+### Change to Task 6
+The client page calls `api.sessionDelivery.refresh({ token })` once when it first renders in the locked state (B-02), and `opened` once when it first renders unlocked.
