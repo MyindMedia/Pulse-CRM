@@ -8,9 +8,10 @@ import { moneyExact, shortDate, timeOfDay } from "@/lib/format";
    - "Send now anyway" and "Turn off link" appear only when the server says
      canRelease / canTurnOff;
    - when the client has no online way to pay exactly what is owed
-     (onlinePay "none", R3-05), a caller with money sight is told what to do
-     about it, and an open invoice decides that line first (P4-01); everyone
-     else still sees only that a balance is owed. */
+     (onlinePay "none"), a caller with money sight gets the team card table
+     (Addendum 5, R5-02): the first matching row of the facts in payFacts
+     says what is open, what is drafted, and what to do; everyone else sees
+     only that a balance is owed. */
 
 export type DeliveryState = "none" | "awaiting_payment" | "released" | "off";
 
@@ -35,13 +36,22 @@ export type DeliveryStatus = {
   cancelled: boolean;
   /** The booking was a no-show (R4-02): treated like cancelled. */
   noShow: boolean;
-  /** The first open invoice (sent, viewed or overdue), with its amount only
-   *  for callers with money sight (R4-01). */
-  openInvoice: { number: string; cents: number } | null;
   /** Where the client can pay online for exactly what is owed (payTargetFor). */
   onlinePay: "invoice" | "checkout" | "none" | (string & {});
-  /** Why there is no online pay target, or null when there is one. */
-  onlinePayReason: "invoice_not_sent" | "amount_mismatch" | "open_invoice_wrong_amount" | "prices_hidden" | "nothing_owed" | (string & {}) | null;
+  /** The invoice facts the team card reads; null for callers without money sight. */
+  payFacts: PayFacts | null;
+};
+
+/** sessionDelivery.status.payFacts (Addendum 5). */
+export type PayFacts = {
+  /** Open invoices (sent, viewed or overdue), oldest first, at most 5. */
+  openInvoices: Array<{ number: string; cents: number }>;
+  /** The real count of open invoices; may exceed openInvoices.length. */
+  openInvoiceCount: number;
+  /** Count of draft invoices on the booking. */
+  draftInvoices: number;
+  pricesHidden: boolean;
+  cardsOn: boolean;
 };
 
 export type CardActionKey = "ready" | "release" | "resend" | "copy" | "off";
@@ -62,6 +72,8 @@ export const BALANCE_EMAIL_TOAST = "Balance email sent. The files unlock when th
 export const CANCELLED_LINE = "This booking was cancelled, so there is nothing to deliver.";
 export const NO_SHOW_LINE = "This booking was a no-show, so there is nothing to deliver.";
 export const NOTHING_OWED_LINE = "Nothing is owed now. Tap Resend to send the files.";
+export const NOTHING_OWED_NO_EMAIL_LINE = (name: string) =>
+  `Nothing is owed now, but there is no email on file. Add one for ${name}, then tap Resend.`;
 
 export function sentToast(email: string | null): string {
   return email ? `Sent to ${email}` : "Sent";
@@ -73,34 +85,30 @@ export function payToast(onlinePay: DeliveryStatus["onlinePay"]): string {
   return onlinePay === "none" ? BALANCE_EMAIL_TOAST : PAY_LINK_TOAST;
 }
 
-/** R3-05, R4-01 and P4-01: what to do when there is no online pay link, for
- *  callers with money sight. Exact copy from the plan's addenda. An open
- *  invoice decides first, whatever the reason: for exactly what is owed, the
- *  client pays it; for another amount, the team voids or corrects it. Never
- *  "send an invoice" while one is open. Only with no open invoice does the
- *  reason pick the line. Both open-invoice lines name the invoice and its
- *  amount, so they need both amounts; without them there is no line at all. */
-function noPayLinkLine(status: DeliveryStatus, name: string): string | null {
-  const open = status.openInvoice;
-  if (open && status.balanceCents !== null) {
-    if (open.cents === status.balanceCents) {
-      return `Invoice ${open.number} for ${moneyExact(open.cents)} is open. The files unlock when it is paid.`;
-    }
-    return `Invoice ${open.number} is open for ${moneyExact(open.cents)}, but ${moneyExact(status.balanceCents)} is owed. Void or correct it so ${name} can pay online.`;
+/** The team card table (Addendum 5, R5-02). Only for callers with money sight
+ *  (payFacts non-null) while something is owed and onlinePay is "none". The
+ *  first matching row wins; rows 1 and 2 need the amount owed to say what
+ *  would match it. */
+export function cardTodoLine(facts: PayFacts, owedCents: number | null, name: string): string {
+  const owed = owedCents !== null ? `${moneyExact(owedCents)} is owed.` : "A balance is still owed.";
+  // 1: exactly one open invoice, and its amount is what is owed.
+  if (facts.openInvoiceCount === 1 && owedCents !== null && facts.openInvoices[0]?.cents === owedCents) {
+    const [only] = facts.openInvoices;
+    return `Invoice ${only.number} for ${moneyExact(only.cents)} is open. The files unlock when it is paid.`;
   }
-  switch (status.onlinePayReason) {
-    case "invoice_not_sent":
-      return `Send the balance invoice so ${name} can pay online.`;
-    case "amount_mismatch":
-      return `There is no online pay link for this balance. Send ${name} an invoice for it.`;
-    case "open_invoice_wrong_amount":
-      // The invoice to name was not sent (no money sight): no line.
-      return null;
-    case "prices_hidden":
-      return `Prices are hidden on this booking. Send ${name} an invoice to collect the balance.`;
-    default:
-      return null;
+  // 2: one or more open invoices otherwise (wrong amount, or more than one).
+  if (facts.openInvoiceCount > 0) {
+    const shown = facts.openInvoices.slice(0, 5);
+    const more = facts.openInvoiceCount > shown.length ? ` and ${facts.openInvoiceCount - shown.length} more` : "";
+    const list = shown.map((i) => `${i.number} (${moneyExact(i.cents)})`).join(", ");
+    return `Open invoices: ${list}${more}. ${owed} Leave one open invoice for exactly that amount so the files unlock when it is paid.`;
   }
+  // 3: a draft exists but nothing is open.
+  if (facts.draftInvoices > 0) return `A balance invoice is drafted but not sent. Send it so ${name} can pay.`;
+  // 4: prices are hidden, so the team sends the invoice itself.
+  if (facts.pricesHidden) return `Prices are hidden on this booking. Send ${name} an invoice to collect the balance.`;
+  // 5: none of the above.
+  return `There is no online pay link for this balance. Send ${name} an invoice for it.`;
 }
 
 function sameDay(a: number, b: number): boolean {
@@ -142,7 +150,11 @@ export function deliveryCardView(status: DeliveryStatus, opts: { canUpload: bool
   if (status.state === "awaiting_payment") {
     const pill: CardPill = { tone: "wait", label: "Waiting for payment", icon: "lock" };
     if (!status.balanceDue) {
-      // Nothing owed (a payment path that missed the trigger): Resend releases.
+      // Nothing owed (a payment path that missed the trigger). Resend releases,
+      // but with no email on file it would fail, so staff are told to add one.
+      if (!status.clientEmail) {
+        return { pill, lines: [line(NOTHING_OWED_NO_EMAIL_LINE(name))], actions: [...copy, ...off] };
+      }
       return { pill, lines: [line(NOTHING_OWED_LINE)], actions: [...resend, ...copy, ...off] };
     }
     // With no online pay target the email had no Pay button, so it is not
@@ -157,7 +169,7 @@ export function deliveryCardView(status: DeliveryStatus, opts: { canUpload: bool
     const owed =
       seesMoney && status.balanceCents! > 0 ? `${moneyExact(status.balanceCents!)} is still owed.` : "A balance is still owed.";
     const lines: CardLine[] = [line(sent, strong(owed), " The download link sends by itself when it is paid.")];
-    const todo = seesMoney && noLink ? noPayLinkLine(status, name) : null;
+    const todo = status.payFacts && noLink ? cardTodoLine(status.payFacts, status.balanceCents, name) : null;
     if (todo) lines.push({ parts: [{ text: todo }], tone: "caution" });
     const release: CardAction[] = status.canRelease ? [{ key: "release", label: "Send now anyway", variant: "secondary" }] : [];
     return { pill, lines, actions: [...release, ...copy, ...off] };
