@@ -27,3 +27,9 @@ RD: ./rd.md
 | U-11 | Exports behave per decision 1 for Core, Growth and a billing-locked studio | convex-test | PASS | `convex/planGates.test.ts` "U-11: Core, Growth and a billing-locked studio can all export" (decision 1a: all six exports open on every plan) and "exports still need the role permission: an engineer cannot export clients" |
 | U-12 | STOP and clock replies still work on Core while the receptionist is gated | convex-test on inbound SMS | PASS (STOP); clock replies not separately run | `convex/planGates.test.ts` "U-12: STOP still works on Core while the receptionist is gated, and the text is still logged". Clock-in replies were not separately tested on a Core studio: they are handled by `routeInbound` before the receptionist branch, which is the only inbound code this change touched |
 | U-13 | Must-not-break list passes | Full suite | PASS | Full suite: `npx tsc --noEmit`, `npm run lint`, `npx vitest run` with only the three known failures (counts in the pull request) |
+
+## Round 2 checks (review findings, 2026-11-12)
+| ID | Check | How to verify | Result | Evidence |
+|---|---|---|---|---|
+| R2-01 | H210-05: a member without the chosen role cannot read, add or check out visitors | convex-test with the lowest role → FORBIDDEN | NOT RUN | Not built, same as U-08: decision 3 (which role may read the visitor log) is not made in the write-up or in the round-2 owner decisions, and the existing client-read permission is held by every role including intern, so reusing it would change nothing. Owner: name the role and the check is one line in each of `visitors.list`, `directory`, `registerManual`, `checkOut` |
+

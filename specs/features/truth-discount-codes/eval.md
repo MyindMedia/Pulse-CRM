@@ -25,3 +25,18 @@ RD: ./rd.md
 | U-10 | Owner code still applies at checkout | convex-test | PASS | `convex/rateCutPromos.test.ts` "U-10: an owner code still applies at checkout; the old sweep's permanent codes do not"; existing `convex/discountCodes.test.ts` (checkout with a code) still passes |
 | U-11 | Deactivated promo does not fall back to a legacy code of the same name | Existing behaviour; convex-test | PASS | `convex/rateCutPromos.test.ts` "U-11: a deactivated promo does not fall back to a legacy code of the same name" (this was NOT existing behaviour: a switched-off promo used to fall through to the legacy code; now it does not) |
 | U-12 | Must-not-break list passes | Full suite | PASS | Full suite: `npx tsc --noEmit`, `npm run lint`, `npx vitest run` with only the three known failures (counts in the pull request) |
+
+## Round 2 checks (review findings, 2026-11-12)
+Owner decision: the public booking page never returns discount codes.
+
+| ID | Check | How to verify | Result | Evidence |
+|---|---|---|---|---|
+| R2-01 | H210-02: the anonymous slug lookup returns branding only: no codes (active or not), no owner email, prices, tax or billing | convex-test with no identity on `orgs.getBySlug` | PASS | `convex/discountCodes.test.ts` "returns branding only, never discount codes" |
+| R2-02 | H210-02: the public booking page payload carries no discount codes | convex-test on `booking.studioFront` | PASS | `convex/discountCodes.test.ts` "the public booking page payload carries no discount codes either" |
+| R2-03 | H210-03: a post whose sweep promo was declined cannot be approved from the composer | convex-test on `marketing.posts.approve` | PASS | `convex/rateCutPromos.test.ts` "H210-03: a post whose promo was declined cannot be approved from the composer (it would advertise a dead code)" |
+| R2-04 | H210-03: a post whose owner promo was switched off cannot be approved; once it is on again it can | convex-test | PASS | `convex/rateCutPromos.test.ts` "H210-03: a post whose owner promo was switched off cannot be approved; an active one can" |
+| R2-05 | H210-03: the promo email draft tells the owner the code works only after approval; the client email itself does not carry that note | convex-test on the sweep's `aiArtifacts` row | PASS | `convex/rateCutPromos.test.ts` "H210-03: the email draft tells the owner the code is not live until approved, and the client email does not" |
+| R2-06 | H210-04: Settings marks an old sweep code as refused at checkout; toggling it does not hide that; a member without the settings permission cannot keep it; the owner can keep it and checkout then accepts it while it is on | convex-test on `orgs.current`, `orgs.setDiscountCodes`, `resolveCode` | PASS | `convex/rateCutPromos.test.ts` "H210-04: Settings shows an old sweep code as refused at checkout, and the owner can choose to keep accepting it" |
+| R2-07 | H210-04: the Settings card shows the refused note and "Accept it again" | Browser on staging | NOT RUN | On staging, add a code `ROOMAMONMOR20` labelled `Room A Monday morning (9am-12pm)` in Settings > Pricing > Discount codes, save, and confirm the note and button appear |
+| R2-08 | Same class: a second sweep makes no overlapping promo for a window whose suggested percentage changed, or whose promo is still waiting | convex-test | PASS | `convex/rateCutPromos.test.ts` "same class as H210 findings: a second sweep makes no overlapping promo for a window whose suggested percentage changed" |
+
