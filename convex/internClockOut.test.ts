@@ -335,3 +335,63 @@ describe("intern clock-out: report on past entries (no writes)", () => {
     expect(other.rows).toHaveLength(0);
   });
 });
+
+describe("intern clock-out: after a denial (H208-07)", () => {
+  async function deniedAt(t: T, when: number) {
+    await sweepAt(t, T0 + 4 * HOUR + MIN);
+    vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
+    await t.mutation(internal.sms._handleInbound, { from: INTERN, body: "EXTEND" });
+    vi.setSystemTime(when);
+    await t.mutation(internal.sms._handleInbound, { from: MGR, body: "DENY" });
+  }
+
+  it("still clocked in a reply window after the denial: intern and managers are texted again, once; the clock is not cut", async () => {
+    const t = newT();
+    const { entryId } = await setup(t);
+    const DENY = T0 + 4 * HOUR + 20 * MIN;
+    await deniedAt(t, DENY);
+    expect((await entry(t, entryId)).internDeniedAt).toBe(DENY);
+
+    sent.length = 0;
+    await sweepAt(t, DENY + 30 * MIN); // too soon
+    expect(sent).toHaveLength(0);
+
+    await sweepAt(t, DENY + 50 * MIN);
+    expect(sent.filter((s) => s.to === INTERN).map((s) => s.body)).toEqual([
+      "Pulse: You are still clocked in at Iris Studio after a manager said no. Please clock out now.",
+    ]);
+    expect(sent.filter((s) => s.to === MGR).map((s) => s.body)).toEqual([
+      expect.stringContaining("intern Ivy is still clocked in after the request was denied"),
+    ]);
+    const e = await entry(t, entryId);
+    expect(e.status).toBe("active");
+    expect(e.clockOutAt).toBeUndefined();
+    expect(e.internDeniedFollowUpAt).toBe(DENY + 50 * MIN);
+
+    sent.length = 0;
+    await sweepAt(t, DENY + 2 * HOUR);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("an intern who clocked out after the denial gets no follow-up", async () => {
+    const t = newT();
+    const { orgId } = await setup(t);
+    const DENY = T0 + 4 * HOUR + 20 * MIN;
+    await deniedAt(t, DENY);
+    vi.setSystemTime(DENY + 5 * MIN);
+    await t.withIdentity({ subject: `u_int_${orgId}`, orgId }).mutation(api.timeclock.clockOut, {});
+    sent.length = 0;
+    await sweepAt(t, DENY + 2 * HOUR);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("an entry denied before the denial time was recorded is followed up on the next sweep", async () => {
+    const t = newT();
+    const { entryId } = await setup(t);
+    await t.run((ctx) => ctx.db.patch(entryId, { internPromptSentAt: T0 + 4 * HOUR, internExtension: "denied" }));
+    sent.length = 0;
+    await sweepAt(t, T0 + 6 * HOUR);
+    expect(sent.filter((s) => s.to === INTERN)).toHaveLength(1);
+    expect((await entry(t, entryId)).status).toBe("active");
+  });
+});

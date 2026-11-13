@@ -148,6 +148,10 @@ export const INTERN_DENIED =
 export const INTERN_DENIED_DONE =
   "Pulse: Not approved - thanks for clocking out at {studio}.";
 
+/** A manager said no, and a reply window later the intern is still clocked in. */
+export const INTERN_DENIED_STILL_ON =
+  "Pulse: You are still clocked in at {studio} after a manager said no. Please clock out now.";
+
 export const INTERN_TIMEOUT =
   "Pulse: No approval came through, so you are clocked out at {studio} as of {time}.";
 

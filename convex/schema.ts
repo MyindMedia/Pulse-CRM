@@ -3174,6 +3174,10 @@ export default defineSchema({
       ),
     ),
     autoClosedReason: v.optional(v.string()), // e.g. "ot_declined" | "intern_timeout"
+    // When a manager denied the intern's request, and when the one follow-up
+    // (intern and managers texted again) went out because they were still on.
+    internDeniedAt: v.optional(v.number()),
+    internDeniedFollowUpAt: v.optional(v.number()),
     // A manager removed this entry. It is kept (pay history is never lost)
     // but counts for nothing: no hours, no pay, no open clock.
     voidedAt: v.optional(v.number()),

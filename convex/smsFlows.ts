@@ -29,6 +29,7 @@ import {
   INTERN_DENIED_DONE,
   INTERN_APPROVED,
   INTERN_DENIED,
+  INTERN_DENIED_STILL_ON,
   INTERN_TIMEOUT,
   MGR_INTERN_APPROVAL,
   MGR_APPROVAL_ACK,
@@ -580,7 +581,12 @@ async function applyPromptAnswer(
       const stillOn = entry.status === "active";
       // A denial records the decision but does not stop the clock: the intern
       // is texted to clock out, and the time is theirs until they do.
-      await ctx.db.patch(entry._id, { internExtension: intent === "approve" ? "approved" : "denied" });
+      await ctx.db.patch(
+        entry._id,
+        intent === "approve"
+          ? { internExtension: "approved" }
+          : { internExtension: "denied", ...(stillOn ? { internDeniedAt: Date.now() } : {}) },
+      );
       if (internPhone) {
         const template =
           intent === "approve"
@@ -694,6 +700,9 @@ export const _timeclockDue = internalQuery({
     const internPrompts: typeof otPrompts = [];
     const otExpired: { entryId: Id<"timeEntries">; name: string }[] = [];
     const internTimeouts: { entryId: Id<"timeEntries">; phone: string | null; name: string }[] = [];
+    // Denied, and still clocked in a reply window later: texted again once.
+    // The clock is left running (time worked is paid); a manager closes it.
+    const internDeniedStillOn: { entryId: Id<"timeEntries">; phone: string | null; name: string }[] = [];
 
     for (const e of entries) {
       const member = await ctx.db.get(e.memberId);
@@ -725,6 +734,12 @@ export const _timeclockDue = internalQuery({
           if (everPrompted && !stillWaiting) {
             internTimeouts.push({ entryId: e._id, phone, name: member.name });
           }
+        } else if (e.internExtension === "denied" && !e.internDeniedFollowUpAt) {
+          // Entries denied before internDeniedAt existed are followed up now.
+          const deniedAt = e.internDeniedAt ?? 0;
+          if (now - deniedAt >= REPLY_WINDOW) {
+            internDeniedStillOn.push({ entryId: e._id, phone, name: member.name });
+          }
         }
       } else {
         if (onClock >= OT_AFTER && !e.otPromptSentAt) {
@@ -740,7 +755,7 @@ export const _timeclockDue = internalQuery({
         }
       }
     }
-    return { studio, tz: orgTz(org), otPrompts, internPrompts, otExpired, internTimeouts };
+    return { studio, tz: orgTz(org), otPrompts, internPrompts, otExpired, internTimeouts, internDeniedStillOn };
   },
 });
 
@@ -766,6 +781,19 @@ export const _recordTimeclockPrompt = internalMutation({
         expiresAt: Date.now() + REPLY_WINDOW,
       });
     }
+  },
+});
+
+/** Stamp the one follow-up on a denied intern entry still running. Returns
+ *  false when there is nothing to do (clocked out since, or another sweep
+ *  already followed up), so the texts go out once. */
+export const _markInternDeniedFollowUp = internalMutation({
+  args: { entryId: v.id("timeEntries") },
+  handler: async (ctx, { entryId }): Promise<boolean> => {
+    const e = await ctx.db.get(entryId);
+    if (!e || e.status !== "active" || e.internExtension !== "denied" || e.internDeniedFollowUpAt) return false;
+    await ctx.db.patch(entryId, { internDeniedFollowUpAt: Date.now() });
+    return true;
   },
 });
 
@@ -1108,7 +1136,8 @@ export const sweepTimeclock = internalAction({
         due.otPrompts.some((p) => !p.phone) ||
         due.internPrompts.some((p) => !p.phone) ||
         due.otExpired.length > 0 ||
-        due.internTimeouts.length > 0
+        due.internTimeouts.length > 0 ||
+        due.internDeniedStillOn.length > 0
           ? await ctx.runQuery(internal.smsFlows._managerAlertList, { orgId })
           : [];
 
@@ -1143,6 +1172,21 @@ export const sweepTimeclock = internalAction({
             body: renderSms(MGR_ALERT, {
               studio: due.studio,
               body: `${e.name} passed 8 hours and did not answer the overtime text - entry flagged for payroll review.`,
+            }),
+          });
+        }
+      }
+
+      for (const d of due.internDeniedStillOn) {
+        const first: boolean = await ctx.runMutation(internal.smsFlows._markInternDeniedFollowUp, { entryId: d.entryId });
+        if (!first) continue;
+        if (d.phone) await sendSms({ to: d.phone, body: renderSms(INTERN_DENIED_STILL_ON, { studio: due.studio }) });
+        for (const m of managers) {
+          await sendSms({
+            to: m,
+            body: renderSms(MGR_ALERT, {
+              studio: due.studio,
+              body: `intern ${d.name} is still clocked in after the request was denied. Their time keeps counting until they clock out or you set a clock-out time.`,
             }),
           });
         }
