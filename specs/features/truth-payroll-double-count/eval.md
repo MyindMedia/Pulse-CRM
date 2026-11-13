@@ -1,5 +1,5 @@
 # Eval: Payroll counts labour twice
-Status: built on fix/high-staff-wages (H3), recommended options 1(a), 2(a) as a report, 3(b), 4 (void); round 2 review fixes H208-01 to H208-06 added as R2 checks; 21 PASS, 2 NOT RUN
+Status: built on fix/high-staff-wages (H3), recommended options 1(a), 2(a) as a report, 3(b), 4 (void); round 2 review fixes H208-01 to H208-06 added as R2 checks; 18 PASS, 2 NOT RUN
 Risk: High. It changes how wages are calculated and what lands in the P&L. If it is wrong, a worker is paid twice or not at all for real hours, or a studio's labour cost is wrong.
 RD: ./rd.md
 
