@@ -17,6 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
+import { onBalanceSettled } from "./sessionDelivery";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -382,6 +383,9 @@ export const setComp = mutation({
       compReason: compReason?.trim() || undefined,
       rateCents: charged,
     });
+    // Session file delivery: a comp that leaves nothing owed releases a
+    // delivery that was waiting for payment.
+    if (charged - (s.amountPaidCents ?? 0) <= 0) await onBalanceSettled(ctx, id);
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.comp.set",

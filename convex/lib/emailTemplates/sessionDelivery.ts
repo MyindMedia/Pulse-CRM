@@ -4,7 +4,8 @@
    file list, small print) plus the button. notifications.deliver wraps it in
    the studio layout (studioEmailHtml) with the studio's accent and a readable
    button ink. `text` is the plain version kept in notifications.body for the
-   booking's message log.
+   booking's message log; it leaves the link out, so the log never shows the
+   delivery token (staff copy it from the delivery card instead).
 
    Every value that came from a person (studio, booking title, client name,
    file names) is escaped here. Email-safe markup only: tables and inline
@@ -94,7 +95,7 @@ export function filesReadyEmail(a: {
   const fine = `The link works until ${a.expiresOn}. If it stops working, reply to this email for a new one.`;
   const ctaLabel = "Download your files";
   const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
-  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${ctaLabel}: ${a.url}\n\n${fine}`;
+  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${fine}`;
   return { subject, text, html, ctaLabel, ctaUrl: a.url };
 }
 
@@ -115,6 +116,6 @@ export function payToUnlockEmail(a: {
   const fine = "Already paid? Reply to this email and the studio will sort it out.";
   const ctaLabel = `Pay ${amount} and unlock`;
   const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
-  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${ctaLabel}: ${a.url}\n\n${fine}`;
+  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${fine}`;
   return { subject, text, html, ctaLabel, ctaUrl: a.url };
 }

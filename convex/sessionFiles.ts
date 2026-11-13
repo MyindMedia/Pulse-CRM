@@ -123,6 +123,8 @@ export const list = query({
         uploadedBy: latest.uploadedBy,
         uploadedAt: latest.uploadedAt,
         songId: asset.songId ?? null,
+        // Part of the client's delivery (sessionDelivery.setFinal).
+        clientFinal: asset.clientFinal === true,
         canDelete: moderator || (uploaderId !== null && uploaderId === access.actorId),
       });
     }

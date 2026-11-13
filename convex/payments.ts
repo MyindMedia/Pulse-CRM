@@ -5,6 +5,7 @@ import { Id } from "./_generated/dataModel";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
+import { onBalanceSettled } from "./sessionDelivery";
 
 /* ============================================================
    Payments - the booking-payment ledger and the provider seam.
@@ -150,6 +151,20 @@ export async function settlePayment(
   }
   await ctx.db.patch(sessionId, patch);
 
+  // Session file delivery: a payment that leaves nothing owed releases a
+  // delivery that was waiting for it. When it does, the client gets the files
+  // email (with a "payment received" line) instead of the plain "Paid in full"
+  // one below: one email, not two. A failure here must never undo or block the
+  // payment itself (the Stripe webhook swallows errors after this point).
+  let deliveryReleased = false;
+  if (fullyPaid) {
+    try {
+      deliveryReleased = await onBalanceSettled(ctx, sessionId, { paidCents: amountCents });
+    } catch (err) {
+      console.error("[payments] session delivery release failed:", (err as Error).message);
+    }
+  }
+
   const artist = await ctx.db.get(session.artistId);
   await ctx.db.insert("activity", {
     orgId,
@@ -166,7 +181,7 @@ export async function settlePayment(
     kind: "payment.received",
     sessionId,
   });
-  if (artist?.email) {
+  if (artist?.email && !deliveryReleased) {
     await notify(ctx, {
       orgId,
       channel: "email",

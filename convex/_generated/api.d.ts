@@ -382,6 +382,7 @@ import type * as seedDemoYear from "../seedDemoYear.js";
 import type * as seedSchedule from "../seedSchedule.js";
 import type * as session from "../session.js";
 import type * as sessionChanges from "../sessionChanges.js";
+import type * as sessionDelivery from "../sessionDelivery.js";
 import type * as sessionDetail from "../sessionDetail.js";
 import type * as sessionFiles from "../sessionFiles.js";
 import type * as sessionNotes from "../sessionNotes.js";
@@ -796,6 +797,7 @@ declare const fullApi: ApiFromModules<{
   seedSchedule: typeof seedSchedule;
   session: typeof session;
   sessionChanges: typeof sessionChanges;
+  sessionDelivery: typeof sessionDelivery;
   sessionDetail: typeof sessionDetail;
   sessionFiles: typeof sessionFiles;
   sessionNotes: typeof sessionNotes;

@@ -1,0 +1,394 @@
+import { query } from "./_generated/server";
+import type { QueryCtx, MutationCtx } from "./_generated/server";
+import { mutation } from "./functions";
+import { v, ConvexError } from "convex/values";
+import type { Doc, Id } from "./_generated/dataModel";
+import { staffSession, staffSessionOrNull, holds } from "./lib/sessionAccess";
+import { currentMoneySight } from "./lib/tenant";
+import { notify } from "./lib/notify";
+import { appUrl } from "./lib/links";
+import { orgTz } from "./lib/tz";
+import { filesReadyEmail, payToUnlockEmail } from "./lib/emailTemplates/sessionDelivery";
+
+/* ============================================================
+   Session file delivery: the booking's Final files, handed to the client
+   once the team says they are ready AND the booking is paid.
+
+   One `sessionDeliveries` row per booking holds the link token, the state and
+   the stats. A file is part of the delivery when its mediaAssets row is
+   `clientFinal`; working files are never shown to the client.
+
+     (none) --markReady--> balance 0 ? released (files email)
+                                     : awaiting_payment (pay email, once)
+     awaiting_payment --payment / comp leaves 0 owed--> released
+     awaiting_payment --releaseNow (owner, manager)--> released
+     released | awaiting_payment --turnOff--> off --markReady--> new token
+
+   Who (staff, through staffSession like the rest of session files; the studio
+   always comes from the caller, never from an argument):
+     setFinal, markReady, resend, link   deliverables.upload (owner, manager, engineers)
+     releaseNow, turnOff                 schedule.manage (owners, managers)
+     status                              sessions.read; the amount only with money sight
+   ============================================================ */
+
+export const LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+export const URL_TTL_S = 600;
+export const URL_RATE_MAX = 120;
+export const URL_RATE_WINDOW_MS = 3_600_000;
+export const OPENED_MIN_GAP_MS = 60_000;
+
+/** Bound on the files read for one booking. */
+const MAX_FILES = 200;
+
+type Ctx = QueryCtx | MutationCtx;
+type Delivery = Doc<"sessionDeliveries">;
+
+/** The client's link. The token is the only credential the page has. */
+export function deliveryUrl(token: string): string {
+  return `${appUrl().replace(/\/$/, "")}/delivery/${token}`;
+}
+
+/** 32 random bytes, hex. */
+function newToken(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export type FinalFile = { asset: Doc<"mediaAssets">; version: Doc<"mediaVersions"> };
+
+/** The latest version of each Final file on this booking in this studio,
+ *  newest upload first. */
+export async function finalFiles(ctx: Ctx, orgId: string, sessionId: Id<"sessions">): Promise<FinalFile[]> {
+  const assets = await ctx.db
+    .query("mediaAssets")
+    .withIndex("by_org_session", (q) => q.eq("orgId", orgId).eq("sessionId", sessionId))
+    .take(MAX_FILES);
+  const out: FinalFile[] = [];
+  for (const asset of assets) {
+    if (asset.clientFinal !== true || asset.orgId !== orgId || asset.sessionId !== sessionId) continue;
+    const version = await ctx.db
+      .query("mediaVersions")
+      .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+      .order("desc")
+      .first();
+    if (!version || version.orgId !== orgId) continue;
+    out.push({ asset, version });
+  }
+  out.sort((a, b) => b.version.uploadedAt - a.version.uploadedAt);
+  return out;
+}
+
+async function deliveryFor(ctx: Ctx, sessionId: Id<"sessions">): Promise<Delivery | null> {
+  return await ctx.db
+    .query("sessionDeliveries")
+    .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+    .first();
+}
+
+async function orgRow(ctx: Ctx, orgId: string): Promise<Doc<"orgs"> | null> {
+  return await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+}
+
+function owed(session: Doc<"sessions">): number {
+  return Math.max(0, session.rateCents - (session.amountPaidCents ?? 0));
+}
+
+function firstName(name: string | undefined): string {
+  return (name ?? "").trim().split(/\s+/)[0] ?? "";
+}
+
+/** "November 10" in the studio's zone. */
+function sessionDay(ts: number, tz: string): string {
+  return new Date(ts).toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: tz });
+}
+
+/** "December 13, 2026" in the studio's zone. */
+function longDate(ts: number, tz: string): string {
+  return new Date(ts).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: tz });
+}
+
+type Facts = {
+  session: Doc<"sessions">;
+  org: Doc<"orgs"> | null;
+  artist: Doc<"artists"> | null;
+  files: FinalFile[];
+};
+
+async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null> {
+  const session = await ctx.db.get(delivery.sessionId);
+  if (!session || session.orgId !== delivery.orgId) return null;
+  const [org, artist, files] = await Promise.all([
+    orgRow(ctx, delivery.orgId),
+    ctx.db.get(session.artistId),
+    finalFiles(ctx, delivery.orgId, delivery.sessionId),
+  ]);
+  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files };
+}
+
+/** Queues the email for the delivery's state to the booked email. Returns the
+ *  address, or null when nothing could be sent (no email on file, or no Final
+ *  file left: a delivery email never goes out empty). */
+async function sendFor(
+  ctx: MutationCtx,
+  delivery: Pick<Delivery, "orgId" | "sessionId" | "token" | "expiresAt">,
+  f: Facts,
+  kind: "ready" | "pay",
+  paidCents?: number,
+): Promise<string | null> {
+  const email = f.artist?.email?.trim();
+  if (!email || f.files.length === 0) return null;
+  const tz = orgTz(f.org);
+  const common = {
+    firstName: firstName(f.artist?.name),
+    title: f.session.title,
+    sessionDate: sessionDay(f.session.startTime, tz),
+    files: f.files.map((x) => ({ name: x.asset.name, size: x.version.size })),
+    url: deliveryUrl(delivery.token),
+  };
+  const m =
+    kind === "ready"
+      ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents })
+      : payToUnlockEmail({ ...common, balanceCents: owed(f.session) });
+  await notify(ctx, {
+    orgId: delivery.orgId,
+    channel: "email",
+    recipient: email,
+    subject: m.subject,
+    body: m.text,
+    kind: kind === "ready" ? "delivery.ready" : "delivery.pay",
+    sessionId: delivery.sessionId,
+    html: m.html,
+    ctaLabel: m.ctaLabel,
+    ctaUrl: m.ctaUrl,
+    accent: f.org?.accentColor,
+  });
+  return email;
+}
+
+/** The one place a delivery becomes released. Starts a fresh 30 days and sends
+ *  the files email. Returns true when the email went out. */
+async function release(ctx: MutationCtx, delivery: Delivery, by: string, f: Facts, paidCents?: number): Promise<boolean> {
+  const now = Date.now();
+  const expiresAt = now + LINK_TTL_MS;
+  const sentTo = await sendFor(ctx, { ...delivery, expiresAt }, f, "ready", paidCents);
+  await ctx.db.patch(delivery._id, {
+    status: "released",
+    releasedAt: now,
+    releasedBy: by,
+    expiresAt,
+    ...(sentTo ? { sentTo, lastSentAt: now, sendCount: delivery.sendCount + 1 } : {}),
+  });
+  return sentTo !== null;
+}
+
+/** Called from payments.settlePayment when a payment leaves nothing owed, and
+ *  from sessions.setComp when a comp does. Releases a delivery that was waiting
+ *  for payment, exactly once. Returns true only when it released one AND the
+ *  files email went out (so the caller can skip its own "Paid in full" email);
+ *  any other case writes nothing and returns false. */
+export async function onBalanceSettled(
+  ctx: MutationCtx,
+  sessionId: Id<"sessions">,
+  opts?: { paidCents?: number },
+): Promise<boolean> {
+  const delivery = await deliveryFor(ctx, sessionId);
+  if (!delivery || delivery.status !== "awaiting_payment") return false;
+  const f = await facts(ctx, delivery);
+  if (!f || f.session.status === "cancelled" || owed(f.session) > 0) return false;
+  return await release(ctx, delivery, "payment", f, opts?.paidCents);
+}
+
+/* ── Staff ──────────────────────────────────────────────────── */
+
+/** Mark a session file Final (part of the client's delivery) or back to a
+ *  working file. Unmarking takes it off the client page at once. */
+export const setFinal = mutation({
+  args: { assetId: v.id("mediaAssets"), final: v.boolean() },
+  handler: async (ctx, { assetId, final }) => {
+    const asset = await ctx.db.get(assetId);
+    if (!asset?.sessionId) throw new ConvexError("File not found.");
+    const access = await staffSession(ctx, asset.sessionId, "deliverables.upload");
+    if (asset.orgId !== access.orgId) throw new ConvexError("File not found.");
+    await ctx.db.patch(assetId, { clientFinal: final });
+    return null;
+  },
+});
+
+/** The delivery card: state, Final file count, the booked email, stats and what
+ *  the caller may do. The balance amount only for callers with money sight. */
+export const status = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const access = await staffSessionOrNull(ctx, sessionId);
+    if (!access) return null;
+    const { orgId, session, viewer } = access;
+    const [delivery, files, artist, sight] = await Promise.all([
+      deliveryFor(ctx, sessionId),
+      finalFiles(ctx, orgId, sessionId),
+      ctx.db.get(session.artistId),
+      currentMoneySight(ctx),
+    ]);
+    const d = delivery && delivery.orgId === orgId ? delivery : null;
+    const clientEmail = (artist && artist.orgId === orgId ? artist.email?.trim() : undefined) || null;
+    const balance = owed(session);
+    const state = d?.status ?? "none";
+    const manage = holds(viewer, "schedule.manage");
+    const cancelled = session.status === "cancelled";
+    return {
+      state,
+      finalCount: files.length,
+      clientFirstName: firstName(artist?.orgId === orgId ? artist.name : undefined),
+      clientEmail,
+      balanceDue: balance > 0,
+      balanceCents: sight.money ? balance : null,
+      sentTo: d?.sentTo ?? null,
+      lastSentAt: d?.lastSentAt ?? null,
+      sendCount: d?.sendCount ?? 0,
+      firstOpenedAt: d?.firstOpenedAt ?? null,
+      downloadCount: d?.downloadCount ?? 0,
+      expiresAt: d?.expiresAt ?? null,
+      offAt: d?.offAt ?? null,
+      canMarkReady:
+        holds(viewer, "deliverables.upload") && (state === "none" || state === "off") && files.length > 0 && !!clientEmail && !cancelled,
+      canRelease: manage && state === "awaiting_payment" && !cancelled,
+      canTurnOff: manage && (state === "awaiting_payment" || state === "released"),
+    };
+  },
+});
+
+/** Ready to deliver. Paid (or nothing owed): released and the files email goes.
+ *  Otherwise waiting for payment and one "pay to unlock" email. A booking that
+ *  already has a live delivery is left as it is (a double tap sends nothing);
+ *  one that was turned off gets a new token. */
+export const markReady = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }): Promise<{ state: "awaiting_payment" | "released" }> => {
+    const access = await staffSession(ctx, sessionId, "deliverables.upload");
+    const { orgId, session } = access;
+    if (session.status === "cancelled") throw new ConvexError("This booking was released.");
+    const files = await finalFiles(ctx, orgId, sessionId);
+    if (files.length === 0) throw new ConvexError("Mark at least one file Final first.");
+    const artist = await ctx.db.get(session.artistId);
+    if (!artist || artist.orgId !== orgId || !artist.email?.trim()) throw new ConvexError("Add an email for this client first.");
+
+    const existing = await deliveryFor(ctx, sessionId);
+    if (existing && existing.orgId !== orgId) throw new ConvexError("Session not found.");
+    if (existing && existing.status !== "off") return { state: existing.status };
+
+    const now = Date.now();
+    const fresh = {
+      orgId,
+      sessionId,
+      status: "awaiting_payment" as const,
+      token: newToken(),
+      expiresAt: now + LINK_TTL_MS,
+      readyAt: now,
+      readyBy: access.actorName,
+      releasedAt: undefined,
+      releasedBy: undefined,
+      offAt: undefined,
+      sentTo: undefined,
+      lastSentAt: undefined,
+      sendCount: 0,
+      firstOpenedAt: undefined,
+      lastOpenedAt: undefined,
+      downloadCount: 0,
+      urlWindowStart: undefined,
+      urlCount: undefined,
+    };
+    let id: Id<"sessionDeliveries">;
+    if (existing) {
+      await ctx.db.patch(existing._id, fresh);
+      id = existing._id;
+    } else {
+      id = await ctx.db.insert("sessionDeliveries", fresh);
+    }
+    const delivery = (await ctx.db.get(id))!;
+    const f: Facts = { session, org: await orgRow(ctx, orgId), artist, files };
+
+    if (owed(session) === 0) {
+      await release(ctx, delivery, "payment", f);
+      return { state: "released" };
+    }
+    const sentTo = await sendFor(ctx, delivery, f, "pay");
+    if (sentTo) await ctx.db.patch(id, { sentTo, lastSentAt: now, sendCount: 1 });
+    return { state: "awaiting_payment" };
+  },
+});
+
+/** "Send now anyway": an owner or manager releases a waiting delivery without
+ *  payment. Recorded under their name. */
+export const releaseNow = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const access = await staffSession(ctx, sessionId, "schedule.manage");
+    if (access.session.status === "cancelled") throw new ConvexError("This booking was released.");
+    const delivery = await deliveryFor(ctx, sessionId);
+    if (!delivery || delivery.orgId !== access.orgId || delivery.status !== "awaiting_payment") {
+      throw new ConvexError("Nothing is waiting to send.");
+    }
+    const f = await facts(ctx, delivery);
+    if (!f || f.files.length === 0) throw new ConvexError("Mark at least one file Final first.");
+    if (!f.artist?.email?.trim()) throw new ConvexError("Add an email for this client first.");
+    await release(ctx, delivery, access.actorName, f);
+    return null;
+  },
+});
+
+/** Turn off the link. The page answers like an unknown link from now on. */
+export const turnOff = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const access = await staffSession(ctx, sessionId, "schedule.manage");
+    const delivery = await deliveryFor(ctx, sessionId);
+    if (!delivery || delivery.orgId !== access.orgId) throw new ConvexError("There is no link to turn off.");
+    if (delivery.status === "off") return null;
+    await ctx.db.patch(delivery._id, { status: "off", offAt: Date.now() });
+    return null;
+  },
+});
+
+/** Send the email for the current state again to the booked email, and start a
+ *  fresh 30 days on the link. */
+export const resend = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const access = await staffSession(ctx, sessionId, "deliverables.upload");
+    if (access.session.status === "cancelled") throw new ConvexError("This booking was released.");
+    const delivery = await deliveryFor(ctx, sessionId);
+    if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") {
+      throw new ConvexError("There is no link to send. Tap Ready to deliver first.");
+    }
+    const f = await facts(ctx, delivery);
+    if (!f || f.files.length === 0) throw new ConvexError("Mark at least one file Final first.");
+    if (!f.artist?.email?.trim()) throw new ConvexError("Add an email for this client first.");
+    // Waiting, but nothing is owed any more (a payment path that did not reach
+    // the trigger): release instead of asking for money again.
+    if (delivery.status === "awaiting_payment" && owed(f.session) === 0) {
+      await release(ctx, delivery, "payment", f);
+      return null;
+    }
+    const now = Date.now();
+    const expiresAt = now + LINK_TTL_MS;
+    const sentTo = await sendFor(ctx, { ...delivery, expiresAt }, f, delivery.status === "released" ? "ready" : "pay");
+    await ctx.db.patch(delivery._id, {
+      expiresAt,
+      ...(sentTo ? { sentTo, lastSentAt: now, sendCount: delivery.sendCount + 1 } : {}),
+    });
+    return null;
+  },
+});
+
+/** The client's link, for "Copy link". Called on demand, never subscribed, so
+ *  the token does not sit in a live query result. */
+export const link = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const access = await staffSessionOrNull(ctx, sessionId, "deliverables.upload");
+    if (!access) return null;
+    const delivery = await deliveryFor(ctx, sessionId);
+    if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") return null;
+    return { url: deliveryUrl(delivery.token) };
+  },
+});
