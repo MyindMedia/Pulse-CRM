@@ -244,8 +244,9 @@ describe("Pulse Agent", () => {
 
   it("autonomy: auto_trusted auto-approves a low-risk send; medium-risk still waits", async () => {
     // Auto-send now needs a named reminder to one of the studio's own clients
-    // (truth-assistant-auto-send), so the low-risk send goes to a client.
-    await t.run(async (ctx) => { await ctx.db.insert("artists", { orgId: ORG, name: "AB", type: "artist", email: "a@b.com", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" }); });
+    // (truth-assistant-auto-send), so the low-risk send goes to a client
+    // whose address was on file before the conversation (H210-01).
+    await t.run(async (ctx) => { await ctx.db.insert("artists", { orgId: ORG, name: "AB", type: "artist", email: "a@b.com", contactOnFile: { email: "a@b.com", emailAt: 1 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" }); });
     const runId = await t.run((ctx) => ctx.db.insert("agentRuns", { orgId: ORG, initiatedBy: "system", runType: "analytics_review", status: "running" }));
     await t.mutation(internal.agent._finalize, {
       runId, orgId: ORG, status: "needs_approval", summary: "x", autonomy: "auto_trusted",

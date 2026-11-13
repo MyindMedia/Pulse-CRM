@@ -1,4 +1,5 @@
 import { query, type QueryCtx, type MutationCtx } from "./_generated/server";
+import { stampContact } from "./lib/agentAutoSend";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -337,6 +338,7 @@ async function importOne(
           name: artistName,
           type: "artist",
           email,
+          contactOnFile: stampContact(undefined, { email }, Date.now()),
           genres: [],
           tags: [],
           status: "lead",

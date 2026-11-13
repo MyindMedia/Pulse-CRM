@@ -17,7 +17,10 @@ import { isSmsOptedOut } from "./smsOptOut";
      3. it is a send_email or send_sms;
      4. the model rated it low risk (a missing rating is medium);
      5. it names one of the reminder kinds below;
-     6. the recipient is an existing client of THIS studio;
+     6. the recipient is an existing client of THIS studio (not a lead)
+        whose exact address or number was on file BEFORE the conversation
+        the assistant read began (the run's message window). A contact
+        typed into a public form, or changed since, waits for a person;
      7. for a text, the number has not replied STOP.
 
    Anything else waits in the approval inbox. Every check fails closed.
@@ -32,19 +35,62 @@ export type AutoReminderKind = (typeof AUTO_REMINDER_KINDS)[number];
  *  run never reads an unbounded table; a miss only means "wait". */
 export const CLIENT_SCAN_LIMIT = 3000;
 
-/** One scan per run, shared by every proposal in it. */
-export type ClientIndex = { emails: Set<string>; phones: Set<string>; complete: boolean };
+/** When each address or number went on file. Stored on the client row
+ *  (artists.contactOnFile) by every path that writes a contact. A stamp only
+ *  counts while it still names the address on the row, so a write path that
+ *  forgot to stamp fails closed (the contact looks new), never open. */
+export type ContactOnFile = { email?: string; emailAt?: number; phone?: string; phoneAt?: number };
+
+/** The stamp to store after a write that leaves the row with `next` contact
+ *  details. An unchanged address keeps its old time; a new one starts now. */
+export function stampContact(
+  prev: ContactOnFile | undefined,
+  next: { email?: string | null; phone?: string | null },
+  now: number,
+): ContactOnFile {
+  const out: ContactOnFile = {};
+  const e = normalizeEmail(next.email);
+  if (e) { out.email = e; out.emailAt = prev?.email === e && prev.emailAt !== undefined ? prev.emailAt : now; }
+  const p = next.phone ? normalizePhone(next.phone) : null;
+  if (p) { out.phone = p; out.phoneAt = prev?.phone === p && prev.phoneAt !== undefined ? prev.phoneAt : now; }
+  return out;
+}
+
+/** Since when each current contact of this row has been on file, or null when
+ *  that cannot be shown (no stamp, or the stamp names a different address). */
+export function contactSince(a: { email?: string; phone?: string; contactOnFile?: ContactOnFile }) {
+  const e = normalizeEmail(a.email);
+  const p = a.phone ? normalizePhone(a.phone) : null;
+  const s = a.contactOnFile;
+  return {
+    email: e, emailAt: e && s?.email === e && s.emailAt !== undefined ? s.emailAt : null,
+    phone: p, phoneAt: p && s?.phone === p && s.phoneAt !== undefined ? s.phoneAt : null,
+  };
+}
+
+/** One scan per run, shared by every proposal in it. Maps a contact to the
+ *  time it went on file, or null when any client row holding it cannot show
+ *  one (so a doubtful match never sends). */
+export type ClientIndex = { emails: Map<string, number | null>; phones: Map<string, number | null>; complete: boolean };
+
+function note(m: Map<string, number | null>, key: string, at: number | null) {
+  if (!m.has(key)) { m.set(key, at); return; }
+  const cur = m.get(key)!;
+  m.set(key, cur === null || at === null ? null : Math.max(cur, at));
+}
 
 export async function loadClientIndex(ctx: QueryCtx | MutationCtx, orgId: string): Promise<ClientIndex> {
-  const idx: ClientIndex = { emails: new Set(), phones: new Set(), complete: true };
+  const idx: ClientIndex = { emails: new Map(), phones: new Map(), complete: true };
   let seen = 0;
   for await (const a of ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId))) {
     if (++seen > CLIENT_SCAN_LIMIT) { idx.complete = false; break; }
     if (a.erasedAt || a.catalogOnly) continue;
-    const e = normalizeEmail(a.email);
-    if (e) idx.emails.add(e);
-    const p = a.phone ? normalizePhone(a.phone) : null;
-    if (p) idx.phones.add(p);
+    const c = contactSince(a);
+    // A lead (anyone who typed details into a public form) is not a client:
+    // its contact can never auto-send, and it poisons a shared address.
+    const lead = a.status === "lead";
+    if (c.email) note(idx.emails, c.email, lead ? null : c.emailAt);
+    if (c.phone) note(idx.phones, c.phone, lead ? null : c.phoneAt);
   }
   return idx;
 }
@@ -57,6 +103,9 @@ export function normalizeEmail(raw: string | undefined | null): string | null {
 
 export type AutoSendInput = {
   autonomy: string | undefined;
+  /** When the conversation the assistant read began: the start of the
+   *  run's message window. The contact must be on file before this. */
+  conversationStart: number;
   actionType: string;
   riskLevel: string;
   proposedPayload: unknown;
@@ -64,16 +113,14 @@ export type AutoSendInput = {
 
 export type AutoSendDecision = { auto: true } | { auto: false; reason: string };
 
-/** Does the recipient belong to one of this studio's (live) clients? A
- *  studio past the scan limit only matches within what was read: a miss
- *  means "wait for a person", never "send". */
-export function isClientIn(idx: ClientIndex, channel: "email" | "sms", to: string): boolean {
-  if (channel === "email") {
-    const e = normalizeEmail(to);
-    return !!e && idx.emails.has(e);
-  }
-  const p = normalizePhone(to);
-  return !!p && idx.phones.has(p);
+/** Was the recipient on file for one of this studio's (live, non-lead)
+ *  clients before `before`? A studio past the scan limit only matches within
+ *  what was read: a miss means "wait for a person", never "send". */
+export function isClientIn(idx: ClientIndex, channel: "email" | "sms", to: string, before: number): boolean {
+  const key = channel === "email" ? normalizeEmail(to) : normalizePhone(to);
+  if (!key) return false;
+  const at = (channel === "email" ? idx.emails : idx.phones).get(key);
+  return typeof at === "number" && at < before;
 }
 
 export async function autoSendDecision(
@@ -94,7 +141,10 @@ export async function autoSendDecision(
   const channel = input.actionType === "send_email" ? "email" : "sms";
   const clients = cache?.clients ?? (await loadClientIndex(ctx, orgId));
   if (cache) cache.clients = clients;
-  if (!isClientIn(clients, channel, p.to)) return { auto: false, reason: "recipient is not a client of this studio" };
+  if (!Number.isFinite(input.conversationStart)) return { auto: false, reason: "no conversation start" };
+  if (!isClientIn(clients, channel, p.to, input.conversationStart)) {
+    return { auto: false, reason: "recipient was not on file for a client of this studio before the conversation" };
+  }
   if (channel === "sms" && (await isSmsOptedOut(ctx, p.to))) return { auto: false, reason: "number replied STOP" };
   return { auto: true };
 }

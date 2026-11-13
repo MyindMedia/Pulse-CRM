@@ -1,4 +1,5 @@
 import { query } from "./_generated/server";
+import { stampContact } from "./lib/agentAutoSend";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
@@ -129,6 +130,7 @@ export const create = mutation({
       type: args.type,
       email: normalizeEmail(args.email) || undefined,
       phone: args.phone,
+      contactOnFile: stampContact(undefined, { email: args.email, phone: args.phone }, Date.now()),
       location: args.location,
       genres: args.genres ?? [],
       tags: [],

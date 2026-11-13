@@ -1,4 +1,5 @@
 import { mutation } from "./functions";
+import { stampContact } from "./lib/agentAutoSend";
 import { v } from "convex/values";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { normalizePhone } from "./lib/phone";
@@ -68,6 +69,7 @@ export const importClients = mutation({
         const patch: Record<string, unknown> = { lastContactAt: Date.now() };
         patch.name = name;
         if (phone) patch.phone = phone;
+        patch.contactOnFile = stampContact(match.contactOnFile, { email: match.email, phone: phone ?? match.phone }, Date.now());
         if (notes) patch.notes = notes;
         if (tags.length) {
           patch.tags = Array.from(new Set([...(match.tags ?? []), ...tags]));
@@ -81,6 +83,7 @@ export const importClients = mutation({
           type: "artist",
           email,
           phone,
+          contactOnFile: stampContact(undefined, { email, phone }, Date.now()),
           genres: [],
           tags,
           status: "lead",

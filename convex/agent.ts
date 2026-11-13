@@ -63,7 +63,7 @@ import { normalizePhone } from "./lib/phone";
 import { manualStepFor } from "./lib/agentActions";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
-import { businessActivity, formatActivity } from "./lib/agentActivity";
+import { businessActivity, formatActivity, MESSAGE_WINDOW } from "./lib/agentActivity";
 import { orgTz, utcOffsetMinutes, isValidTimezone } from "./lib/tz";
 
 /* ============================================================
@@ -442,10 +442,14 @@ export const _finalize = internalMutation({
     // right now, and only a named, low-risk reminder to one of this studio's
     // own clients (lib/agentAutoSend.ts). Everything else always waits.
     const autoCache = {};
+    // The conversation the model read began one message window before the
+    // run started; a recipient must have been on file before that.
+    const runDoc = await ctx.db.get(a.runId);
+    const conversationStart = (runDoc?._creationTime ?? now) - MESSAGE_WINDOW;
     for (const ap of a.approvals ?? []) {
       if (!validTypes.has(ap.actionType)) continue;
       const auto = (await autoSendDecision(ctx, a.orgId, {
-        autonomy: a.autonomy, actionType: ap.actionType, riskLevel: ap.riskLevel, proposedPayload: ap.proposedPayload,
+        autonomy: a.autonomy, conversationStart, actionType: ap.actionType, riskLevel: ap.riskLevel, proposedPayload: ap.proposedPayload,
       }, autoCache)).auto;
       const approvalId = await ctx.db.insert("agentApprovals", {
         orgId: a.orgId, runId: a.runId, actionType: ap.actionType as never,

@@ -1,4 +1,5 @@
 import { query, MutationCtx } from "./_generated/server";
+import { stampContact } from "./lib/agentAutoSend";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -186,8 +187,12 @@ async function recordVisit(
   let artistId: Id<"artists">;
   if (existing) {
     artistId = existing._id;
+    // Fill a missing phone only: a public check-in must never replace the
+    // number a client already has on file (anyone can type any email here).
+    const nextPhone = existing.phone ?? phone;
     await ctx.db.patch(existing._id, {
-      phone: phone ?? existing.phone,
+      phone: nextPhone,
+      contactOnFile: stampContact(existing.contactOnFile, { email: existing.email, phone: nextPhone }, Date.now()),
       lastContactAt: Date.now(),
       source: existing.source ?? "visitor_qr",
       ...(existing.tags.includes("Visitor") ? {} : { tags: [...existing.tags, "Visitor"] }),
@@ -199,6 +204,7 @@ async function recordVisit(
       type: "other",
       email,
       phone,
+      contactOnFile: stampContact(undefined, { email, phone }, Date.now()),
       genres: [],
       tags: ["Visitor"],
       status: "lead",

@@ -21,7 +21,7 @@ const DAY = 24 * HOUR;
 
 /** How much of the recent past the agent reads. A week of conversation is
  *  enough to know what is going on; older threads stay on the client page. */
-const MESSAGE_WINDOW = 7 * DAY;
+export const MESSAGE_WINDOW = 7 * DAY;
 const MESSAGES_MAX = 40;
 const BODY_MAX = 240;
 

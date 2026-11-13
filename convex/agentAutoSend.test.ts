@@ -4,7 +4,7 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { normalizeRisk, effectiveAutonomy } from "./agent";
-import { normalizeEmail, CLIENT_SCAN_LIMIT } from "./lib/agentAutoSend";
+import { normalizeEmail, CLIENT_SCAN_LIMIT, stampContact } from "./lib/agentAutoSend";
 import { normalizePhone } from "./lib/phone";
 import * as emailLib from "./lib/email";
 import * as smsLib from "./lib/sms";
@@ -27,8 +27,9 @@ async function setup(tierA: "core" | "growth" | "max" = "max") {
     await ctx.db.insert("orgs", { orgId: B, name: "B", slug: "b", tier: "max", status: "active" });
     await ctx.db.insert("members", { orgId: A, name: "Owner", role: "owner", skills: [], clerkUserId: "u_owner" });
     await ctx.db.insert("members", { orgId: A, name: "Eng", role: "engineer", skills: [], clerkUserId: "u_eng" });
+    // On file since long before any conversation (contact stamp at t=1).
     const artist = (orgId: string, name: string, email?: string, phone?: string) =>
-      ctx.db.insert("artists", { orgId, name, type: "artist", email, phone, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      ctx.db.insert("artists", { orgId, name, type: "artist", email, phone, contactOnFile: stampContact(undefined, { email, phone }, 1), genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
     await artist(A, "Nova", "Nova@Example.com", "(404) 555-0101");
     await artist(B, "Other", "other@b-studio.com", "+14045550202");
     await ctx.db.insert("agentPolicies", { orgId: A, enabled: true, defaultTone: "professional", autonomy: "auto_trusted", digestEnabled: true, updatedAt: 1 });
@@ -168,9 +169,9 @@ describe("assistant auto-send", () => {
     const { t } = await setup();
     await t.run(async (ctx) => {
       for (let i = 0; i < CLIENT_SCAN_LIMIT; i++) {
-        await ctx.db.insert("artists", { orgId: A, name: `C${i}`, type: "artist", email: `c${i}@example.com`, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+        await ctx.db.insert("artists", { orgId: A, name: `C${i}`, type: "artist", email: `c${i}@example.com`, contactOnFile: { email: `c${i}@example.com`, emailAt: 1 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
       }
-      await ctx.db.insert("artists", { orgId: A, name: "Late", type: "artist", email: "late@example.com", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      await ctx.db.insert("artists", { orgId: A, name: "Late", type: "artist", email: "late@example.com", contactOnFile: { email: "late@example.com", emailAt: 1 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
     });
     const rows = await finalize(t, [reminder(), reminder({ payload: { to: "late@example.com" } }), reminder({ payload: { to: "c5@example.com" } })]);
     expect(rows.map((r) => r.status)).toEqual(["executed", "pending", "executed"]);
@@ -282,6 +283,92 @@ describe("assistant auto-send", () => {
     expect(rows[0].status).toBe("pending");
     expect(rows[0].decidedBy).toBeUndefined();
     expect(emailSpy).not.toHaveBeenCalled();
+  });
+
+  it("H210-01: an address a stranger typed into the public check-in (a visitor_qr lead) waits for a person", async () => {
+    const { t } = await setup();
+    await t.mutation(api.visitors.register, { slug: "a", termsAccepted: true, name: "Mallory", email: "attacker@example.com", phone: "+14045559999" });
+    // Even a week later, a lead is not a client.
+    vi.advanceTimersByTime(30 * 24 * 3600_000);
+    const rows = await finalize(t, [
+      reminder({ payload: { to: "attacker@example.com" } }),
+      reminder({ actionType: "send_sms", payload: { to: "+14045559999" } }),
+    ]);
+    expect(rows.map((r) => r.status)).toEqual(["pending", "pending"]);
+    expect(emailSpy).not.toHaveBeenCalled();
+    expect(smsSpy).not.toHaveBeenCalled();
+  });
+
+  it("H210-01: the public check-in cannot replace an existing client's phone, so a text never goes to the stranger's number", async () => {
+    const { t } = await setup();
+    await t.mutation(api.visitors.register, { slug: "a", termsAccepted: true, name: "Nova", email: "nova@example.com", phone: "+14045559999" });
+    const nova = await t.run(async (ctx) => (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", A)).collect()).find((a) => a.name === "Nova")!);
+    expect(nova.phone).toBe("(404) 555-0101");
+    vi.advanceTimersByTime(30 * 24 * 3600_000);
+    const rows = await finalize(t, [
+      reminder({ actionType: "send_sms", payload: { to: "+14045559999" } }),
+      reminder({ actionType: "send_sms", payload: { to: "+14045550101" } }),
+    ]);
+    expect(rows.map((r) => r.status)).toEqual(["pending", "executed"]);
+    expect(smsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("H210-01: the public booking form cannot replace an existing client's phone either", async () => {
+    const { t } = await setup();
+    const room = await t.run((ctx) => ctx.db.insert("rooms", { orgId: A, name: "Room A", status: "available", bookable: true, hourlyRateCents: 10000, minimumHours: 1, depositPct: 30 }));
+    await t.mutation(api.booking.createBooking, {
+      roomId: room, clientName: "Nova", clientEmail: "nova@example.com", clientPhone: "+14045559999", startTime: Date.now() + 7 * 24 * 3600_000, durationHours: 2,
+    });
+    const novas = await t.run(async (ctx) => (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", A)).collect()).filter((a) => a.name === "Nova"));
+    expect(novas).toHaveLength(1);
+    expect(novas[0].phone).toBe("(404) 555-0101");
+    expect(novas[0].contactOnFile?.phoneAt).toBe(1);
+  });
+
+  it("H210-01: a contact that went on file during the conversation the assistant read waits", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      // Client for years, but this address only went on file yesterday.
+      await ctx.db.insert("artists", { orgId: A, name: "New", type: "artist", email: "new@example.com", contactOnFile: { email: "new@example.com", emailAt: Date.now() - 24 * 3600_000 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      // Address changed by a path that did not re-stamp: the stamp names another address.
+      await ctx.db.insert("artists", { orgId: A, name: "Moved", type: "artist", email: "moved-now@example.com", contactOnFile: { email: "moved-before@example.com", emailAt: 1 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      // Written before stamps existed: unproven.
+      await ctx.db.insert("artists", { orgId: A, name: "Legacy", type: "artist", email: "legacy@example.com", genres: [], tags: [], status: "vip", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      // A lead sharing a client's address makes that address doubtful.
+      await ctx.db.insert("artists", { orgId: A, name: "Dupe", type: "artist", phone: "+14045550101", genres: [], tags: [], status: "lead", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+    const rows = await finalize(t, [
+      reminder({ payload: { to: "new@example.com" } }),
+      reminder({ payload: { to: "moved-now@example.com" } }),
+      reminder({ payload: { to: "moved-before@example.com" } }),
+      reminder({ payload: { to: "legacy@example.com" } }),
+      reminder({ actionType: "send_sms", payload: { to: "+14045550101" } }),
+      reminder(),
+    ]);
+    expect(rows.map((r) => r.status)).toEqual(["pending", "pending", "pending", "pending", "pending", "executed"]);
+  });
+
+  it("H210-01: the legacy-contact report changes nothing unless applied, and applied stamps count only after a full window", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("artists", { orgId: A, name: "Legacy", type: "artist", email: "legacy@example.com", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      await ctx.db.insert("artists", { orgId: A, name: "Lead", type: "artist", email: "lead@example.com", genres: [], tags: [], status: "lead", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+    const report = await t.mutation(internal.clientContacts.stampLegacyContacts, { orgId: A });
+    expect(report.applied).toBe(false);
+    expect(report.unproven.map((u) => u.email)).toEqual(["legacy@example.com"]);
+    const before = await t.run(async (ctx) => (await ctx.db.query("artists").collect()).find((a) => a.name === "Legacy")!);
+    expect(before.contactOnFile).toBeUndefined();
+    await t.mutation(internal.clientContacts.stampLegacyContacts, { orgId: A, apply: true });
+    let [row] = await finalize(t, [reminder({ payload: { to: "legacy@example.com" } })]);
+    expect(row.status).toBe("pending");
+    vi.advanceTimersByTime(8 * 24 * 3600_000);
+    await t.run(async (ctx) => { for (const r of await ctx.db.query("agentApprovals").collect()) await ctx.db.delete(r._id); });
+    [row] = await finalize(t, [reminder({ payload: { to: "legacy@example.com" } })]);
+    expect(row.status).toBe("executed");
+    // A second apply changes nothing.
+    const again = await t.mutation(internal.clientContacts.stampLegacyContacts, { orgId: A, apply: true });
+    expect(again.unproven).toEqual([]);
   });
 
   it("U-13: stored auto_low reads and behaves as suggest; it can no longer be saved", async () => {

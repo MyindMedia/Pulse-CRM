@@ -1,4 +1,5 @@
 import { fileUrl } from "./lib/media";
+import { stampContact } from "./lib/agentAutoSend";
 import { clientPolicyText } from "./lib/clientPolicy";
 import { publicCredits } from "./lib/importedCreditLabels";
 import { brandSecondaryOf } from "./lib/brandPresets";
@@ -976,8 +977,12 @@ export const createBooking = mutation({
       // artist has none yet and the ref is not the artist referring themselves.
       const setReferrer =
         !existing.referredByArtistId && referredByArtistId && referredByArtistId !== existing._id;
+      // Fill a missing phone only: the public form must never replace the
+      // number a client already has on file (anyone can type any email).
+      const nextPhone = existing.phone ?? args.clientPhone;
       await ctx.db.patch(existing._id, {
-        phone: args.clientPhone ?? existing.phone,
+        phone: nextPhone,
+        contactOnFile: stampContact(existing.contactOnFile, { email: existing.email, phone: nextPhone }, Date.now()),
         ...(dealsConsent && !existing.dealsOptInAt ? dealsConsent : {}),
         lastContactAt: Date.now(),
         source: existing.source ?? effectiveSource,
@@ -990,6 +995,7 @@ export const createBooking = mutation({
         type: "artist",
         email: normalizeEmail(args.clientEmail),
         phone: args.clientPhone,
+        contactOnFile: stampContact(undefined, { email: args.clientEmail, phone: args.clientPhone }, Date.now()),
         genres: [],
         tags: ["Booked online"],
         status: "lead",

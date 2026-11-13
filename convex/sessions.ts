@@ -1,4 +1,5 @@
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
+import { stampContact } from "./lib/agentAutoSend";
 import { mutation } from "./functions";
 import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
@@ -232,6 +233,7 @@ export const create = mutation({
         type: "artist",
         email: normalizeEmail(args.clientEmail) || undefined,
         phone: args.clientPhone?.trim() || undefined,
+        contactOnFile: stampContact(undefined, { email: args.clientEmail, phone: args.clientPhone }, Date.now()),
         genres: [],
         tags: [],
         status: "lead",

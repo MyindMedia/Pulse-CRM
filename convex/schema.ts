@@ -1154,6 +1154,15 @@ export default defineSchema({
     // be forgotten). Identifying fields are anonymized; financial/operational
     // records are retained under the accounting legitimate-interest basis.
     erasedAt: v.optional(v.number()),
+    // When the current email and phone went on file (lib/agentAutoSend.ts).
+    // The assistant only sends alone to a contact on file before the
+    // conversation it read began. Missing or stale means "not proven".
+    contactOnFile: v.optional(v.object({
+      email: v.optional(v.string()),
+      emailAt: v.optional(v.number()),
+      phone: v.optional(v.string()),
+      phoneAt: v.optional(v.number()),
+    })),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

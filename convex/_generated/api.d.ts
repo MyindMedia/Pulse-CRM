@@ -57,6 +57,7 @@ import type * as catalogTables from "../catalogTables.js";
 import type * as changeAudit from "../changeAudit.js";
 import type * as checklists from "../checklists.js";
 import type * as clerkIdRemap from "../clerkIdRemap.js";
+import type * as clientContacts from "../clientContacts.js";
 import type * as clientEmail from "../clientEmail.js";
 import type * as contact from "../contact.js";
 import type * as crm from "../crm.js";
@@ -475,6 +476,7 @@ declare const fullApi: ApiFromModules<{
   changeAudit: typeof changeAudit;
   checklists: typeof checklists;
   clerkIdRemap: typeof clerkIdRemap;
+  clientContacts: typeof clientContacts;
   clientEmail: typeof clientEmail;
   contact: typeof contact;
   crm: typeof crm;
