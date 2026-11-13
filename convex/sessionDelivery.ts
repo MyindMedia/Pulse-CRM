@@ -197,13 +197,18 @@ function shownCents(owed: number): number | null {
    each pay page computes its own amount, so a button is offered only where the
    two agree, never by guessing which one is right.
 
-     invoice   exactly one invoice on the booking is sent, viewed or overdue,
-               and its stored amountCents (what invoicePay charges) is owed
+     invoice   prices are not hidden, exactly one invoice on the booking is
+               sent, viewed or overdue, and its stored amountCents (what
+               invoicePay charges) is owed
      checkout  the booking has no invoice but void ones, prices are not hidden,
-               and every amount the checkout page offers this booking (one
-               amount: a choice between a deposit and the full amount is not
-               certain) is owed, computed by the checkout's own functions
-               (lib/checkout.ts, the ones booking.payViaStripe charges with)
+               and every amount the checkout page offers this booking is owed,
+               both what it CHARGES (lib/checkout.ts, the functions
+               booking.payViaStripe charges with) and what it DISPLAYS (the
+               deposit card shows depositCents even when the charge is capped
+               at a smaller balance; the full card shows rateCents)
+     A booking with hidden prices never has a target: the page shows no
+     amount, and a button with no amount beside it is not offered. The client
+     pays the invoice the studio sent, and the page unlocks by itself.
      none      nothing_owed; invoice_not_sent (one draft invoice would be the
                target once sent); prices_hidden; open_invoice_wrong_amount (an
                invoice is sent, viewed or overdue but none qualifies, so the
@@ -244,6 +249,9 @@ export function decidePayTarget(x: PayTargetInput): PayTarget {
   // A broken rate (Infinity) or anything odd: no amount is certain.
   if (!Number.isFinite(owed) || owed < 0 || !Number.isInteger(owed)) return { kind: "none", reason: "amount_mismatch" };
 
+  // Hidden prices: never a button (the page shows no amount to match it).
+  if (session.pricingHidden === true) return { kind: "none", reason: "prices_hidden" };
+
   const live = x.invoices.filter((inv) => inv.status !== "void");
   const open = live.filter((inv) => OPEN_INVOICE.has(inv.status));
   const drafts = live.filter((inv) => inv.status === "draft");
@@ -253,15 +261,18 @@ export function decidePayTarget(x: PayTargetInput): PayTarget {
     return { kind: "invoice", url: `${x.base}/pay/invoice/${open[0]._id}`, cents: open[0].amountCents };
   }
 
-  // The booking checkout: only with no invoice in play at all, prices shown,
-  // and one certain amount on offer.
-  if (x.cardsOn && live.length === 0 && session.pricingHidden !== true && x.orgSlug) {
+  // The booking checkout: only with no invoice in play at all, and every
+  // amount it offers, as charged and as displayed, exactly what is owed.
+  if (x.cardsOn && live.length === 0 && x.orgSlug) {
     const kinds = checkoutKindsOffered(session, x.paymentMode);
     const balanceCents = checkoutBalanceCents(session);
-    const amounts = new Set(kinds.map((k) => checkoutChargeCents({ depositCents: session.depositCents, balanceCents }, k)));
-    if (amounts.size === 1) {
-      const [cents] = [...amounts];
-      if (cents === owed) return { kind: "checkout", url: `${x.base}/book/${x.orgSlug}/checkout/${session._id}`, cents };
+    const charged = kinds.map((k) => checkoutChargeCents({ depositCents: session.depositCents, balanceCents }, k));
+    // What src/app/book/[slug]/checkout/[sessionId]/page.tsx prints for each
+    // kind: the deposit card depositCents, the full card rateCents, the
+    // balance section balanceCents.
+    const displayed = kinds.map((k) => (k === "deposit" ? session.depositCents : k === "full" ? session.rateCents : balanceCents));
+    if (kinds.length > 0 && [...charged, ...displayed].every((c) => c === owed)) {
+      return { kind: "checkout", url: `${x.base}/book/${x.orgSlug}/checkout/${session._id}`, cents: owed };
     }
   }
 
@@ -269,7 +280,6 @@ export function decidePayTarget(x: PayTargetInput): PayTarget {
   if (x.cardsOn && open.length === 0 && drafts.length === 1 && drafts[0].amountCents === owed) {
     return { kind: "none", reason: "invoice_not_sent" };
   }
-  if (session.pricingHidden === true) return { kind: "none", reason: "prices_hidden" };
   // An invoice is already open and none of them is a target: the fix is to
   // void or correct it, never to send a second payable invoice.
   if (open.length > 0) return { kind: "none", reason: "open_invoice_wrong_amount" };

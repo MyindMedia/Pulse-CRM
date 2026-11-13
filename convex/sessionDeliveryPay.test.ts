@@ -119,7 +119,9 @@ async function offeredAndSettles(s: S, token: string, expectCents: number) {
   const charge = await realCharge(s, v.target);
   expect(charge.cents).toBe(v.owed);
   expect((v.target as { cents: number }).cents).toBe(charge.cents);
-  if (v.page.balanceCents !== null) expect(charge.cents).toBe(v.page.balanceCents);
+  // V4-01: a button is never offered without the amount beside it.
+  expect(typeof v.page.balanceCents).toBe("number");
+  expect(charge.cents).toBe(v.page.balanceCents);
   const paymentsBefore = await s.t.run(async (ctx) => (await ctx.db.query("payments").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).take(50)).length);
   await payThrough(s, v.target, charge.kind);
   if (v.target.kind === "checkout") {
@@ -229,20 +231,60 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     expect((await look(s, token)).status).toMatchObject({ balanceCents: 18000, onlinePay: "none", onlinePayReason: "prices_hidden" });
   });
 
-  it("G-23 (e) hidden prices with an open invoice for exactly what is owed: the invoice, still no amount shown", async () => {
+  it("G-21 G-23 (e) V4-01 hidden prices with an open invoice for exactly what is owed: no button on the page or in the email; paying the invoice unlocks the page by itself", async () => {
     const s = await setup({ pricingHidden: true });
     const inv = await invoice(s, "sent", 18000);
     const token = await ready(s);
-    const v = await look(s, token);
-    expect(v.target).toEqual({ kind: "invoice", url: `${APP_URL}/pay/invoice/${inv}`, cents: 18000 });
-    expect(v.page.balanceCents).toBeNull();
+    await noButton(s, token, null, "prices_hidden");
     const [mail] = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
-    expect(mail.html).toContain(">Pay and unlock</a>");
+    expect(mail.html).not.toContain("</a>");
     expect(mail.html).not.toMatch(/\$\s?\d/);
-    await offeredAndSettles(s, token, 18000);
+    expect(mail.html).toContain("There is a balance on this booking. Studio A will send you a way to pay it.");
+    // The client pays the invoice the studio sent, through the real webhook.
+    await payThrough(s, { kind: "invoice", url: `${APP_URL}/pay/invoice/${inv}`, cents: 18000 });
+    expect((await row(s)).status).toBe("released");
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.state).toBe("unlocked");
     const files = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.ready");
     expect(files).toHaveLength(1);
     expect(files[0].html).not.toMatch(/\$\s?\d/);
+  });
+
+  it("V4-01 hidden prices never get a target, whatever is open, drafted or owed (prices_hidden)", async () => {
+    for (const make of [
+      async (s: S) => { await invoice(s, "sent", 36000); },
+      async (s: S) => { await invoice(s, "viewed", 36000); },
+      async (s: S) => { await invoice(s, "overdue", 5000); },
+      async (s: S) => { await invoice(s, "draft", 36000); },
+      async () => {},
+    ]) {
+      const s = await setup({ pricingHidden: true, depositCents: 0, amountPaidCents: 0, rateCents: 36000 });
+      await make(s);
+      const token = await ready(s);
+      const v = await look(s, token);
+      expect(v.target).toEqual({ kind: "none", reason: "prices_hidden" });
+      expect(v.page.payUrl).toBeNull();
+      expect(v.page.balanceCents).toBeNull();
+    }
+  });
+
+  it("R4-03 rate $400, deposit $120, nothing paid, discounted to $100: the checkout shows a $120 deposit, so no button", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 12000, depositPaid: false, amountPaidCents: 0 });
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 10000 }); });
+    const token = await ready(s);
+    // What the checkout page shows and charges: a $120 deposit card (charging
+    // $100) and the $100 full amount.
+    const b = await s.t.query(api.booking.booking, { sessionId: s.A.sessionId });
+    expect(b && !b.pricingHidden && [b.depositCents, b.rateCents, b.paidCents]).toEqual([12000, 10000, 0]);
+    const c = (await s.t.query(internal.booking._chargeContext, { sessionId: s.A.sessionId }))!;
+    expect([checkoutChargeCents(c, "deposit"), checkoutChargeCents(c, "full")]).toEqual([10000, 10000]);
+    await noButton(s, token, 10000, "amount_mismatch");
+  });
+
+  it("R4-03 the deposit shown equals what is owed: the checkout is still offered", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: false, amountPaidCents: 0 });
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 10000 }); });
+    const token = await ready(s);
+    await offeredAndSettles(s, token, 10000);
   });
 
   it("G-22 (f) R3-03 an old row whose deposit is only the depositPaid flag: owed $300, its $300 invoice is the target, paying it releases", async () => {
@@ -562,7 +604,9 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
         expect(charge.cents, label).toBe(v.owed);
         expect(v.target.cents, label).toBe(v.owed);
         expect(v.owed > 0, label).toBe(true);
-        if (v.page.balanceCents !== null) expect(charge.cents, label).toBe(v.page.balanceCents);
+        // V4-01: never a button without the amount beside it.
+        expect(typeof v.page.balanceCents, label).toBe("number");
+        expect(charge.cents, label).toBe(v.page.balanceCents);
       } else {
         expect(v.page.payUrl, label).toBeNull();
       }
