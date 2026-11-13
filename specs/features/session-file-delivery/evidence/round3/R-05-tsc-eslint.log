@@ -1,0 +1,12 @@
+## npx tsc --noEmit -p tsconfig.json
+tsc exit 0
+## npx tsc --noEmit -p tsconfig.json --incremental false
+tsc-full exit 0
+## npx eslint on the 74 changed .ts/.tsx files (git diff --diff-filter=AM origin/develop..HEAD, excluding convex/_generated)
+(no output: 0 problems, exit 0)
+## npx eslint . (whole repo, HEAD), last lines
+
+✖ 164 problems (53 errors, 111 warnings)
+  0 errors and 5 warnings potentially fixable with the `--fix` option.
+
+exit 1

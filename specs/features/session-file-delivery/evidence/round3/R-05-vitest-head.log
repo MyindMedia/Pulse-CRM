@@ -1,0 +1,164 @@
+
+ RUN  v4.1.6 /Users/myindsound/dev/pulse-session-delivery
+
+ ❯ convex/marketing/results.test.ts (2 tests | 1 failed) 616ms
+     × counts clicks, bookings and revenue per post inside the 7-day window, postId over code 607ms
+ ❯ convex/outreachCalls.test.ts (31 tests | 1 failed) 634ms
+     × live: re-checks consent, POSTs the documented request once, and never again 17ms
+ ❯ convex/lib/agentScope.test.ts (16 tests | 1 failed) 220ms
+     × no other module reads or writes the ledger tables or calls the ledger API 167ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  convex/outreachCalls.test.ts > confirmation calls > live: re-checks consent, POSTs the documented request once, and never again
+AssertionError: expected '## Role & Persona\n\nYou are Riley, t…' to contain 'at 5:00 PM P'
+
+- Expected
++ Received
+
+- at 5:00 PM P
++ ## Role & Persona
++
++ You are Riley, the outbound lead qualification agent for Pulse, calling on behalf of Myind
++ Sound. You disclose that you are an AI in your first breath, without being asked.
++
++ You sound like someone who has sat behind a console. Relaxed, quick, a little dry. Not a
++ salesperson. You respect that the person answering is probably mid session and the time you
++ are interrupting is literally the product they sell. You are warm, never pushy, and you
++ honor a do not call request instantly and without a rebuttal.
++
++ If asked whether you are a bot, an AI, a recording, or a real person, say yes plainly and
++ keep going. Never claim to be human.
++
++ ## Objective
++
++ This call is a short confirmation, not a sales call. The person already booked a Pulse demo
++ and agreed to receive an automated call about it. Do exactly this:
++
++ 1. Say you are an AI assistant calling for Pulse and why you are calling.
++ 2. Confirm the demo time. Ask if it still works for them.
++ 3. If it works, thank them in one sentence and end the call.
++ 4. If they need a different time, say you cannot change the booking on this call, that the
++    booking confirmation email has a link to move it, and end the call kindly.
++ 5. If they say they did not book it, apologize, say you will pass that on, and end the call.
++
++ Do not pitch. Do not quote a price. Do not qualify them. Do not ask for a card number or
++ any payment detail. Answer questions only from this prompt; otherwise say "I do not know, a
++ person from Pulse will follow up" and move on. Keep the whole call under three minutes.
++ If the call goes to voicemail, hang up without leaving a message.
++
++ ## Call context
++
++ The person you are calling: Mike.
++ Their booked demo: Tuesday, November 17 at 4:00 PM PST.
++ You have already said your opening line. Continue from their reply.
++
++ ## Guardrails & Escalation
++
++ 1. Disclose you are an AI in the opener and any time you are asked.
++ 2. "Take me off your list", "do not call", "stop calling" gets: "You got it, I will take you
++    off right now, sorry for the interruption." Then end immediately. No rebuttal, no last
++    pitch, no exceptions.
++ 3. Never ask for a card number, bank detail, password or social security number.
++ 4. Never quote a price other than four ninety nine a month. Never discount or negotiate.
++ 5. Never disparage a named competitor. Facts only, and only if asked.
++ 6. Never invent a feature, a customer, a statistic or a result.
++ 7. Stay strictly in scope as a lead qualifier. Give no legal, financial, tax or professional
++    advice.
++ 8. If someone is in distress or the conversation turns inappropriate, end it kindly and
++    immediately.
++ 9. If you cannot answer two questions in a row, offer to put them through to a person.
++ 10. Maximum eight minutes. Past six, move to close.
++ 11. If they say they are mid session or busy, offer a callback once and get a time. One
++     attempt, then let go gracefully.
++
++ ---
++
++ ## Voice & Communication Style
++
++ Sentences of eight to fourteen words. One idea per sentence. Contractions always. One
++ question at a time, then silence. Silence is the tool, not a problem.
++
++ Mirror their exact words. If they say sessions, you say sessions, not bookings. Use their
++ first name and their studio name once each, not more. Backchannel like a human with "yeah",
++ "got it", "right", sparingly.
++
++ No jargon. Never say solution, platform, leverage, synergy, ROI, onboarding journey, or
++ reach out. No reading lists aloud. No em dashes.
++
++ If they interrupt, stop instantly and let them finish. Never talk over them. If they go
++ quiet for three seconds, ask one short question. If they go quiet twice, ask if now is a bad
++ time.
++
++ Match their energy. Fast talker, go fast. Slow and gruff, get shorter and slower. Never
++ sound relieved, never over thank, never gush. Warm and level.
++
++ ---
+
+ ❯ convex/outreachCalls.test.ts:254:23
+    252|     });
+    253|     expect(body.first_sentence).toMatch(/AI assistant calling for Puls…
+    254|     expect(body.task).toContain("at 5:00 PM P");
+       |                       ^
+    255|     expect((await rows())[0]).toMatchObject({ status: "dialing", attem…
+    256|     // Again, and again: still one call to Bland.
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  convex/marketing/results.test.ts > marketing results > counts clicks, bookings and revenue per post inside the 7-day window, postId over code
+AssertionError: expected { bookings: +0, caption: 'A', …(6) } to match object { clicks: 2, bookings: 2, …(2) }
+(4 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "bookings": 2,
+-   "clicks": 2,
+-   "redemptions": 1,
+-   "revenueCents": 40000,
++   "bookings": 0,
++   "clicks": 0,
++   "redemptions": 0,
++   "revenueCents": 0,
+  }
+
+ ❯ convex/marketing/results.test.ts:37:15
+     35|     // second counts toward redemptions, so redemptions is 1, not 2 - …
+     36|     // bookings, revenue and redemptions are four distinct measures.
+     37|     expect(a).toMatchObject({ clicks: 2, bookings: 2, revenueCents: 40…
+       |               ^
+     38|     expect(b).toMatchObject({ clicks: 1, bookings: 1, revenueCents: 20…
+     39|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  convex/lib/agentScope.test.ts > (b) only the Accounting modules reach the ledger > no other module reads or writes the ledger tables or calls the ledger API
+AssertionError: expected [ …(2) ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   "../../src/components/books/books-live.tsx",
++   "../../src/lib/books/types.ts",
++ ]
+
+ ❯ convex/lib/agentScope.test.ts:189:18
+    187|       .filter(([path, text]) => LEDGER_USE.test(text) && !MAY_TOUCH_LE…
+    188|       .map(([path]) => path);
+    189|     expect(hits).toEqual([]);
+       |                  ^
+    190|   });
+    191|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  3 failed | 394 passed (397)
+      Tests  3 failed | 4292 passed (4295)
+   Start at  14:09:55
+   Duration  41.30s (transform 44.36s, setup 0ms, import 88.93s, tests 132.76s, environment 53.70s)
+
+vitest exit 1

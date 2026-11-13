@@ -1,0 +1,21 @@
+## R-03: npx vitest run convex/portal convex/files convex/mediaLibrary
+
+ RUN  v4.1.6 /Users/myindsound/dev/pulse-session-delivery
+
+
+ Test Files  4 passed (4)
+      Tests  45 passed (45)
+   Start at  14:34:53
+   Duration  744ms (transform 852ms, setup 0ms, import 1.07s, tests 883ms, environment 145ms)
+
+
+## R-04: npx vitest run convex/money convex/lib/mirroredTables
+
+ RUN  v4.1.6 /Users/myindsound/dev/pulse-session-delivery
+
+
+ Test Files  3 passed (3)
+      Tests  96 passed (96)
+   Start at  14:34:54
+   Duration  652ms (transform 732ms, setup 0ms, import 542ms, tests 595ms, environment 96ms)
+
