@@ -179,12 +179,19 @@ describe("deliveryCardView: no online pay link (R3-05)", () => {
 
   it("a caller without money sight sees only that a balance is owed: no reason line, no dollar sign", () => {
     for (const reason of [...Object.keys(REASONS), "open_invoice_wrong_amount", "nothing_owed", null] as DeliveryStatus["onlinePayReason"][]) {
-      const view = waiting({ onlinePayReason: reason, openInvoice: null, balanceCents: null, canRelease: false, canTurnOff: false });
-      expect(body(view)).toContain("A balance is still owed.");
-      for (const line of ALL_REASON_LINES) expect(body(view)).not.toContain(line);
-      for (const t of texts(view)) {
-        expect(t).not.toContain("$");
-        expect(t).not.toMatch(/\d\.00/);
+      // P4-01: also with an open invoice the server would never send them
+      // (defensive), matching or not.
+      for (const openInvoice of [null, { number: "INV-0042", cents: 18000 }, { number: "INV-0042", cents: 30000 }]) {
+        const view = waiting({ onlinePayReason: reason, openInvoice, balanceCents: null, canRelease: false, canTurnOff: false });
+        expect(body(view)).toContain("A balance is still owed.");
+        for (const line of ALL_REASON_LINES) expect(body(view)).not.toContain(line);
+        expect(body(view)).not.toContain("is open");
+        expect(body(view)).not.toContain("Void or correct");
+        for (const t of texts(view)) {
+          expect(t).not.toContain("$");
+          expect(t).not.toMatch(/\d\.00/);
+          expect(t).not.toContain("INV-0042");
+        }
       }
     }
   });
@@ -279,12 +286,95 @@ describe("deliveryCardView: an open invoice with the wrong amount (R4-01)", () =
         for (const t of texts(view)) {
           expect(t).not.toContain("INV-0042");
           expect(t).not.toContain("Void or correct");
+          // P4-01: nor the line for an open invoice that is what is owed.
+          expect(t).not.toContain("is open.");
           if (combo.balanceCents === null) {
             expect(t).not.toContain("$");
             expect(t).not.toMatch(/\d\.00/);
           }
         }
         if (combo.balanceCents === null) expect(body(view)).toContain("A balance is still owed.");
+      }
+    }
+  });
+});
+
+describe("deliveryCardView: an open invoice decides the line first (P4-01)", () => {
+  const REASONS = ["open_invoice_wrong_amount", "prices_hidden", "amount_mismatch", "invoice_not_sent"] as const;
+  const PAY_IT = "Invoice INV-0042 for $180.00 is open. The files unlock when it is paid.";
+  const VOID = "Invoice INV-0042 is open for $300.00, but $180.00 is owed. Void or correct it so Jordan can pay online.";
+  const SEND = /send .*invoice/i;
+  const waiting = (over: Partial<DeliveryStatus>) =>
+    deliveryCardView(status({ state: "awaiting_payment", onlinePay: "none", lastSentAt: EARLIER_TODAY, ...over }), { canUpload: true, now: NOW });
+
+  it("cards off with an open invoice for exactly what is owed: pay that invoice, never 'open for $180.00, but $180.00 is owed'", () => {
+    const view = waiting({ onlinePayReason: "open_invoice_wrong_amount", openInvoice: { number: "INV-0042", cents: 18000 } });
+    expect(view.lines.at(-1)).toEqual({ parts: [{ text: PAY_IT }], tone: "caution" });
+    expect(body(view)).not.toContain("but $180.00 is owed");
+    expect(body(view)).not.toContain("Void or correct");
+    expect(body(view)).toContain("$180.00 is still owed.");
+  });
+
+  it("hidden prices with an open invoice: pay that invoice, never 'Send an invoice'", () => {
+    const view = waiting({ onlinePayReason: "prices_hidden", openInvoice: { number: "INV-0042", cents: 18000 } });
+    expect(view.lines.at(-1)).toEqual({ parts: [{ text: PAY_IT }], tone: "caution" });
+    expect(body(view)).not.toMatch(SEND);
+    expect(body(view)).not.toContain("Prices are hidden");
+  });
+
+  it("hidden prices with an open invoice for another amount: the void or correct line", () => {
+    const view = waiting({ onlinePayReason: "prices_hidden", openInvoice: { number: "INV-0042", cents: 30000 } });
+    expect(view.lines.at(-1)).toEqual({ parts: [{ text: VOID }], tone: "caution" });
+    expect(body(view)).not.toMatch(SEND);
+  });
+
+  it("whatever the reason, the open invoice decides: same amount pays it, another amount is voided or corrected", () => {
+    for (const reason of REASONS) {
+      const same = waiting({ onlinePayReason: reason, openInvoice: { number: "INV-0042", cents: 18000 } });
+      expect(texts(same), reason).toContain(PAY_IT);
+      expect(body(same), reason).not.toMatch(SEND);
+      const other = waiting({ onlinePayReason: reason, openInvoice: { number: "INV-0042", cents: 30000 } });
+      expect(texts(other), reason).toContain(VOID);
+      expect(body(other), reason).not.toMatch(SEND);
+      expect(body(other), reason).not.toContain(PAY_IT);
+    }
+  });
+
+  it("no open invoice: the line for the reason, as before", () => {
+    expect(texts(waiting({ onlinePayReason: "prices_hidden", openInvoice: null }))).toContain(
+      "Prices are hidden on this booking. Send Jordan an invoice to collect the balance.",
+    );
+    expect(texts(waiting({ onlinePayReason: "amount_mismatch", openInvoice: null }))).toContain(
+      "There is no online pay link for this balance. Send Jordan an invoice for it.",
+    );
+    expect(texts(waiting({ onlinePayReason: "invoice_not_sent", openInvoice: null }))).toContain(
+      "Send the balance invoice so Jordan can pay online.",
+    );
+    expect(body(waiting({ onlinePayReason: "open_invoice_wrong_amount", openInvoice: null }))).not.toContain("is open");
+  });
+
+  it("with an online pay target there is no extra line, open invoice or not", () => {
+    const view = waiting({ onlinePay: "invoice", onlinePayReason: null, openInvoice: { number: "INV-0042", cents: 18000 } });
+    expect(body(view)).not.toContain(PAY_IT);
+    expect(view.lines.some((l) => l.tone === "caution")).toBe(false);
+  });
+
+  it("without money sight: only that a balance is owed, with no invoice number and no amount", () => {
+    for (const reason of REASONS) {
+      for (const cents of [18000, 30000]) {
+        for (const canUpload of [true, false]) {
+          const view = deliveryCardView(
+            status({ state: "awaiting_payment", onlinePay: "none", onlinePayReason: reason, openInvoice: { number: "INV-0042", cents }, balanceCents: null, lastSentAt: EARLIER_TODAY }),
+            { canUpload, now: NOW },
+          );
+          expect(body(view)).toContain("A balance is still owed.");
+          expect(view.lines.some((l) => l.tone === "caution")).toBe(false);
+          for (const t of texts(view)) {
+            expect(t).not.toContain("$");
+            expect(t).not.toContain("INV-0042");
+            expect(t).not.toMatch(/\d\.00/);
+          }
+        }
       }
     }
   });

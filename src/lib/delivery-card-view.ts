@@ -9,7 +9,8 @@ import { moneyExact, shortDate, timeOfDay } from "@/lib/format";
      canRelease / canTurnOff;
    - when the client has no online way to pay exactly what is owed
      (onlinePay "none", R3-05), a caller with money sight is told what to do
-     about it; everyone else still sees only that a balance is owed. */
+     about it, and an open invoice decides that line first (P4-01); everyone
+     else still sees only that a balance is owed. */
 
 export type DeliveryState = "none" | "awaiting_payment" | "released" | "off";
 
@@ -72,19 +73,29 @@ export function payToast(onlinePay: DeliveryStatus["onlinePay"]): string {
   return onlinePay === "none" ? BALANCE_EMAIL_TOAST : PAY_LINK_TOAST;
 }
 
-/** R3-05 and R4-01: what to do when there is no online pay link, for callers
- *  with money sight. Exact copy from the plan's addenda. The open-invoice line
- *  names the invoice and both amounts, so it needs both of them; without them
- *  there is no line at all (never "send an invoice": one is already open). */
+/** R3-05, R4-01 and P4-01: what to do when there is no online pay link, for
+ *  callers with money sight. Exact copy from the plan's addenda. An open
+ *  invoice decides first, whatever the reason: for exactly what is owed, the
+ *  client pays it; for another amount, the team voids or corrects it. Never
+ *  "send an invoice" while one is open. Only with no open invoice does the
+ *  reason pick the line. Both open-invoice lines name the invoice and its
+ *  amount, so they need both amounts; without them there is no line at all. */
 function noPayLinkLine(status: DeliveryStatus, name: string): string | null {
+  const open = status.openInvoice;
+  if (open && status.balanceCents !== null) {
+    if (open.cents === status.balanceCents) {
+      return `Invoice ${open.number} for ${moneyExact(open.cents)} is open. The files unlock when it is paid.`;
+    }
+    return `Invoice ${open.number} is open for ${moneyExact(open.cents)}, but ${moneyExact(status.balanceCents)} is owed. Void or correct it so ${name} can pay online.`;
+  }
   switch (status.onlinePayReason) {
     case "invoice_not_sent":
       return `Send the balance invoice so ${name} can pay online.`;
     case "amount_mismatch":
       return `There is no online pay link for this balance. Send ${name} an invoice for it.`;
     case "open_invoice_wrong_amount":
-      if (!status.openInvoice || status.balanceCents === null) return null;
-      return `Invoice ${status.openInvoice.number} is open for ${moneyExact(status.openInvoice.cents)}, but ${moneyExact(status.balanceCents)} is owed. Void or correct it so ${name} can pay online.`;
+      // The invoice to name was not sent (no money sight): no line.
+      return null;
     case "prices_hidden":
       return `Prices are hidden on this booking. Send ${name} an invoice to collect the balance.`;
     default:
