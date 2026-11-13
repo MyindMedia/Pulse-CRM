@@ -101,7 +101,8 @@ describe("admin payroll", () => {
     expect(engRow.payCents).toBe(20_000); // 4h x $50
     expect(sum.totalPayCents).toBe(20_000);
 
-    const res = await asOwner.mutation(api.payroll.postToExpenses, { start: now - 86_400_000, end: now + 86_400_000 });
+    // Only a finished period can be posted (H208-03), so this one ends now.
+    const res = await asOwner.mutation(api.payroll.postToExpenses, { start: now - 86_400_000, end: now });
     expect(res.created).toBe(1);
     expect(res.totalCents).toBe(20_000);
 

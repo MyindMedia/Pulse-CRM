@@ -72,7 +72,8 @@ export default function PayrollPage() {
   const loading = data === undefined;
   // Only a finished pay period or month can be posted: hours are still being
   // worked in the current one, and a year or all time overlaps every period.
-  const postable = (range === "lastPeriod" || range === "last") && end <= Date.now();
+  // The server refuses any window that has not ended as well.
+  const postable = range === "lastPeriod" || range === "last";
   const periodLabel =
     range === "period" || range === "lastPeriod"
       ? payPeriodFor(schedule, anchorDate, new Date(), range === "lastPeriod" ? -1 : 0).label

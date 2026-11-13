@@ -369,8 +369,6 @@ export function payrollPeriodKey(start: number, end: number): string {
   return `${new Date(start).toISOString().slice(0, 10)}_${new Date(end).toISOString().slice(0, 10)}`;
 }
 
-const DAY_MS = 86_400_000;
-
 /** The [start, end) a key names, at UTC day precision. */
 function keyRange(key: string): { start: number; end: number } | null {
   const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(key);
