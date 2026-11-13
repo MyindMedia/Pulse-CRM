@@ -9,6 +9,24 @@ import { stripEmDashes } from "./text";
 import { ensureBranded } from "./emailLayout";
 
 export type EmailStatus = "sent" | "failed" | "simulated";
+
+/** The From header for mail a studio sends through Pulse:
+ *  "<Studio> via Pulse <support@studiopulse.tech>". The studio name is free
+ *  text a studio owner types, so before it goes into a header it loses every
+ *  character that could close the display name, add an address or start a
+ *  new header: quotes, angle brackets, commas, the other RFC 5322 specials
+ *  (@ ; : \ ( ) [ ]) and control characters (CR and LF among them). Periods
+ *  and apostrophes stay ("St. Louis Sound", "Mike's Place"). */
+export function studioSender(studioName: string | null | undefined): string {
+  const clean = (studioName ?? "")
+    .replace(/[\p{Cc}"<>,@;:\\()[\]]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 64)
+    .trim();
+  return `${clean || "Your studio"} via Pulse <support@studiopulse.tech>`;
+}
+
 export type EmailAudience = "client" | "internal";
 
 export async function sendEmail(args: {

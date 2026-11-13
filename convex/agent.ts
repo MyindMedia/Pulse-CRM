@@ -56,7 +56,7 @@ const AGENT_SCHEMA = {
   },
 } as const;
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
-import { sendEmail } from "./lib/email";
+import { sendEmail, studioSender } from "./lib/email";
 import { sendSms } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
 import { manualStepFor } from "./lib/agentActions";
@@ -948,7 +948,7 @@ export const sendArtifactDraft = action({
         to: c.to,
         subject,
         html,
-        from: `${c.studioName} via Pulse <support@studiopulse.tech>`,
+        from: studioSender(c.studioName),
       });
     }
 

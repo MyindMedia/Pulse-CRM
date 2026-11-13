@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
-import { sendEmail, studioReplyTo } from "./lib/email";
+import { sendEmail, studioReplyTo, studioSender } from "./lib/email";
 import { studioEmailHtml, readableEmailInk } from "./lib/emailTemplates/layout";
 import { sendSms } from "./lib/sms";
 
@@ -46,6 +46,10 @@ export function notificationEmailHtml(n: { orgName: string; body: string; html?:
   });
 }
 
+/** Notification kinds sent in the studio's name ("<Studio> via Pulse"): the
+ *  session file delivery emails. Every other kind keeps the default sender. */
+const STUDIO_SENDER_KINDS = new Set(["delivery.ready", "delivery.pay"]);
+
 /** Actually deliver a queued notification. Email goes out via Resend, SMS via
     the configured provider; either helper degrades to "simulated" when its
     provider isn't configured, so unconfigured deployments just keep the log. */
@@ -59,7 +63,8 @@ export const deliver = internalAction({
       // Branded studio-framed email (escapes + linkifies pay URLs internally).
       const html = notificationEmailHtml(n);
       // Replies go to the studio: the bodies say "Reply to this email".
-      status = await sendEmail({ to: n.recipient, subject: n.subject, html, replyTo: n.replyTo });
+      const from = STUDIO_SENDER_KINDS.has(n.kind) ? studioSender(n.orgName) : undefined;
+      status = await sendEmail({ to: n.recipient, subject: n.subject, html, replyTo: n.replyTo, from });
     } else {
       status = await sendSms({ to: n.recipient, body: n.body });
     }

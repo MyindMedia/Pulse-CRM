@@ -4,7 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability, SETUP_ACCESS } from "./lib/access";
-import { sendEmail } from "./lib/email";
+import { sendEmail, studioSender } from "./lib/email";
 import { studioEmailHtml, readableEmailInk } from "./lib/emailTemplates/layout";
 import { googleConfigured, gmailSend } from "./lib/google";
 
@@ -103,7 +103,7 @@ export const sendToClient = action({
         to: c.to,
         subject,
         html,
-        from: `${c.studioName} via Pulse <support@studiopulse.tech>`,
+        from: studioSender(c.studioName),
       });
     }
 
