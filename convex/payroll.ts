@@ -312,6 +312,9 @@ export const removeEntry = mutation({
       // A voided clock is no longer running: it must not block the next
       // clock-in or be swept by the overtime and intern checks.
       status: "completed",
+      // A running clock is closed at its own start, so any client that does
+      // not know about voidedAt (an older phone build) counts it as 0 hours.
+      ...(entry.clockOutAt === undefined ? { clockOutAt: entry.clockInAt } : {}),
       editedBy: who.subject ?? undefined,
     });
     const tz = await studioTz(ctx, orgId);

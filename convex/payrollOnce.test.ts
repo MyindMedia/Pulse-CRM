@@ -571,3 +571,38 @@ describe("who may correct hours (H208-04)", () => {
     expect(sum.rows.filter((r) => r.isYou).map((r) => r.memberId)).toEqual([miaId]);
   });
 });
+
+describe("a removed entry counts for nothing everywhere (H208-05)", () => {
+  it("voiding a running clock also closes it at its own start, so it is zero hours to any client", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    const openId = await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: now - HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self" }),
+    );
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId: openId, reason: "Stray punch" });
+    const e = (await t.run((ctx) => ctx.db.get(openId)))!;
+    expect(e.status).toBe("completed");
+    expect(e.clockOutAt).toBe(e.clockInAt);
+  });
+
+  it("voiding a finished entry keeps its recorded times", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))!.clockOutAt).toBe(START + DAY + 4 * HOUR);
+  });
+
+  it("the teammate's own timesheet leaves removed entries out", async () => {
+    const t = newT();
+    const { orgId, engId, entryId } = await studio(t);
+    const keep = await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: START + 3 * DAY, clockOutAt: START + 3 * DAY + HOUR, status: "completed", source: "self",
+      }),
+    );
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId });
+    const mine = await as(t, "eng").query(api.timeclock.myEntries, {});
+    expect(mine.map((e) => e._id)).toEqual([keep]);
+  });
+});

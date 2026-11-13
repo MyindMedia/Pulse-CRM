@@ -268,7 +268,11 @@ export const myEntries = query({
       .query("timeEntries")
       .withIndex("by_org_member", (q) => q.eq("orgId", cm.orgId).eq("memberId", cm.member._id))
       .collect();
-    return rows.sort((a, b) => b.clockInAt - a.clockInAt).slice(0, limit ?? 20);
+    // A punch a manager removed counts for nothing, so it is not shown as worked time.
+    return rows
+      .filter((r) => !r.voidedAt)
+      .sort((a, b) => b.clockInAt - a.clockInAt)
+      .slice(0, limit ?? 20);
   },
 });
 
