@@ -47,8 +47,8 @@ export function checkoutChargeCents(c: { depositCents: number; balanceCents: num
  *  src/lib/checkout-view.ts decide them: nothing paid yet, a deposit (the
  *  preselected choice) or the full amount, unless the room is sold paid in full
  *  or takes no deposit, when only the full amount; something paid, the
- *  balance; paid in full, nothing. convex/sessionDelivery.payTarget.test.ts
- *  checks this against checkoutView itself. */
+ *  balance; paid in full, nothing. convex/sessionDeliveryPay.test.ts checks
+ *  this against checkoutView itself. */
 export function checkoutKindsOffered(
   s: { rateCents: number; amountPaidCents?: number; depositCents: number },
   paymentMode: "deposit" | "full",
