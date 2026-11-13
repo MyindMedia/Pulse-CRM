@@ -15,11 +15,11 @@ import {
   safeAccent,
   safeHttpUrl,
   serverMessage,
-  usd,
 } from "./format";
 import { downloadByNavigating, downloadInFrame, downloadMethod, isTouchApple } from "./platform";
 import safe from "./text-safe.module.css";
 import { createPressGuard } from "@/lib/press-guard";
+import { lockCopy } from "./lock-copy";
 
 /* The client's download page, /delivery/<token>. No login: the token in the
    URL is the only credential, so it is never logged, never put in an error
@@ -28,7 +28,9 @@ import { createPressGuard } from "@/lib/press-guard";
    States, from one live query (it unlocks by itself when the payment lands):
      undefined  loading skeleton
      null       the generic expired page: no studio name, no logo (A-01)
-     locked     names and sizes, a lock mark per file, a Pay button
+     locked     names and sizes, a lock mark per file, and a Pay button only
+                when the server has a link that charges exactly what is shown
+                (otherwise: the studio will send a way to pay)
      unlocked   play (audio only), download, Download all
 
    File bytes never pass through this page or Convex: each click mints one ten
@@ -378,8 +380,9 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
   const when = [page.booking.title, page.booking.roomName, page.booking.dateLabel]
     .filter((x): x is string => !!x && x.trim().length > 0)
     .join(" · ");
-  const payUrl = safeHttpUrl(page.payUrl);
-  const balance = page.balanceCents && page.balanceCents > 0 ? usd(page.balanceCents) : null;
+  // R3-05: a Pay button only when the server has one that charges exactly
+  // what is shown; otherwise the studio sends a way to pay.
+  const lock = lockCopy({ studioName: page.studio.name, balanceCents: page.balanceCents, payUrl: page.payUrl });
   const count = `${files.length} file${files.length === 1 ? "" : "s"} · ${formatBytes(page.totalBytes)}`;
 
   return (
@@ -400,11 +403,11 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
             Balance due
           </span>
           <h2 id="lock-title" className="text-[1.25rem] leading-[1.25] font-bold tracking-normal">
-            {balance ? `Pay ${balance} to unlock your files` : "Pay to unlock your files"}
+            {lock.heading}
           </h2>
-          <p className="text-steel">Downloads open on this page as soon as the payment goes through.</p>
-          {payUrl && (
-            <a href={payUrl} className={`${BIG} justify-self-start`}>
+          <p className="text-steel">{lock.body}</p>
+          {lock.payUrl && (
+            <a href={lock.payUrl} className={`${BIG} justify-self-start`}>
               Pay and unlock
             </a>
           )}

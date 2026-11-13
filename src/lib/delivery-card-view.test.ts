@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+  BALANCE_EMAIL_TOAST,
   PAY_LINK_TOAST,
   deliveryCardView,
+  payToast,
   sentToast,
   type CardView,
   type DeliveryStatus,
@@ -29,6 +31,8 @@ function status(over: Partial<DeliveryStatus> = {}): DeliveryStatus {
     canRelease: true,
     canTurnOff: true,
     cancelled: false,
+    onlinePay: "checkout",
+    onlinePayReason: null,
     ...over,
   };
 }
@@ -147,7 +151,77 @@ describe("deliveryCardView: copy (F2-27)", () => {
   });
 });
 
+describe("deliveryCardView: no online pay link (R3-05)", () => {
+  const REASONS = {
+    invoice_not_sent: "Send the balance invoice so Jordan can pay online.",
+    amount_mismatch: "There is no online pay link for this balance. Send Jordan an invoice for it.",
+    prices_hidden: "Prices are hidden on this booking. Send Jordan an invoice to collect the balance.",
+  } as const;
+  const ALL_REASON_LINES = Object.values(REASONS);
+  const waiting = (over: Partial<DeliveryStatus>) =>
+    deliveryCardView(status({ state: "awaiting_payment", onlinePay: "none", lastSentAt: EARLIER_TODAY, ...over }), { canUpload: true, now: NOW });
+
+  it("tells a caller who sees money what to do, for each reason, word for word", () => {
+    for (const [reason, copy] of Object.entries(REASONS)) {
+      const view = waiting({ onlinePayReason: reason as keyof typeof REASONS });
+      expect(texts(view)).toContain(copy);
+      for (const other of ALL_REASON_LINES.filter((l) => l !== copy)) expect(body(view)).not.toContain(other);
+      expect(body(view)).toContain("$180.00 is still owed.");
+    }
+  });
+
+  it("uses the client fallback when there is no first name", () => {
+    const view = waiting({ onlinePayReason: "amount_mismatch", clientFirstName: "" });
+    expect(texts(view)).toContain("There is no online pay link for this balance. Send the client an invoice for it.");
+  });
+
+  it("a caller without money sight sees only that a balance is owed: no reason line, no dollar sign", () => {
+    for (const reason of [...Object.keys(REASONS), "nothing_owed", null] as DeliveryStatus["onlinePayReason"][]) {
+      const view = waiting({ onlinePayReason: reason, balanceCents: null, canRelease: false, canTurnOff: false });
+      expect(body(view)).toContain("A balance is still owed.");
+      for (const line of ALL_REASON_LINES) expect(body(view)).not.toContain(line);
+      for (const t of texts(view)) {
+        expect(t).not.toContain("$");
+        expect(t).not.toMatch(/\d\.00/);
+      }
+    }
+  });
+
+  it("with no pay link, the card does not say a pay link was emailed", () => {
+    const view = waiting({ onlinePayReason: "invoice_not_sent" });
+    expect(body(view)).not.toContain("pay link today");
+    expect(body(view)).toContain("Jordan was emailed about the balance today at 2:41");
+    const never = waiting({ onlinePayReason: "invoice_not_sent", lastSentAt: null });
+    expect(body(never)).toContain("No email about the balance has gone out to Jordan yet.");
+  });
+
+  it("with an online pay target there is no reason line and the pay link copy stays", () => {
+    for (const onlinePay of ["invoice", "checkout"] as const) {
+      const view = waiting({ onlinePay, onlinePayReason: null });
+      expect(body(view)).toContain("Jordan was emailed a pay link today at 2:41");
+      for (const line of ALL_REASON_LINES) expect(body(view)).not.toContain(line);
+    }
+  });
+
+  it("nothing owed keeps the Resend line only, whatever the pay target", () => {
+    const view = waiting({ balanceDue: false, balanceCents: 0, onlinePayReason: "nothing_owed" });
+    expect(texts({ ...view, pill: null, actions: [] })).toEqual(["Nothing is owed now. Tap Resend to send the files."]);
+  });
+
+  it("the reason line is a caution line of its own", () => {
+    const view = waiting({ onlinePayReason: "prices_hidden" });
+    expect(view.lines.at(-1)).toEqual({ parts: [{ text: REASONS.prices_hidden }], tone: "caution" });
+  });
+});
+
 describe("toasts", () => {
+  it("say pay link only when there is one", () => {
+    expect(payToast("checkout")).toBe(PAY_LINK_TOAST);
+    expect(payToast("invoice")).toBe(PAY_LINK_TOAST);
+    expect(payToast("none")).toBe(BALANCE_EMAIL_TOAST);
+    expect(BALANCE_EMAIL_TOAST).not.toMatch(/pay link/i);
+  });
+
   it("name the email when sent, and explain the wait otherwise", () => {
     expect(sentToast("jordan.ellis@example.com")).toBe("Sent to jordan.ellis@example.com");
     expect(PAY_LINK_TOAST).toBe("Pay link sent. The files unlock when the balance is paid.");

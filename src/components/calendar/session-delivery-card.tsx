@@ -13,8 +13,8 @@ import { createPressGuard } from "@/lib/press-guard";
 import { uploads } from "@/lib/upload-manager";
 import safe from "@/components/delivery/text-safe.module.css";
 import {
-  PAY_LINK_TOAST,
   deliveryCardView,
+  payToast,
   sentToast,
   type CardAction,
   type CardActionKey,
@@ -124,6 +124,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
 
   const view = deliveryCardView(status, { canUpload, now: loadedAt });
   const email = status.clientEmail;
+  const onlinePay = status.onlinePay;
   // Waiting with nothing owed, Resend releases; otherwise it sends the current email again.
   const resendReleases = status.state === "released" || !status.balanceDue;
 
@@ -211,7 +212,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       case "ready":
         return act("ready", async () => {
           const res = await markReady({ sessionId });
-          return res.state === "released" ? sentToast(email) : PAY_LINK_TOAST;
+          return res.state === "released" ? sentToast(email) : payToast(onlinePay);
         });
       case "release":
         return act("release", async () => {
@@ -221,7 +222,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       case "resend":
         return act("resend", async () => {
           await resend({ sessionId });
-          return resendReleases ? sentToast(email) : PAY_LINK_TOAST;
+          return resendReleases ? sentToast(email) : payToast(onlinePay);
         });
       case "off":
         return act("off", async () => {
