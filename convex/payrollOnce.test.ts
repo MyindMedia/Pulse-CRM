@@ -794,3 +794,77 @@ describe("a correction in a period already posted is not counted twice (H208-R2-
     expect(res).toEqual({ postedPeriod: false });
   });
 });
+
+describe("a late clock-in from an offline phone never repeats recorded hours (H208-R2-03)", () => {
+  it("a queued clock-in older than a manual entry starts where that entry ends", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    // The manager covers 9:00-11:00 by hand before the phone's punch arrives.
+    await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: now - 4 * HOUR, clockOutAt: now - 2 * HOUR,
+    });
+    const id = await as(t, "eng").mutation(api.timeclock.clockIn, { at: now - 4 * HOUR });
+    const e = (await t.run((ctx) => ctx.db.get(id)))!;
+    expect(e.clockInAt).toBe(now - 2 * HOUR);
+    const moved = await t.run(async (ctx) =>
+      (await ctx.db.query("activity").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect())
+        .filter((a) => a.kind === "staff.clock_in_moved"),
+    );
+    expect(moved).toHaveLength(1);
+    await as(t, "eng").mutation(api.timeclock.clockOut, {});
+    const all = await t.run(async (ctx) =>
+      (await ctx.db.query("timeEntries").collect()).filter((r) => r.memberId === engId && !r.voidedAt && r.clockInAt > now - DAY),
+    );
+    // No two entries share any time.
+    for (const a of all) for (const b of all) {
+      if (a._id === b._id) continue;
+      expect(a.clockInAt < b.clockOutAt! && b.clockInAt < a.clockOutAt!).toBe(false);
+    }
+  });
+
+  it("a queued clock-in before a later manual entry starts after it, so the running clock never covers it", async () => {
+    const t = newT();
+    const { engId } = await studio(t);
+    const now = Date.now();
+    await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: now - 3 * HOUR, clockOutAt: now - 2 * HOUR,
+    });
+    const id = await as(t, "eng").mutation(api.timeclock.clockIn, { at: now - 5 * HOUR });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.clockInAt).toBe(now - 2 * HOUR);
+  });
+
+  it("a removed entry does not move the clock-in, and an ordinary clock-in is unchanged", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    const manual = await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: now - 4 * HOUR, clockOutAt: now - 2 * HOUR,
+    });
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId: manual });
+    const id = await as(t, "eng").mutation(api.timeclock.clockIn, { at: now - 4 * HOUR });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.clockInAt).toBe(now - 4 * HOUR);
+    const moved = await t.run(async (ctx) =>
+      (await ctx.db.query("activity").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect())
+        .filter((a) => a.kind === "staff.clock_in_moved"),
+    );
+    expect(moved).toHaveLength(0);
+  });
+
+  it("a backdated clock-out stops where a later recorded entry begins", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    const open = await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: now - 6 * HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self" }),
+    );
+    // A later entry that reached the record some other way (written directly here).
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: now - 3 * HOUR, clockOutAt: now - 2 * HOUR, status: "completed", source: "manual",
+      }),
+    );
+    await as(t, "eng").mutation(api.timeclock.clockOut, { at: now - HOUR });
+    expect((await t.run((ctx) => ctx.db.get(open)))!.clockOutAt).toBe(now - 3 * HOUR);
+  });
+});

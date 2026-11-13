@@ -5,7 +5,7 @@ import type { Doc } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";
 import { punchedAt } from "./lib/punch";
 import { punchAlert, punchAudience, type Punch } from "./lib/punchAlert";
-import { orgTz } from "./lib/tz";
+import { orgTz, whenLabel } from "./lib/tz";
 import { internal } from "./_generated/api";
 
 /* ============================================================
@@ -64,6 +64,56 @@ async function currentMember(
   const member = await ctx.db.get(viewer.memberId).catch(() => null);
   if (!member || member.orgId !== orgId) return null;
   return { orgId, member };
+}
+
+async function tzOf(ctx: QueryCtx, orgId: string): Promise<string> {
+  const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return orgTz(org);
+}
+
+/** The same hours are never paid twice (H208-R2-03). A clock-in sent late from
+ *  a phone with no signal can carry a time a manager has since covered with a
+ *  manual entry. The new clock runs from that time to now, so it starts no
+ *  earlier than the end of any of this teammate's recorded entries that end
+ *  after it. Removed entries count for nothing. */
+async function clearOfRecordedHours(
+  ctx: QueryCtx,
+  orgId: string,
+  memberId: Doc<"members">["_id"],
+  clockInAt: number,
+): Promise<number> {
+  const rows = await ctx.db
+    .query("timeEntries")
+    .withIndex("by_org_member", (q) => q.eq("orgId", orgId).eq("memberId", memberId))
+    .collect();
+  let t = clockInAt;
+  for (const r of rows) {
+    if (r.voidedAt || r.clockOutAt === undefined) continue;
+    if (r.clockOutAt > t) t = r.clockOutAt;
+  }
+  return t;
+}
+
+/** A clock-out never reaches into another of this teammate's recorded entries
+ *  that starts after the open clock: it stops where that entry begins. */
+async function stopBeforeLaterEntry(
+  ctx: QueryCtx,
+  orgId: string,
+  memberId: Doc<"members">["_id"],
+  openId: Doc<"timeEntries">["_id"],
+  openInAt: number,
+  clockOutAt: number,
+): Promise<number> {
+  const rows = await ctx.db
+    .query("timeEntries")
+    .withIndex("by_org_member", (q) => q.eq("orgId", orgId).eq("memberId", memberId))
+    .collect();
+  let t = clockOutAt;
+  for (const r of rows) {
+    if (r._id === openId || r.voidedAt) continue;
+    if (r.clockInAt >= openInAt && r.clockInAt < t) t = r.clockInAt;
+  }
+  return t;
 }
 
 /** The member's currently-open entry, if any. */
@@ -175,7 +225,8 @@ export const clockIn = mutation({
         throw new Error("That shift isn't yours.");
       }
     }
-    const clockInAt = punchedAt(at, Date.now());
+    const punched = punchedAt(at, Date.now());
+    const clockInAt = await clearOfRecordedHours(ctx, orgId, member._id, punched);
     const entryId = await ctx.db.insert("timeEntries", {
       orgId,
       memberId: member._id,
@@ -193,6 +244,17 @@ export const clockIn = mutation({
         kind: "in", memberName: member.name, at: clockInAt, tz: orgTz(org),
         roomName: room?.name ?? null, onRota: Boolean(shift),
       }, entryId);
+    }
+    if (clockInAt !== punched) {
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "staff.clock_in_moved",
+        summary: `${member.name}'s clock-in was moved to ${whenLabel(clockInAt, await tzOf(ctx, orgId))}: the earlier time is already on a recorded entry`,
+        actorName: member.name,
+        entityType: "member",
+        entityId: member._id,
+        accent: "info",
+      });
     }
     // Surface the punch to owners/managers (notification bell + live toasts).
     await ctx.db.insert("activity", {
@@ -218,7 +280,10 @@ export const clockOut = mutation({
     if (!open) return null;
     // Never before the punch it closes: a clamped clock-out that landed ahead
     // of its own clock-in would read as a negative shift.
-    const now = Math.max(punchedAt(at, Date.now()), open.clockInAt);
+    const now = await stopBeforeLaterEntry(
+      ctx, cm.orgId, cm.member._id, open._id, open.clockInAt,
+      Math.max(punchedAt(at, Date.now()), open.clockInAt),
+    );
     await ctx.db.patch(open._id, {
       clockOutAt: now,
       status: "completed",
