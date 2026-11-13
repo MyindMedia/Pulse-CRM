@@ -1,5 +1,5 @@
 # Eval: Deliver final session files to the client
-Status: draft            <!-- draft → in-review → approved → passing -->
+Status: approved         <!-- owner: "approved", 2026-11-13, mockup v1 and all 12 decisions as written -->
 Risk: high: "if it breaks, a stranger could download a client's unreleased music, a client could get files without paying, or a paid client could be locked out"
 RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 
@@ -69,7 +69,7 @@ RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 | E-02 | "Pay to unlock" email renders with the amount and the Pay and unlock button | same | PENDING | |
 | E-03 | A hostile studio name, booking title or file name cannot inject HTML | unit test with `<script>` and `"><img>` in each field | PENDING | |
 | E-04 | A light accent gets dark button text and a dark accent gets light text | unit test over `#fdb913`, `#0a0a0a`, `#ffffff` | PENDING | |
-| E-05 | The email goes out through the studio's chosen channel and is logged on the booking | convex-test: notification row with `sessionId`; staging: one real send to a test inbox | PENDING | |
+| E-05 | The email goes out through the booking notification channel ("Studio via Pulse", replies to the studio) and is logged on the booking | convex-test: notification row with `sessionId`; staging: one real send to a test inbox | PENDING | |
 | E-06 | No em dashes in any new copy | grep the diff for U+2014 | PENDING | |
 
 ### Client page
@@ -98,8 +98,8 @@ RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 ### Regression
 | ID | Check | How to verify | Result | Evidence |
 |---|---|---|---|---|
-| R-01 | Existing session file tests pass unchanged | `npx vitest run convex/sessionFiles` | PENDING | |
-| R-02 | Existing payment tests pass; only the one email assertion changes, and only when a delivery exists | `npx vitest run convex/payments` | PENDING | |
+| R-01 | Session file upload, list, download and delete behave as before | no tests exist today, so the builder first adds tests that pin today's behavior (`convex/sessionFiles.test.ts`), then they stay green | PENDING | |
+| R-02 | `settlePayment` behaves as before when no delivery exists: amounts, hold confirmation, team alert, deposit and paid-in-full emails | no tests exist today, so the builder first adds tests that pin today's behavior (`convex/payments.test.ts`), then they stay green | PENDING | |
 | R-03 | Portal, deliverables gate and library guest link tests pass unchanged | `npx vitest run convex/portal convex/files convex/mediaLibrary` | PENDING | |
 | R-04 | Mirror tests pass: no required field added to a mirrored table | `npx vitest run convex/money convex/lib/mirroredTables` | PENDING | |
 | R-05 | `npm run check` | full run, counts recorded | PENDING | |
@@ -131,3 +131,8 @@ RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 10. Web first. iPhone screens come after, and every new field is optional so the shipped app is unaffected.
 11. No text message delivery in v1.
 12. The full compliance interview was not run: no new vendor, no new personal data field, no AI in the path. The data flow table in `rd.md` stands in for it.
+
+## Corrections after approval (2026-11-13, facts found while planning; none loosens a check)
+- R-01, R-02: there were no existing tests for session files or `settlePayment`. The builder writes them first.
+- E-05 and the mockup note said the email could go through the studio's Gmail. Booking emails all go through "Studio via Pulse" (Resend) with replies to the studio; this one does the same.
+- Expired page: A-01 requires expired links to look exactly like unknown ones, so the expired page shows no studio name or logo. The mockup's expired state was changed to match.

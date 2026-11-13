@@ -93,7 +93,8 @@ Staff, through `staffSession` like the rest of session files:
 Public, token only:
 - `page({ token })`: studio name, logo URL, accent, booking title and date, client first name, state
   (`unlocked` | `locked` | `expired`), final files (name, size, type, version id), the balance and pay URL
-  when locked, expiry. Never a file URL. Unknown, off and wrong tokens all return the same `null`.
+  when locked, expiry. Never a file URL. Unknown, off, expired and wrong tokens all return the same `null`,
+  so the expired page is generic and carries no studio name.
 - `fileUrl({ token, versionId })`: mutation. Re-checks token, expiry, `released`, that the version's asset
   belongs to this booking and this studio and is `clientFinal`, then mints a 10 minute signed GET that
   saves under the original file name. Counts the download. At most 120 per hour per delivery.
@@ -102,9 +103,9 @@ Public, token only:
 ### Email
 - New template `convex/lib/emailTemplates/sessionDelivery.ts` on top of `studioEmailHtml` with the
   studio's accent and a readable button ink (`readableEmailInk`).
-- Sent through the existing `notify` path so it is logged on the booking and goes out through the
-  studio's own channel (their Gmail, or "<Studio> via Pulse"). `notifications` gains optional
-  `ctaLabel`, `ctaUrl`, `accent`.
+- Sent through the existing `notify` path, so it is logged on the booking and goes out the way every
+  booking email does: from "<Studio> via Pulse" (Resend), replies routed to the studio. `notifications`
+  gains optional `html`, `ctaLabel`, `ctaUrl`, `accent`.
 - Files ready: subject `Your files from <booking title> are ready`. Button: Download your files.
 - Pay to unlock: subject `Your files are ready. One step left`. Button: Pay and unlock. Sent once.
 - When a payment both settles the balance and releases a delivery, the client gets the files email with
@@ -126,7 +127,7 @@ card with the four states in the mockup.
 | Data | Stored | Leaves through |
 |---|---|---|
 | File bytes | Cloudflare R2 private bucket (existing) | 10 minute signed GET, only after the checks above |
-| Client email, name | Convex `artists` (existing) | Resend or the studio's Gmail (existing) |
+| Client email, name | Convex `artists` (existing) | Resend (existing) |
 | Delivery link token | Convex `sessionDeliveries`, `notifications` | The email to the client; staff "Copy link" |
 | Payment | Stripe (existing) | not touched |
 No AI in the path. No new cookies, pixels or form fields on the public page.

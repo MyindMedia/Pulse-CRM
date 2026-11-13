@@ -218,7 +218,7 @@ button { font: inherit; color: inherit; cursor: pointer }
         <div class="foot">Sent with Pulse · the studio operating system</div>
       </div>
     </div>
-    <p class="note">Sent to the email on the booking, through the studio's own channel (their Gmail, or "Studio via Pulse"). The header bar and button take the studio's color; the button text flips between dark and light so it stays readable.</p>
+    <p class="note">Sent to the email on the booking as "Studio via Pulse", with replies going to the studio. The header bar and button take the studio's color; the button text flips between dark and light so it stays readable.</p>
   </section>
 
   <!-- 3. CLIENT -->
@@ -308,7 +308,7 @@ button { font: inherit; color: inherit; cursor: pointer }
   }
   function client() {
     var top = '<div class="brand"><span class="logo">MS</span>Myind Sound</div>', foot = '<footer><span>Delivered with Pulse</span><span><a href="#client">Privacy</a> · <a href="#client">Terms</a></span></footer>';
-    if (st.cstate === 'gone') { $('#cp').innerHTML = top + '<div class="gone"><h2>This link has expired</h2><p class="when">Ask Myind Sound to send a new one. Your files are still safe with the studio.</p></div>' + foot; return; }
+    if (st.cstate === 'gone') { $('#cp').innerHTML = '<div class="gone"><h2>This link has expired</h2><p class="when">Ask the studio to send a new one. Your files are still safe with them.</p></div>' + foot; return; }
     var locked = st.cstate === 'locked', fs = finals();
     var head = '<div><h2>' + (locked ? 'Your files are finished, Jordan' : 'Your files are ready, Jordan') + '</h2><p class="when">Vocal tracking · Room A · November 11, 2026</p></div>';
     var mid = locked
