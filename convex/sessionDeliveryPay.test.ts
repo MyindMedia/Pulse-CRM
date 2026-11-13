@@ -239,7 +239,9 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     const [mail] = (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
     expect(mail.html).not.toContain("</a>");
     expect(mail.html).not.toMatch(/\$\s?\d/);
-    expect(mail.html).toContain("There is a balance on this booking. Studio A will send you a way to pay it.");
+    // P4-03: the invoice is already open, so the email says to pay it.
+    expect(mail.html).toContain("There is a balance on this booking. Pay it with the invoice Studio A sent you.");
+    expect(mail.html).not.toContain("will send you a way to pay");
     // The client pays the invoice the studio sent, through the real webhook.
     await payThrough(s, { kind: "invoice", url: `${APP_URL}/pay/invoice/${inv}`, cents: 18000 });
     expect((await row(s)).status).toBe("released");
@@ -503,6 +505,71 @@ describe("session delivery: page.invoiceOpen (P4-02)", () => {
     await s.as(s.A.owner).mutation(api.sessionDelivery.releaseNow, { sessionId: s.A.sessionId });
     const page = (await s.t.query(api.sessionDelivery.page, { token }))!;
     expect(page).toMatchObject({ state: "unlocked", invoiceOpen: false, payUrl: null, balanceCents: null });
+  });
+});
+
+/* ── P4-03: the pay email with no target names the open invoice ── */
+
+describe("session delivery: the pay email when an invoice is already open (P4-03)", () => {
+  beforeEach(() => { r2Env(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  const PAY_IT = "Pay it with the invoice Studio A sent you. Once it is paid, your download link arrives right away.";
+  const payMails = async (s: S) => (await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.pay");
+
+  it("P4-03 an open invoice for another amount: no button, pay it with the invoice the studio sent", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    await invoice(s, "sent", 25000);
+    const token = await ready(s);
+    await noButton(s, token, 30000, "open_invoice_wrong_amount");
+    const [mail] = await payMails(s);
+    expect(mail.html).toContain(`There is a $300.00 balance on this booking. ${PAY_IT}`);
+    expect(mail.html).not.toContain("</a>");
+    expect(mail.html).not.toContain("will send you a way to pay");
+    expect(mail.body).toContain(`There is a balance on this booking. ${PAY_IT}`);
+    expect(mail.body).not.toContain("$");
+  });
+
+  it("P4-03 cards off with the open invoice for exactly what is owed: no button, pay it with the invoice", async () => {
+    const s = await setup();
+    await invoice(s, "overdue", 18000);
+    await s.t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { stripeChargesEnabled: false });
+    });
+    const token = await ready(s);
+    await noButton(s, token, 18000, "open_invoice_wrong_amount");
+    const [mail] = await payMails(s);
+    expect(mail.html).toContain(`There is a $180.00 balance on this booking. ${PAY_IT}`);
+    expect(mail.html).not.toContain("</a>");
+  });
+
+  it("P4-03 decided when the email is built: a resend after the invoice goes out says to pay it", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    const inv = await invoice(s, "draft", 25000);
+    await ready(s);
+    expect((await payMails(s))[0].html).toContain("Studio A will send you a way to pay it.");
+    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: inv, status: "sent" });
+    // Past the resend gap.
+    const d = await row(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(d._id, { lastSentAt: Date.now() - 24 * 3_600_000 }); });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
+    const mails = await payMails(s);
+    expect(mails).toHaveLength(2);
+    const latest = mails.find((m) => m.html!.includes("Pay it with the invoice"));
+    expect(latest).toBeDefined();
+    expect(latest!.html).toContain(PAY_IT);
+    expect(latest!.html).not.toContain("will send you a way to pay");
+  });
+
+  it("P4-03 with a target the email is as before, even though that target is an open invoice", async () => {
+    const s = await setup();
+    await invoice(s, "sent", 18000);
+    const token = await ready(s);
+    const [mail] = await payMails(s);
+    expect(mail.html).toContain(`href="${APP_URL}/delivery/${token}"`);
+    expect(mail.html).toContain(">Pay $180.00 and unlock</a>");
+    expect(mail.html).not.toContain("Pay it with the invoice");
   });
 });
 

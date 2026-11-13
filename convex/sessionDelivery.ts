@@ -193,7 +193,8 @@ function shownCents(owed: number): number | null {
    The rule: the delivery page and the pay email offer an online Pay button
    only when the amount that target will charge is exactly what is owed (the
    amount the client is shown). Otherwise there is no button and the client is
-   told the studio will send a way to pay. Pulse keeps two payment records and
+   told to pay the invoice the studio sent when one is open (P4-02, P4-03), or
+   that the studio will send a way to pay. Pulse keeps two payment records and
    each pay page computes its own amount, so a button is offered only where the
    two agree, never by guessing which one is right.
 
@@ -387,6 +388,8 @@ type Facts = {
   owed: number;
   /** Where the client can pay exactly `owed` online, if anywhere. */
   target: PayTarget;
+  /** An invoice on the booking is sent, viewed or overdue (P4-03). */
+  invoiceOpen: boolean;
 };
 
 async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null> {
@@ -398,7 +401,15 @@ async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null
     finalFiles(ctx, delivery.orgId, delivery.sessionId),
     payFacts(ctx, session, org),
   ]);
-  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files, owed: pay.owed, target: pay.target };
+  return {
+    session,
+    org,
+    artist: artist && artist.orgId === delivery.orgId ? artist : null,
+    files,
+    owed: pay.owed,
+    target: pay.target,
+    invoiceOpen: hasOpenInvoice(pay.invoices),
+  };
 }
 
 type Email = Parameters<typeof notify>[1];
@@ -434,7 +445,8 @@ function emailFor(
   if (kind === "pay" && shownCents(f.owed) === null) throw new ConvexError(PRICE_BROKEN);
   // A booking with hidden prices never shows the client an amount, not even
   // what they just paid. Without a pay target the pay email has no button and
-  // says the studio will send a way to pay (payTargetFor).
+  // says to pay the invoice the studio sent when one is open now (P4-03), or
+  // that the studio will send a way to pay (payTargetFor).
   const m =
     kind === "ready"
       ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents: hidden ? undefined : paidCents })
@@ -442,6 +454,7 @@ function emailFor(
           ...common,
           balanceCents: hidden ? null : f.owed,
           payOnline: f.target.kind !== "none",
+          invoiceOpen: f.invoiceOpen,
           studioName: f.org?.name?.trim() || "The studio",
         });
   return {
@@ -652,7 +665,7 @@ export const markReady = mutation({
     const org = await orgRow(ctx, orgId);
     const pay = await payFacts(ctx, session, org);
     const owed = pay.owed;
-    const f: Facts = { session, org, artist, files, owed, target: pay.target };
+    const f: Facts = { session, org, artist, files, owed, target: pay.target, invoiceOpen: hasOpenInvoice(pay.invoices) };
     const base = {
       orgId,
       sessionId,

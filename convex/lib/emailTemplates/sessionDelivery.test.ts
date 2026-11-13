@@ -13,7 +13,7 @@ const url = "https://app.example.test/delivery/abc123";
 const ready = (over: Partial<Parameters<typeof filesReadyEmail>[0]> = {}) =>
   filesReadyEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, expiresOn: "December 13, 2026", accent: "#3b63e6", ...over });
 const pay = (over: Partial<Parameters<typeof payToUnlockEmail>[0]> = {}) =>
-  payToUnlockEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, balanceCents: 18000, payOnline: true, studioName: "Studio A", accent: "#3b63e6", ...over });
+  payToUnlockEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, balanceCents: 18000, payOnline: true, invoiceOpen: false, studioName: "Studio A", accent: "#3b63e6", ...over });
 
 /** Where a string sits in the html, failing loudly when it is missing. */
 function at(html: string, needle: string): number {
@@ -199,6 +199,40 @@ describe("session delivery emails", () => {
     }
     // A hostile studio name is escaped.
     expect(pay({ payOnline: false, studioName: "<b>X</b>" }).html).toContain("&lt;b&gt;X&lt;/b&gt; will send you a way to pay it.");
+  });
+
+  it("P4-03 no online target and an invoice already open: pay it with the invoice the studio sent", () => {
+    const m = pay({ payOnline: false, invoiceOpen: true, studioName: "Night Owl Studio" });
+    expect(m.html).toContain(
+      "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a $180.00 balance on this booking. Pay it with the invoice Night Owl Studio sent you. Once it is paid, your download link arrives right away.",
+    );
+    expect(m.html).not.toContain("<a ");
+    expect(m.html).not.toContain("will send you a way to pay");
+    // The log copy: the same line, no amount.
+    expect(m.text).toContain(
+      "There is a balance on this booking. Pay it with the invoice Night Owl Studio sent you. Once it is paid, your download link arrives right away.",
+    );
+    expect(m.text).not.toContain("$");
+    expect(m.text).not.toContain("will send you a way to pay");
+    // Hidden prices: the same line, no amount anywhere.
+    const h = pay({ balanceCents: null, payOnline: false, invoiceOpen: true });
+    expect(h.html).toContain("There is a balance on this booking. Pay it with the invoice Studio A sent you.");
+    expect(h.html).not.toMatch(/\$\s?\d/);
+    // A blank studio name and a hostile one.
+    expect(pay({ payOnline: false, invoiceOpen: true, studioName: " " }).html).toContain("Pay it with the invoice The studio sent you.");
+    expect(pay({ payOnline: false, invoiceOpen: true, studioName: "<b>X</b>" }).html).toContain("Pay it with the invoice &lt;b&gt;X&lt;/b&gt; sent you.");
+  });
+
+  it("P4-03 no open invoice: the studio will send a way to pay, as before; with a target: the button, as before", () => {
+    const none = pay({ payOnline: false, invoiceOpen: false, studioName: "Night Owl Studio" });
+    expect(none.html).toContain("Night Owl Studio will send you a way to pay it. Once it is paid, your download link arrives right away.");
+    expect(none.html).not.toContain("Pay it with the invoice");
+    // A target (the open invoice itself, for exactly what is owed): unchanged.
+    const target = pay({ payOnline: true, invoiceOpen: true });
+    expect(target.html).toEqual(pay({ payOnline: true, invoiceOpen: false }).html);
+    expect(target.text).toEqual(pay({ payOnline: true, invoiceOpen: false }).text);
+    expect(target.html).toContain(">Pay $180.00 and unlock</a>");
+    expect(target.html).not.toContain("Pay it with the invoice");
   });
 
   it("formatBytes: decimal units, three significant figures", () => {

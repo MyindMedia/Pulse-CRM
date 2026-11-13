@@ -124,8 +124,10 @@ export function filesReadyEmail(a: {
 /** "Pay and unlock" when the files are ready and a balance is still owed.
  *  `payOnline`: the delivery page has a Pay button for exactly this balance
  *  (sessionDelivery.payTargetFor). Without one the email has no button and
- *  says the studio will send a way to pay. `balanceCents` null: the booking's
- *  prices are hidden, so no amount anywhere. */
+ *  says to pay with the invoice the studio sent when `invoiceOpen` (one is
+ *  sent, viewed or overdue, P4-03), otherwise that the studio will send a way
+ *  to pay. `balanceCents` null: the booking's prices are hidden, so no amount
+ *  anywhere. */
 export function payToUnlockEmail(a: {
   firstName: string;
   title: string;
@@ -134,6 +136,8 @@ export function payToUnlockEmail(a: {
   url: string;
   balanceCents: number | null;
   payOnline: boolean;
+  /** An invoice on the booking is already open when the email is built. */
+  invoiceOpen: boolean;
   studioName: string;
   /** The studio's accent (hex) for the button. */
   accent?: string;
@@ -144,7 +148,11 @@ export function payToUnlockEmail(a: {
   const head = name ? `Your files are finished, ${name}` : "Your files are finished";
   const opening = `Your ${sessionWords(a.title)} from ${a.sessionDate} is finished and waiting.`;
   const studio = (a.studioName ?? "").trim() || "The studio";
-  const how = a.payOnline ? "" : ` ${studio} will send you a way to pay it.`;
+  const how = a.payOnline
+    ? ""
+    : a.invoiceOpen
+      ? ` Pay it with the invoice ${studio} sent you.`
+      : ` ${studio} will send you a way to pay it.`;
   const closing = "Once it is paid, your download link arrives right away.";
   const balance = amount ? `There is a ${amount} balance on this booking.` : "There is a balance on this booking.";
   const body = `${opening} ${balance}${how} ${closing}`;
