@@ -1944,7 +1944,10 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_paidAt", ["orgId", "paidAt"])
-    .index("by_artist", ["artistId"]),
+    .index("by_artist", ["artistId"])
+    // The invoices on one booking: session file delivery counts the paid ones
+    // toward "nothing owed" (convex/sessionDelivery.ts).
+    .index("by_session", ["sessionId"]),
 
   // ── Reusable invoice fee templates - flat one-off charges (mix/master
   //    per song, annual maintenance, etc.) a studio can quick-add to an

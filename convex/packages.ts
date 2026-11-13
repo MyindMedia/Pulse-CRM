@@ -7,7 +7,7 @@ import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/t
 import { requireCapability } from "./lib/access";
 import { stripeClient } from "./lib/stripe";
 import { money } from "./lib/money";
-import { onBalanceSettled } from "./sessionDelivery";
+import { settleDeliveryQuietly } from "./sessionDelivery";
 
 /* ============================================================
    Prepaid hour-block packages ("10 hours, 15% off"). The studio
@@ -256,7 +256,7 @@ export const redeem = mutation({
     await ctx.db.patch(sessionId, { rateCents: newRate });
     // Session file delivery: hours that cover what is still owed release a
     // delivery that was waiting for payment.
-    if (newRate - (session.amountPaidCents ?? 0) <= 0) await onBalanceSettled(ctx, sessionId);
+    await settleDeliveryQuietly(ctx, sessionId);
 
     await ctx.db.insert("activity", {
       orgId,

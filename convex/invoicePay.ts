@@ -8,6 +8,7 @@ import { appUrl } from "./lib/links";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { recordRecoveryOnPaid } from "./lib/recoveryOnPaid";
+import { settleDeliveryForInvoice } from "./sessionDelivery";
 
 /* ============================================================
    Public invoice payment. No auth - a client opens the pay link
@@ -115,8 +116,13 @@ export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">)
     entityId: invoiceId,
     accent: "positive",
   });
+  // Session file delivery: an invoice on a booking that leaves nothing owed
+  // releases a delivery that was waiting for payment. When it does, the files
+  // email (with its "payment received" line) is the client's receipt: one
+  // email, not two. Never throws.
+  const deliveryReleased = await settleDeliveryForInvoice(ctx, inv, { paidCents: inv.amountCents });
   // Receipt to the client + heads-up to the team.
-  if (artist?.email) {
+  if (artist?.email && !deliveryReleased) {
     await notify(ctx, {
       orgId: inv.orgId,
       channel: "email",

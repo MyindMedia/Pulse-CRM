@@ -99,9 +99,67 @@ async function orgRow(ctx: Ctx, orgId: string): Promise<Doc<"orgs"> | null> {
   return await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
 }
 
-function owed(session: Doc<"sessions">): number {
-  return Math.max(0, session.rateCents - (session.amountPaidCents ?? 0));
+/* ── What is still owed ─────────────────────────────────────────
+   A booking is paid two ways: booking payments (settlePayment, which moves
+   `amountPaidCents`) and invoices tied to the booking (`invoices.sessionId`,
+   paid online, by hand or by a saved card), which never touch
+   `amountPaidCents`. Both count. Only an invoice with status "paid", this
+   booking's sessionId and this booking's studio counts, by its amountCents; a
+   draft, sent, viewed, overdue or void invoice counts for nothing.
+
+   "Nothing owed" must never be true while money is owed, so every doubtful
+   number errs toward owed: a rate that is not a finite, non-negative number is
+   owed in full forever (never releases), and a paid amount that is not a finite
+   positive number counts as nothing paid. */
+
+/** Bound on the invoices read for one booking (a booking has one or two). Past
+ *  it, later invoices are not counted, which can only keep a delivery locked. */
+const MAX_INVOICES = 100;
+const OPEN_INVOICE = new Set(["sent", "viewed", "overdue"]);
+
+function positiveCents(n: number | undefined): number {
+  return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
 }
+
+/** Cents still owed, given what the booking's paid invoices add up to.
+ *  Infinity when the rate itself is broken. Pure. */
+export function owedFrom(session: Pick<Doc<"sessions">, "rateCents" | "amountPaidCents">, paidByInvoiceCents: number): number {
+  const rate = session.rateCents;
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0) return Number.POSITIVE_INFINITY;
+  return Math.max(0, rate - positiveCents(session.amountPaidCents) - positiveCents(paidByInvoiceCents));
+}
+
+type Ledger = { owed: number; openInvoiceId: Id<"invoices"> | null };
+
+/** What the booking still owes and its open (sent, viewed or overdue) invoice,
+ *  newest first, if any. */
+async function bookingLedger(ctx: Ctx, session: Doc<"sessions">): Promise<Ledger> {
+  const invoices = await ctx.db
+    .query("invoices")
+    .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+    .take(MAX_INVOICES);
+  let paidByInvoice = 0;
+  let open: Doc<"invoices"> | null = null;
+  for (const inv of invoices) {
+    if (inv.orgId !== session.orgId || inv.sessionId !== session._id) continue;
+    if (inv.status === "paid") paidByInvoice += positiveCents(inv.amountCents);
+    else if (OPEN_INVOICE.has(inv.status) && (!open || inv._creationTime > open._creationTime)) open = inv;
+  }
+  return { owed: owedFrom(session, paidByInvoice), openInvoiceId: open?._id ?? null };
+}
+
+/** max(0, rate - booking payments - paid invoices on this booking), in cents.
+ *  Infinity (owed, never releases) when the rate is not a usable number. */
+export async function owedOnBooking(ctx: Ctx, session: Doc<"sessions">): Promise<number> {
+  return (await bookingLedger(ctx, session)).owed;
+}
+
+/** An amount fit to show: null for a broken rate's Infinity. */
+function shownCents(owed: number): number | null {
+  return Number.isFinite(owed) ? owed : null;
+}
+
+const PRICE_BROKEN = "This booking's price needs fixing first.";
 
 function firstName(name: string | undefined): string {
   return (name ?? "").trim().split(/\s+/)[0] ?? "";
@@ -122,17 +180,20 @@ type Facts = {
   org: Doc<"orgs"> | null;
   artist: Doc<"artists"> | null;
   files: FinalFile[];
+  /** Cents still owed (owedOnBooking): booking payments and paid invoices. */
+  owed: number;
 };
 
 async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null> {
   const session = await ctx.db.get(delivery.sessionId);
   if (!session || session.orgId !== delivery.orgId) return null;
-  const [org, artist, files] = await Promise.all([
+  const [org, artist, files, owed] = await Promise.all([
     orgRow(ctx, delivery.orgId),
     ctx.db.get(session.artistId),
     finalFiles(ctx, delivery.orgId, delivery.sessionId),
+    owedOnBooking(ctx, session),
   ]);
-  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files };
+  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files, owed };
 }
 
 type Email = Parameters<typeof notify>[1];
@@ -163,10 +224,12 @@ function emailFor(
     url: deliveryUrl(delivery.token),
     accent: f.org?.accentColor,
   };
+  // Never a pay email for an amount nobody can pay ("$Infinity").
+  if (kind === "pay" && shownCents(f.owed) === null) throw new ConvexError(PRICE_BROKEN);
   const m =
     kind === "ready"
       ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents })
-      : payToUnlockEmail({ ...common, balanceCents: owed(f.session) });
+      : payToUnlockEmail({ ...common, balanceCents: f.owed });
   return {
     orgId: delivery.orgId,
     channel: "email",
@@ -218,20 +281,19 @@ function planRelease(
 async function release(ctx: MutationCtx, delivery: Delivery, by: string, f: Facts, paidCents?: number): Promise<boolean> {
   const plan = planRelease(delivery, by, f, Date.now(), paidCents);
   if (!plan) return false;
-  await ctx.db.patch(delivery._id, plan.patch);
+  // The email first: if queueing it fails, the row is still unchanged.
   await notify(ctx, plan.email);
+  await ctx.db.patch(delivery._id, plan.patch);
   return true;
 }
 
-/** Called from payments.settlePayment when a payment leaves nothing owed, and
- *  from every other path that can leave nothing owed: sessions.setComp (a
- *  comp or discount), sessions.payDeposit (a deposit that covers the rate),
- *  sessions.applyReschedule (a shorter session) and packages.redeem (package
- *  hours). `refresh` is the net for any path that still misses it. Releases a delivery that was waiting for payment, exactly once. Returns
- *  true only when it released one and queued the files email (so the caller can
- *  skip its own "Paid in full" email). Any other case, including one where the
- *  files email cannot go (no email on file, no Final file left), writes nothing
- *  and returns false. */
+/** Releases a delivery that was waiting for payment once the booking owes
+ *  nothing (owedOnBooking: booking payments plus paid invoices), exactly once.
+ *  Returns true only when it released one and queued the files email (so the
+ *  caller can skip its own receipt email). Any other case, including one where
+ *  the files email cannot go (no email on file, no Final file left), writes
+ *  nothing and returns false. Callers outside this file use
+ *  `settleDeliveryQuietly` or `settleDeliveryForInvoice`, never this. */
 export async function onBalanceSettled(
   ctx: MutationCtx,
   sessionId: Id<"sessions">,
@@ -240,8 +302,44 @@ export async function onBalanceSettled(
   const delivery = await deliveryFor(ctx, sessionId);
   if (!delivery || delivery.status !== "awaiting_payment") return false;
   const f = await facts(ctx, delivery);
-  if (!f || f.session.status === "cancelled" || owed(f.session) > 0) return false;
+  if (!f || f.session.status === "cancelled" || f.owed > 0) return false;
   return await release(ctx, delivery, "payment", f, opts?.paidCents);
+}
+
+/** The release trigger as every money path calls it, after its own writes:
+ *  settlePayment, setComp, payDeposit, applyReschedule, packages.redeem and the
+ *  three invoice paths (through settleDeliveryForInvoice). A delivery problem
+ *  must never undo or block the money write that called it, so a failure is
+ *  caught and logged (its message only: never a token or an address) and
+ *  answers false. Every read and check in onBalanceSettled happens before its
+ *  first write, so a caught failure leaves nothing half written. */
+export async function settleDeliveryQuietly(
+  ctx: MutationCtx,
+  sessionId: Id<"sessions">,
+  opts?: { paidCents?: number },
+): Promise<boolean> {
+  try {
+    return await onBalanceSettled(ctx, sessionId, opts);
+  } catch (err) {
+    console.error("[sessionDelivery] release failed:", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+
+/** The trigger for an invoice that just became paid (invoicePay.settleInvoice,
+ *  invoices.setStatus, cardOnFile._markFeePaid). Only an invoice tied to a
+ *  booking of its own studio can release anything. `paidCents` is what the
+ *  client paid now, for the files email's "Payment received" line; leave it out
+ *  when no money came in (studio credit). */
+export async function settleDeliveryForInvoice(
+  ctx: MutationCtx,
+  inv: Pick<Doc<"invoices">, "orgId" | "sessionId">,
+  opts?: { paidCents?: number },
+): Promise<boolean> {
+  if (!inv.sessionId) return false;
+  const session = await ctx.db.get(inv.sessionId);
+  if (!session || session.orgId !== inv.orgId) return false;
+  return await settleDeliveryQuietly(ctx, session._id, opts);
 }
 
 /* ── Staff ──────────────────────────────────────────────────── */
@@ -268,15 +366,15 @@ export const status = query({
     const access = await staffSessionOrNull(ctx, sessionId);
     if (!access) return null;
     const { orgId, session, viewer } = access;
-    const [delivery, files, artist, sight] = await Promise.all([
+    const [delivery, files, artist, sight, balance] = await Promise.all([
       deliveryFor(ctx, sessionId),
       finalFiles(ctx, orgId, sessionId),
       ctx.db.get(session.artistId),
       currentMoneySight(ctx),
+      owedOnBooking(ctx, session),
     ]);
     const d = delivery && delivery.orgId === orgId ? delivery : null;
     const clientEmail = (artist && artist.orgId === orgId ? artist.email?.trim() : undefined) || null;
-    const balance = owed(session);
     const state = d?.status ?? "none";
     const manage = holds(viewer, "schedule.manage");
     const cancelled = session.status === "cancelled";
@@ -286,7 +384,7 @@ export const status = query({
       clientFirstName: firstName(artist?.orgId === orgId ? artist.name : undefined),
       clientEmail,
       balanceDue: balance > 0,
-      balanceCents: sight.money ? balance : null,
+      balanceCents: sight.money ? shownCents(balance) : null,
       sentTo: d?.sentTo ?? null,
       lastSentAt: d?.lastSentAt ?? null,
       sendCount: d?.sendCount ?? 0,
@@ -323,7 +421,8 @@ export const markReady = mutation({
 
     // Every read and check first; the row and the email are written last.
     const now = Date.now();
-    const f: Facts = { session, org: await orgRow(ctx, orgId), artist, files };
+    const [org, owed] = await Promise.all([orgRow(ctx, orgId), owedOnBooking(ctx, session)]);
+    const f: Facts = { session, org, artist, files, owed };
     const base = {
       orgId,
       sessionId,
@@ -347,7 +446,7 @@ export const markReady = mutation({
     let row: typeof base;
     let email: Email;
     let state: "awaiting_payment" | "released";
-    if (owed(session) === 0) {
+    if (owed === 0) {
       const plan = planRelease(base, "payment", f, now);
       if (!plan) throw new ConvexError("Add an email for this client first.");
       row = { ...base, ...plan.patch };
@@ -416,7 +515,7 @@ export const resend = mutation({
     if (!f.artist?.email?.trim()) throw new ConvexError("Add an email for this client first.");
     // Waiting, but nothing is owed any more (a payment path that did not reach
     // the trigger): release instead of asking for money again.
-    if (delivery.status === "awaiting_payment" && owed(f.session) === 0) {
+    if (delivery.status === "awaiting_payment" && f.owed === 0) {
       if (!(await release(ctx, delivery, "payment", f))) throw new ConvexError("Add an email for this client first.");
       return null;
     }
@@ -491,12 +590,23 @@ export const page = query({
     const { delivery, session } = live;
     const files = await finalFiles(ctx, delivery.orgId, delivery.sessionId);
     if (files.length === 0) return null;
-    const [org, artist, room] = await Promise.all([
+    const locked = delivery.status !== "released";
+    const [org, artist, room, ledger] = await Promise.all([
       orgRow(ctx, delivery.orgId),
       ctx.db.get(session.artistId),
       session.roomId ? ctx.db.get(session.roomId) : null,
+      locked ? bookingLedger(ctx, session) : null,
     ]);
-    const locked = delivery.status !== "released";
+    const base = appUrl().replace(/\/$/, "");
+    // Locked: the open invoice when the studio sent one (paying it is what
+    // unlocks), otherwise the booking's own checkout.
+    const payUrl = !ledger
+      ? null
+      : ledger.openInvoiceId
+        ? `${base}/pay/invoice/${ledger.openInvoiceId}`
+        : org?.slug
+          ? `${base}/book/${org.slug}/checkout/${session._id}`
+          : null;
     const accent = org?.accentColor?.trim();
     return {
       studio: {
@@ -518,8 +628,8 @@ export const page = query({
         mimeType: f.version.mimeType,
       })),
       totalBytes: files.reduce((sum, f) => sum + f.version.size, 0),
-      balanceCents: locked ? owed(session) : null,
-      payUrl: locked && org?.slug ? `${appUrl().replace(/\/$/, "")}/book/${org.slug}/checkout/${session._id}` : null,
+      balanceCents: ledger ? shownCents(ledger.owed) : null,
+      payUrl,
       expiresAt: delivery.expiresAt,
     };
   },
@@ -582,9 +692,9 @@ export const refresh = mutation({
   args: { token: v.string() },
   handler: async (ctx, { token }) => {
     const live = await liveDelivery(ctx, token);
-    if (!live || live.delivery.status !== "awaiting_payment" || owed(live.session) > 0) return null;
+    if (!live || live.delivery.status !== "awaiting_payment") return null;
     const f = await facts(ctx, live.delivery);
-    if (!f) return null;
+    if (!f || f.owed > 0) return null;
     await release(ctx, live.delivery, "payment", f);
     return null;
   },

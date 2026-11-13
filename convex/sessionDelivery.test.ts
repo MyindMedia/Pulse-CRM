@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { settlePayment } from "./payments";
-import { onBalanceSettled, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
+import { onBalanceSettled, settleDeliveryQuietly, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
 import { r2Env, setupStudios, uploadSessionFile, clientEmails, APP_URL, R2_KEY_PREFIX } from "./testing/sessionDelivery.fixture";
 
 /* Session file delivery. Test names start with the eval id they prove
@@ -822,5 +822,246 @@ describe("session delivery: public page and downloads", () => {
     await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "cancelled" }); });
     expect(await s.t.query(api.sessionDelivery.page, { token: r.token })).toEqual(unknown);
     await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token: r.token, versionId: r.a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+  });
+});
+
+/* ── F2-01: a paid invoice on the booking counts toward "nothing owed" ── */
+
+describe("session delivery: paid invoices count, every trigger guarded (F2-01, F2-03, F2-04)", () => {
+  let s: S;
+  beforeEach(async () => {
+    r2Env();
+    s = await setupStudios();
+    // The studio's connected Stripe account, so the real webhook handler accepts its events.
+    await s.t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { stripeAccountId: "acct_studio_a" });
+    });
+  });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
+
+  let n = 0;
+  /** An invoice on a booking, in the given state. */
+  async function invoice(
+    sessionId: Id<"sessions"> | undefined,
+    status: "draft" | "sent" | "viewed" | "paid" | "overdue" | "void",
+    amountCents: number,
+    orgId = "studio_a",
+  ): Promise<Id<"invoices">> {
+    n++;
+    return await s.t.run(async (ctx) => {
+      const artistId = orgId === "studio_a" ? s.A.artistId : (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!._id;
+      return await ctx.db.insert("invoices", {
+        orgId, number: `PLS-${900000 + n}`, artistId, sessionId, status,
+        lineItems: [{ label: "Vocal tracking - balance", amountCents }], amountCents,
+        dueDate: Date.now() + 14 * 86_400_000, ...(status === "paid" ? { paidAt: Date.now(), paymentMethod: "cash" as const } : {}),
+      });
+    });
+  }
+
+  /** The invoice paid online: the Stripe webhook's real handler. */
+  async function payOnline(invoiceId: Id<"invoices">, eventId = `evt_${invoiceId}`) {
+    await s.t.mutation(internal.billingWebhooks.handle, {
+      event: { id: eventId, type: "checkout.session.completed", account: "acct_studio_a", data: { object: { metadata: { invoiceId }, payment_intent: "pi_x" } } },
+    });
+  }
+
+  /** Every client email to Jordan (invoice receipts carry no sessionId). */
+  async function allClientEmails() {
+    return await s.t.run(async (ctx) =>
+      (await ctx.db.query("notifications").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).take(200))
+        .filter((r) => r.channel === "email" && r.recipient === "jordan.ellis@example.com")
+        .sort((a, b) => a._creationTime - b._creationTime),
+    );
+  }
+
+  it("G-15 Ready first, then the balance invoice is paid online: released, one files email, no separate invoice receipt", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const inv = await invoice(s.A.sessionId, "sent", 18000);
+    const before = (await allClientEmails()).length;
+    await payOnline(inv);
+    expect((await s.t.run(async (ctx) => await ctx.db.get(inv)))!.status).toBe("paid");
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect(row).toMatchObject({ status: "released", releasedBy: "payment", sendCount: 2 });
+    const fromPayment = (await allClientEmails()).slice(before);
+    expect(fromPayment.map((m) => m.kind)).toEqual(["delivery.ready"]);
+    expect(fromPayment[0].html).toContain("Payment received: $180");
+    // The team still hears about it.
+    const team = await s.t.run(async (ctx) =>
+      (await ctx.db.query("notifications").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).take(200)).filter((r) => r.recipient === "owner@studio-a.example.com" && r.kind === "invoice.paid"),
+    );
+    expect(team).toHaveLength(1);
+    expect((await s.t.query(api.sessionDelivery.page, { token: row.token }))!.state).toBe("unlocked");
+  });
+
+  it("G-15 with no delivery on the booking the invoice receipt still goes", async () => {
+    const inv = await invoice(s.A.sessionId, "sent", 18000);
+    await payOnline(inv);
+    expect((await allClientEmails()).map((m) => m.subject)).toContain(`Payment received - invoice ${(await s.t.run(async (ctx) => await ctx.db.get(inv)))!.number}`);
+  });
+
+  it("G-16 balance invoice paid first, then Ready: released at once, no pay to unlock email", async () => {
+    await finalFile(s);
+    await payOnline(await invoice(s.A.sessionId, "sent", 18000));
+    expect(await s.as(s.A.engineer).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).toEqual({ state: "released" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.ready"]);
+    const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st).toMatchObject({ state: "released", balanceDue: false, balanceCents: 0 });
+  });
+
+  it("G-17 marking the invoice paid by hand releases the same way, with one email", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const inv = await invoice(s.A.sessionId, "sent", 18000);
+    const before = (await allClientEmails()).length;
+    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: inv, status: "paid", paymentMethod: "zelle" });
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    const fromPayment = (await allClientEmails()).slice(before);
+    expect(fromPayment.map((m) => m.kind)).toEqual(["delivery.ready"]);
+    expect(fromPayment[0].html).toContain("Payment received: $180");
+  });
+
+  it("G-17 charging a saved card releases the same way", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const inv = await invoice(s.A.sessionId, "sent", 18000);
+    await s.t.mutation(internal.cardOnFile._markFeePaid, { sessionId: s.A.sessionId, invoiceId: inv, amountCents: 18000, reference: "pi_card" });
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+  });
+
+  it("G-18 a paid invoice smaller than what is owed does not release", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const inv = await invoice(s.A.sessionId, "sent", 10000);
+    await payOnline(inv);
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect(row.status).toBe("awaiting_payment");
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
+    // The smaller invoice's receipt goes as usual.
+    expect((await allClientEmails()).some((m) => m.kind === "invoice.paid")).toBe(true);
+    // The page and the card show what is still owed, net of the invoice.
+    expect(await s.t.query(api.sessionDelivery.page, { token: row.token })).toMatchObject({ state: "locked", balanceCents: 8000 });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ balanceDue: true, balanceCents: 8000 });
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token: row.token })).toBeNull();
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+  });
+
+  it("G-18 a void invoice and a draft invoice count for nothing", async () => {
+    await finalFile(s);
+    await invoice(s.A.sessionId, "void", 18000);
+    await invoice(s.A.sessionId, "draft", 18000);
+    await invoice(s.A.sessionId, "sent", 18000);
+    await invoice(s.A.sessionId, "overdue", 18000);
+    expect(await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).toEqual({ state: "awaiting_payment" });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token: row.token })).toBeNull();
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+    expect(await s.t.query(api.sessionDelivery.page, { token: row.token })).toMatchObject({ balanceCents: 18000 });
+  });
+
+  it("G-18 an invoice from another studio naming this booking counts for nothing", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await invoice(s.A.sessionId, "paid", 18000, "studio_b");
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+  });
+
+  it("G-18 a paid fee invoice on a cancelled booking delivers nothing", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "cancelled" }); });
+    const fee = await invoice(s.A.sessionId, "sent", 18000);
+    await s.t.run(async (ctx) => { await ctx.db.patch(fee, { lineItems: [{ label: "Vocal tracking - late cancellation fee", amountCents: 18000 }] }); });
+    await s.t.mutation(internal.cardOnFile._markFeePaid, { sessionId: s.A.sessionId, invoiceId: fee, amountCents: 18000, reference: "pi_fee" });
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+    expect(await s.t.query(api.sessionDelivery.page, { token: row.token })).toBeNull();
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token: row.token })).toBeNull();
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
+  });
+
+  it("G-19 the locked page's Pay button goes to the open invoice when one exists, otherwise to checkout", async () => {
+    const { token } = await waiting(s);
+    const checkout = `${APP_URL}/book/studio-a/checkout/${s.A.sessionId}`;
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
+    await invoice(s.A.sessionId, "draft", 18000);
+    await invoice(s.A.sessionId, "void", 18000);
+    await invoice(s.A.otherSessionId, "sent", 20000); // another booking's open invoice
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
+    for (const status of ["sent", "viewed", "overdue"] as const) {
+      const open = await invoice(s.A.sessionId, status, 18000);
+      expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(`${APP_URL}/pay/invoice/${open}`);
+      await s.t.run(async (ctx) => { await ctx.db.patch(open, { status: "void" }); });
+    }
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
+  });
+
+  it("G-20 a non-finite or negative rate never releases", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    for (const rateCents of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, -1]) {
+      await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents, amountPaidCents: 36000 }); });
+      expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+      expect(await s.t.mutation(api.sessionDelivery.refresh, { token: row.token })).toBeNull();
+      await s.as(s.A.engineer).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId }).catch(() => undefined);
+      expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+      const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+      expect(st).toMatchObject({ balanceDue: true, balanceCents: null });
+      expect(await s.t.query(api.sessionDelivery.page, { token: row.token })).toMatchObject({ state: "locked", balanceCents: null });
+    }
+    expect((await deliveryEmails(s, s.A.sessionId)).filter((m) => m.kind === "delivery.ready")).toHaveLength(0);
+    // A booking with a broken price cannot send a pay email either.
+    await finalFile(s, s.A.otherSessionId);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.otherSessionId, { rateCents: Number.NaN }); });
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId })).rejects.toThrow(
+      "This booking's price needs fixing first.",
+    );
+    expect(await deliveryRow(s, s.A.otherSessionId)).toEqual([]);
+  });
+
+  it("G-20 setComp refuses a non-finite amount and writes nothing", async () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
+      await expect(s.as(s.A.owner).mutation(api.sessions.setComp, { id: s.A.sessionId, compType: "discounted", chargedCents: bad })).rejects.toThrow();
+      await expect(s.as(s.A.owner).mutation(api.sessions.setComp, { id: s.A.sessionId, compType: "comped", listValueCents: bad })).rejects.toThrow();
+    }
+    const session = await s.t.run(async (ctx) => await ctx.db.get(s.A.sessionId));
+    expect(session).toMatchObject({ rateCents: 36000 });
+    expect(session!.compType).toBeUndefined();
+  });
+
+  it("F2-03 settleDeliveryQuietly swallows a failure, logs only its message and returns false", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const broken = { db: { query: () => { throw new Error("boom"); } } } as unknown as Parameters<typeof settleDeliveryQuietly>[0];
+    expect(await settleDeliveryQuietly(broken, s.A.sessionId)).toBe(false);
+    expect(log).toHaveBeenCalledWith("[sessionDelivery] release failed:", "boom");
+  });
+
+  it("F2-03 every caller outside sessionDelivery.ts goes through the guarded helper", () => {
+    const raw = import.meta.glob(["./*.ts", "./lib/*.ts"], { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    const direct = Object.entries(raw)
+      .filter(([path]) => !path.includes(".test.") && !path.includes(".fixture.") && path !== "./sessionDelivery.ts")
+      .filter(([, text]) => /\bonBalanceSettled\b/.test(text))
+      .map(([path]) => path);
+    expect(direct).toEqual([]);
+    const callers = Object.entries(raw)
+      .filter(([path, text]) => path !== "./sessionDelivery.ts" && !path.includes(".test.") && /settleDelivery(Quietly|ForInvoice)\(/.test(text))
+      .map(([path]) => path)
+      .sort();
+    expect(callers).toEqual(["./cardOnFile.ts", "./invoicePay.ts", "./invoices.ts", "./packages.ts", "./payments.ts", "./sessions.ts"]);
+  });
+
+  it("F2-03 a payment that leaves nothing owed through invoices plus a deposit releases (no stale caller check)", async () => {
+    await finalFile(s, s.A.otherSessionId);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId });
+    // $100 of the $200 paid by invoice; then the $100 deposit is recorded.
+    await payOnline(await invoice(s.A.otherSessionId, "sent", 10000));
+    await settle(s, s.A.otherSessionId, "deposit");
+    expect((await deliveryRow(s, s.A.otherSessionId))[0]).toMatchObject({ status: "released" });
+    expect((await deliveryEmails(s, s.A.otherSessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
   });
 });

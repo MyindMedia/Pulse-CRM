@@ -17,7 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
-import { onBalanceSettled } from "./sessionDelivery";
+import { settleDeliveryQuietly } from "./sessionDelivery";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -350,6 +350,11 @@ export const setComp = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
+    // NaN or Infinity would become the rate, and a rate that is not a number
+    // breaks every comparison made on it (what is owed, what was foregone).
+    for (const amount of [listValueCents, chargedCents]) {
+      if (amount !== undefined && !Number.isFinite(amount)) throw new Error("Enter a valid amount.");
+    }
 
     if (compType === "none") {
       const restored = s.listValueCents ?? s.rateCents;
@@ -384,8 +389,9 @@ export const setComp = mutation({
       rateCents: charged,
     });
     // Session file delivery: a comp that leaves nothing owed releases a
-    // delivery that was waiting for payment.
-    if (charged - (s.amountPaidCents ?? 0) <= 0) await onBalanceSettled(ctx, id);
+    // delivery that was waiting for payment (the helper works out what is owed,
+    // paid invoices included, and never throws).
+    await settleDeliveryQuietly(ctx, id);
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.comp.set",
@@ -431,10 +437,10 @@ export const payDeposit = mutation({
       patch.amountPaidCents = (s.amountPaidCents ?? 0) + s.depositCents;
     }
     await ctx.db.patch(id, patch);
-    // Session file delivery: a deposit that covers the whole rate leaves
-    // nothing owed, which releases a delivery that was waiting for payment.
-    const paidNow = (patch.amountPaidCents as number | undefined) ?? s.amountPaidCents ?? 0;
-    if (s.rateCents - paidNow <= 0) await onBalanceSettled(ctx, id);
+    // Session file delivery: a deposit that covers what is still owed releases
+    // a delivery that was waiting for payment (the helper works out what is
+    // owed, paid invoices included, and never throws).
+    await settleDeliveryQuietly(ctx, id);
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
     await ctx.db.insert("activity", {
       orgId,
@@ -876,8 +882,9 @@ export async function applyReschedule(
   }
   await ctx.db.patch(s._id, patch);
   // Session file delivery: a shorter session can leave nothing owed, which
-  // releases a delivery that was waiting for payment.
-  if (rate && rate.rateCents - (s.amountPaidCents ?? 0) <= 0) await onBalanceSettled(ctx, s._id);
+  // releases a delivery that was waiting for payment (the helper works out
+  // what is owed, paid invoices included, and never throws).
+  if (rate) await settleDeliveryQuietly(ctx, s._id);
 
   // Keep the engineer's auto-shift aligned with the new window (soft warning
   // only, never blocks), then refresh room status. The Google mirror follows

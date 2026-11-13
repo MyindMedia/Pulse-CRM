@@ -6,6 +6,7 @@ import { stripeClient } from "./lib/stripe";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { recordRecoveryOnPaid } from "./lib/recoveryOnPaid";
+import { settleDeliveryForInvoice } from "./sessionDelivery";
 
 /* ============================================================
    Card on file - the No-Show Shield's auto-charge path.
@@ -172,6 +173,9 @@ export const _markFeePaid = internalMutation({
       entityId: invoiceId,
       accent: "positive",
     });
+    // Session file delivery: an invoice on a booking that leaves nothing owed
+    // releases a delivery that was waiting for payment. Never throws.
+    await settleDeliveryForInvoice(ctx, inv, { paidCents: inv.amountCents });
   },
 });
 
