@@ -704,6 +704,8 @@ export const booking = query({
     }
     return {
       ...session,
+      // Staff-facing marker (H206-R2-01); the public page does not need it.
+      shortPaidAt: undefined,
       ...people,
       pricingHidden: false as const,
       addOns: session.addOns ?? [],

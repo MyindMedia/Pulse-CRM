@@ -559,3 +559,74 @@ describe("H206-05/06: a pending refund is not reported as refunded until Stripe 
     }
   });
 });
+
+/* Round 3 (re-review H206-R2-01 to H206-R2-04). */
+describe("H206-R2-01: a short-paid booking is never forfeited automatically; staff decide", () => {
+  async function shortPaid(t: T, startInHours: number) {
+    // $300 booking, $100 deposit paid; the client opened a $200 balance
+    // Checkout, then staff added $100 of extras (rate now $400).
+    const { sessionId } = await seed(t, {
+      rateCents: 40_000, startTime: Date.now() + startInHours * HOUR, endTime: Date.now() + (startInHours + 2) * HOUR,
+    });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: checkoutEvent({ sessionId, kind: "balance" }, { amount: 20_000 }),
+    });
+    return sessionId;
+  }
+
+  it("the short payment is marked on the booking and the forfeit sweep leaves it confirmed inside 2h of start", async () => {
+    const t = convexTest(schema);
+    const sessionId = await shortPaid(t, 1);
+    const before = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(before?.shortPaidAt).toBeDefined();
+    await t.mutation(internal.automation.tick, {});
+    const s = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(s?.status).toBe("confirmed");
+    expect(s?.amountPaidCents).toBe(30_000);
+    expect(await notes(t, "booking.forfeited")).toHaveLength(0);
+  });
+
+  it("the team is told the shortfall and that they decide; the client is not given a deadline Pulse will enforce", async () => {
+    const t = convexTest(schema);
+    await shortPaid(t, 3);
+    const team = (await notes(t, "payment.short")).find((n) => n.recipient !== "nova@r2.test");
+    expect(team?.body).toContain("Pulse will not cancel or forfeit this booking automatically");
+    const client = (await t.run((ctx) => ctx.db.query("notifications").collect())).find((n) => n.recipient === "nova@r2.test");
+    expect(client?.body).toContain("$100 is still due");
+    expect(client?.body).not.toMatch(/kept by the studio|2 hours before/);
+  });
+
+  it("a short deposit tells the client what is still due, not that the session is held", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t, {
+      status: "tentative", holdExpiresAt: Date.now() + HOUR, depositCents: 15_000, depositPaid: false, amountPaidCents: 0,
+    });
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "deposit" }, { amount: 10_000 }) });
+    const client = (await t.run((ctx) => ctx.db.query("notifications").collect())).find((n) => n.recipient === "nova@r2.test");
+    expect(client?.body).toContain("is still due");
+    expect(client?.body).not.toContain("Your session is held");
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.shortPaidAt).toBeDefined();
+  });
+
+  it("an unpaid confirmed booking that was never short-paid is still forfeited (unchanged)", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t, { startTime: Date.now() + HOUR, endTime: Date.now() + 3 * HOUR });
+    await t.mutation(internal.automation.tick, {});
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.status).toBe("cancelled");
+  });
+
+  it("the public checkout query does not return the staff-only shortPaidAt marker", async () => {
+    const t = convexTest(schema);
+    const sessionId = await shortPaid(t, 3);
+    const pub = await t.query(api.booking.booking, { sessionId });
+    expect(pub).not.toBeNull();
+    expect((pub as Record<string, unknown>).shortPaidAt).toBeUndefined();
+  });
+
+  it("an exact payment does not mark the booking short-paid", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "balance" }, { amount: 20_000 }) });
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.shortPaidAt).toBeUndefined();
+  });
+});

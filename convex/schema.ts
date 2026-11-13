@@ -1572,6 +1572,10 @@ export default defineSchema({
     // pull; cleared when the change request is decided.
     googleChangedAt: v.optional(v.number()),
     balanceRemindedAt: v.optional(v.number()), // set once the "pay in full" nudge fires
+    // A Stripe payment on this booking arrived short (the Checkout was opened
+    // at an older, lower price). Staff decide what happens next: the forfeit
+    // sweep never releases a short-paid booking.
+    shortPaidAt: v.optional(v.number()),
     smsRemindersSent: v.optional(v.array(v.string())),
     // Which email reminders have gone out ("24h" / "2h") - sweep dedupe.
     emailRemindersSent: v.optional(v.array(v.string())), // which SMS reminders fired: "24h" | "2h"

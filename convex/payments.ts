@@ -184,7 +184,7 @@ export async function settlePayment(
         ? `We received your ${money(amountCents)} payment. Your request is with the studio for approval, and we'll let you know as soon as it's reviewed.`
         : fullyPaid
           ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
-          : kind !== "deposit"
+          : kind !== "deposit" || shortCents > 0
             ? `We received your ${money(amountCents)} payment. ${money(session.rateCents - paidTotal)} is still due on this session; the studio will be in touch about it.`
             : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
             session.rateCents - paidTotal,

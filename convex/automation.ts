@@ -384,9 +384,12 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
 
     // 4. Forfeit - confirmed but not paid in full inside the 2h window.
-    //    Never a studio-billed booking: the studio decides, not Pulse.
+    //    Never a studio-billed booking, and never a booking whose Stripe
+    //    payment arrived short (the client paid what their Checkout showed):
+    //    the studio decides, not Pulse.
     if (
       !studioBilled &&
+      !s.shortPaidAt &&
       s.status === "confirmed" &&
       !fullyPaid &&
       now >= s.startTime - 2 * HOUR &&

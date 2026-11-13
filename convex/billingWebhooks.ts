@@ -238,6 +238,9 @@ export const handle = internalMutation({
           if (settled.shortCents > 0) {
             // The Checkout was opened at an older, lower price. Only the money
             // that arrived is recorded; the rest stays due and the team is told.
+            // The booking is never forfeited automatically for this: staff
+            // decide (owner decision, H206-R2-01).
+            await ctx.db.patch(session._id, { shortPaidAt: Date.now() });
             await ctx.db.insert("activity", {
               orgId: session.orgId,
               kind: "payment.short",
@@ -249,7 +252,7 @@ export const handle = internalMutation({
             await notifyTeam(ctx, {
               orgId: session.orgId,
               subject: `Payment short - ${session.title} (${money(settled.shortCents)} still due)`,
-              body: `The client paid ${money(settled.amountCents)} on "${session.title}" through a Stripe Checkout opened before the price went up, so ${money(settled.shortCents)} of that payment is still owed. Pulse recorded only the ${money(settled.amountCents)} that arrived; ${money(settled.balance)} remains due on the booking.`,
+              body: `The client paid ${money(settled.amountCents)} on "${session.title}" through a Stripe Checkout opened before the price went up, so ${money(settled.shortCents)} of that payment is still owed. Pulse recorded only the ${money(settled.amountCents)} that arrived; ${money(settled.balance)} remains due on the booking. Pulse will not cancel or forfeit this booking automatically: you decide whether to collect the rest, waive it or release the booking.`,
               kind: "payment.short",
               sessionId: session._id,
             });
