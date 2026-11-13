@@ -111,6 +111,46 @@ describe("rate-cut sweep discount codes", () => {
     expect((await promos(t)).find((p) => p._id === promo._id)!.active).toBe(false);
   });
 
+  it("H210-03: a post whose promo was declined cannot be approved from the composer (it would advertise a dead code)", async () => {
+    const { t, owner, account } = await setup();
+    const { actions, posts } = await sweep(t);
+    const action = actions.find((a) => a.type === "social_post_draft")!;
+    const post = posts.find((p) => p._id === (action.payload as { postId: Id<"socialPosts"> }).postId)!;
+    await owner.mutation(api.opsActions.dismiss, { id: action._id });
+    await pickAccount(t, post._id, account);
+    await expect(owner.mutation(api.marketing.posts.approve, { id: post._id })).rejects.toThrow(/switched off or was declined/);
+    const after = await t.run((ctx) => ctx.db.get(post._id));
+    expect(after?.status).not.toBe("approved");
+    expect((await promos(t)).find((p) => p._id === post.promoId)!.active).toBe(false);
+  });
+
+  it("H210-03: a post whose owner promo was switched off cannot be approved; an active one can", async () => {
+    const { t, owner, account } = await setup();
+    const now = Date.now();
+    const promoId = await owner.mutation(api.promos.create, { code: "FALL15", pct: 15, startsAt: now - 1000, endsAt: now + 86_400_000 });
+    const postId = await t.mutation(internal.marketing.posts.createInternal, {
+      orgId: A, template: "rate_promo", caption: "FALL15", media: [{ type: "image", brandCard: "promo" }],
+      accountIds: [account], scheduledFor: now + 3_600_000, timezone: "America/Los_Angeles", promoId, ghlType: "post", includeBookingLink: true,
+    } as never);
+    await owner.mutation(api.promos.deactivate, { id: promoId });
+    await expect(owner.mutation(api.marketing.posts.approve, { id: postId })).rejects.toThrow(/switched off/);
+    await t.run(async (ctx) => { await ctx.db.patch(promoId, { active: true }); });
+    await owner.mutation(api.marketing.posts.approve, { id: postId });
+    expect((await t.run((ctx) => ctx.db.get(postId)))?.status).toBe("approved");
+  });
+
+  it("H210-03: the email draft tells the owner the code is not live until approved, and the client email does not", async () => {
+    const { t } = await setup();
+    await sweep(t);
+    const arts = await t.run(async (ctx) => (await ctx.db.query("aiArtifacts").collect()).filter((a) => a.kind === "rate_cut_promo"));
+    expect(arts.length).toBeGreaterThan(0);
+    for (const a of arts) {
+      expect(a.summary).toMatch(/works at checkout only after you approve/);
+      expect(a.body).toMatch(/works at checkout only after you approve/);
+      expect(a.emailDraft?.body ?? "").not.toMatch(/approve/);
+    }
+  });
+
   it("U-05: approving twice does not create two promos or two posts", async () => {
     const { t, owner, account } = await setup();
     const { actions, posts, ps } = await sweep(t);

@@ -388,6 +388,10 @@ export const runWeeklyForAllOrgs = internalAction({
 /* ============================================================
    Feature 3: Rate-cut recommender + promo email draft
    ============================================================ */
+/** Shown to the owner on every quiet-hour promo draft (H210-03). */
+export const PROMO_NOT_LIVE_NOTICE =
+  "Before you send this: the code works at checkout only after you approve the promo (approve its draft post, or press Approve on the Promos screen). Until then clients who use it are told it is not valid.";
+
 async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>) {
   {
     if (data.recommendations.length === 0) return;
@@ -501,8 +505,11 @@ ${bookingLink}
         kind: "rate_cut_promo",
         roomId: rec.roomId,
         title: `Rate-cut promo - ${rec.roomName} ${rec.windowLabel}`,
-        summary: `${rec.lowUtilHours}h underused. ${rec.cutPct}% off - ${minBlockLabel}. Code ${rec.discountCode}.`,
-        body,
+        // The code is switched off until a person approves the promo (its
+        // draft post, or Approve on the Promos screen). Say so where the
+        // owner reads the draft, not in the email the clients get (H210-03).
+        summary: `${rec.lowUtilHours}h underused. ${rec.cutPct}% off - ${minBlockLabel}. Code ${rec.discountCode}. ${PROMO_NOT_LIVE_NOTICE}`,
+        body: `${PROMO_NOT_LIVE_NOTICE}\n\n${body}`,
         emailDraft: { subject, body },
         source: ai ? "openai" : "fallback",
         model: ai?.model ?? DEFAULT_MODEL,

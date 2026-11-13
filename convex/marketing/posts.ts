@@ -176,8 +176,14 @@ export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socia
   // passed) correctly meters again, since it now occupies a slot that period.
   // A suggested (sweep) promo goes live only now, when a person approves the
   // post that advertises it. Owner promos are already live; a promo the owner
-  // switched off or declined is left off.
-  if (post.promoId) await activateWaitingPromo(ctx, orgId, post.promoId, actor);
+  // switched off or declined is left off, and then the post is refused: it
+  // would advertise a code that checkout rejects (H210-03).
+  if (post.promoId) {
+    const promo = await activateWaitingPromo(ctx, orgId, post.promoId, actor);
+    if (promo === "not_waiting") {
+      throw new Error("The promo code on this post is switched off or was declined, so clients could not use it. Turn the promo on from the Promos screen, or remove the code from the post, before approving.");
+    }
+  }
   const period = periodFor("social_posts");
   const alreadyMetered = post.meteredPeriod === period;
   if (!alreadyMetered) await assertWithinLimit(ctx, orgId, "social_posts", 1);
