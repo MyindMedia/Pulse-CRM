@@ -129,7 +129,9 @@ describe("session delivery: staff side and the payment trigger", () => {
     await settle(s, s.A.sessionId, "balance");
     mails = await deliveryEmails(s, s.A.sessionId);
     expect(mails.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
-    expect(mails[1].body).toContain("Payment received: $180. Thank you.");
+    expect(mails[1].html).toContain("Payment received: $180. Thank you.");
+    expect(mails[1].body).toContain("Payment received. Thank you.");
+    expect(mails[1].body).not.toContain("$");
     const [row] = await deliveryRow(s, s.A.sessionId);
     expect(row).toMatchObject({ status: "released", releasedBy: "payment", sendCount: 2 });
   });
@@ -368,6 +370,37 @@ describe("session delivery: staff side and the payment trigger", () => {
     await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: true });
     expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(true);
     expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", sendCount: 2 });
+  });
+
+  /* ── B-03: no amount and no link for staff without money sight ── */
+
+  it("B-03 the message log (forSession, recent) carries no amount, no link and no designed html", async () => {
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await settle(s, s.A.sessionId, "balance");
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    // The stored rows still hold the designed email (with the amount) for sending.
+    const stored = await deliveryEmails(s, s.A.sessionId);
+    expect(stored.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+    expect(stored[0].html).toContain("$180");
+    for (const m of stored) expect(m.body).not.toContain("$");
+
+    const eng = (await s.as(s.A.engineer).query(api.notifications.forSession, { sessionId: s.A.sessionId })) as Array<Record<string, unknown>>;
+    const owner = (await s.as(s.A.owner).query(api.notifications.recent, { limit: 50 })) as Array<Record<string, unknown>>;
+    for (const rows of [eng, owner]) {
+      expect(rows.length).toBeGreaterThan(0);
+      for (const r of rows) {
+        expect(r).not.toHaveProperty("html");
+        expect(r).not.toHaveProperty("ctaUrl");
+        expect(r).not.toHaveProperty("ctaLabel");
+      }
+      expect(JSON.stringify(rows)).not.toContain(row.token);
+      expect(JSON.stringify(rows)).not.toContain("/delivery/");
+      const delivery = rows.filter((r) => String(r.kind).startsWith("delivery."));
+      expect(delivery).toHaveLength(2);
+      expect(JSON.stringify(delivery)).not.toContain("$");
+      expect(delivery.map((r) => r.body).join("\n")).toContain("There is a balance on this booking.");
+    }
   });
 
   /* ── Review Focus ───────────────────────────────────────── */

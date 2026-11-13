@@ -21,7 +21,10 @@ describe("session delivery emails", () => {
     expect(m.ctaLabel).toBe("Download your files");
     expect(m.ctaUrl).toBe(url);
     expect(m.html).toContain("Your files are ready, Jordan");
-    expect(m.text).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received: $180. Thank you.");
+    expect(m.html).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received: $180. Thank you.");
+    // The plain copy is the booking's message log, which staff without money sight read: no amount.
+    expect(m.text).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received. Thank you.");
+    expect(m.text).not.toContain("$");
     expect(m.text).toContain("The link works until December 13, 2026. If it stops working, reply to this email for a new one.");
     for (const f of files) {
       expect(m.html).toContain(f.name);
@@ -49,9 +52,15 @@ describe("session delivery emails", () => {
     expect(m.subject).toBe("Your files are ready. One step left");
     expect(m.ctaLabel).toBe("Pay $180 and unlock");
     expect(m.html).toContain("Your files are finished, Jordan");
-    expect(m.text).toContain(
+    expect(m.html).toContain(
       "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a $180 balance on this booking. Once it is paid, your download link arrives right away.",
     );
+    // B-03: the plain copy (the message log) never carries the amount.
+    expect(m.text).toContain(
+      "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a balance on this booking. Once it is paid, your download link arrives right away.",
+    );
+    expect(m.text).not.toContain("$");
+    expect(m.text).not.toContain("180");
     expect(m.text).toContain("Already paid? Reply to this email and the studio will sort it out.");
     for (const f of files) expect(m.html).toContain(f.name);
     expect(pay({ balanceCents: 12345 }).ctaLabel).toBe("Pay $123.45 and unlock");

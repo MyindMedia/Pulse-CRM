@@ -4,8 +4,10 @@
    file list, small print) plus the button. notifications.deliver wraps it in
    the studio layout (studioEmailHtml) with the studio's accent and a readable
    button ink. `text` is the plain version kept in notifications.body for the
-   booking's message log; it leaves the link out, so the log never shows the
-   delivery token (staff copy it from the delivery card instead).
+   booking's message log; it leaves out the link (the log never shows the
+   delivery token; staff copy it from the delivery card instead) and every
+   dollar amount (staff without money sight read the log). The amount lives
+   only in `html`, which no query returns to the app.
 
    Every value that came from a person (studio, booking title, client name,
    file names) is escaped here. Email-safe markup only: tables and inline
@@ -90,12 +92,15 @@ export function filesReadyEmail(a: {
   const name = cleanName(a.firstName);
   const subject = `Your files from ${a.title} are ready`;
   const head = name ? `Your files are ready, ${name}` : "Your files are ready";
-  const paid = typeof a.paidCents === "number" && a.paidCents > 0 ? ` Payment received: ${money(a.paidCents)}. Thank you.` : "";
-  const body = `Everything from your ${a.title} session on ${a.sessionDate} is ready to download.${paid}`;
+  const paidNow = typeof a.paidCents === "number" && a.paidCents > 0;
+  const lead = `Everything from your ${a.title} session on ${a.sessionDate} is ready to download.`;
+  const body = paidNow ? `${lead} Payment received: ${money(a.paidCents!)}. Thank you.` : lead;
+  // The message log copy: staff without money sight read it, so no amount.
+  const logBody = paidNow ? `${lead} Payment received. Thank you.` : lead;
   const fine = `The link works until ${a.expiresOn}. If it stops working, reply to this email for a new one.`;
   const ctaLabel = "Download your files";
   const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
-  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${fine}`;
+  const text = `${head}\n\n${logBody}\n\n${fileLines(a.files)}\n\n${fine}`;
   return { subject, text, html, ctaLabel, ctaUrl: a.url };
 }
 
@@ -112,10 +117,14 @@ export function payToUnlockEmail(a: {
   const amount = money(a.balanceCents);
   const subject = "Your files are ready. One step left";
   const head = name ? `Your files are finished, ${name}` : "Your files are finished";
-  const body = `Your ${a.title} session from ${a.sessionDate} is finished and waiting. There is a ${amount} balance on this booking. Once it is paid, your download link arrives right away.`;
+  const opening = `Your ${a.title} session from ${a.sessionDate} is finished and waiting.`;
+  const closing = "Once it is paid, your download link arrives right away.";
+  const body = `${opening} There is a ${amount} balance on this booking. ${closing}`;
+  // The message log copy: staff without money sight read it, so no amount.
+  const logBody = `${opening} There is a balance on this booking. ${closing}`;
   const fine = "Already paid? Reply to this email and the studio will sort it out.";
   const ctaLabel = `Pay ${amount} and unlock`;
   const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
-  const text = `${head}\n\n${body}\n\n${fileLines(a.files)}\n\n${fine}`;
+  const text = `${head}\n\n${logBody}\n\n${fileLines(a.files)}\n\n${fine}`;
   return { subject, text, html, ctaLabel, ctaUrl: a.url };
 }

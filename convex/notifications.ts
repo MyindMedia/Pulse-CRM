@@ -75,15 +75,28 @@ export const deliver = internalAction({
   },
 });
 
+/** A notification row as the app may see it. The designed email (`html`) and
+ *  its button link are for sending only: they can hold the client's delivery
+ *  link and a dollar amount, and these rows reach every member of the studio,
+ *  including staff without money sight. */
+export function forStaff<T extends { html?: string; ctaLabel?: string; ctaUrl?: string }>(n: T): Omit<T, "html" | "ctaLabel" | "ctaUrl"> {
+  const out: Partial<T> = { ...n };
+  delete out.html;
+  delete out.ctaLabel;
+  delete out.ctaUrl;
+  return out as Omit<T, "html" | "ctaLabel" | "ctaUrl">;
+}
+
 export const recent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
     const orgId = await currentOrg(ctx);
-    return await ctx.db
+    const rows = await ctx.db
       .query("notifications")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
       .take(limit ?? 30);
+    return rows.map(forStaff);
   },
 });
 
@@ -142,6 +155,7 @@ export const forSession = query({
       .collect();
     return rows
       .filter((r) => r.orgId === orgId)
-      .sort((a, b) => b._creationTime - a._creationTime);
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map(forStaff);
   },
 });
