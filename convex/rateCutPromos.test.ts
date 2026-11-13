@@ -247,6 +247,30 @@ describe("rate-cut sweep discount codes", () => {
     expect(await resolve(t, "FALL15", roomA)).toMatchObject({ code: "FALL15", pct: 15 });
   });
 
+  it("H210-04: Settings shows an old sweep code as refused at checkout, and the owner can choose to keep accepting it", async () => {
+    const { t, owner, eng, roomA } = await setup();
+    await owner.mutation(api.orgs.setDiscountCodes, { codes: [
+      { code: "SUMMER10", pct: 10, label: "Summer", active: true },
+      { code: "ROOMAMONMOR20", pct: 20, label: "Room A Monday morning (9am-12pm)", active: true },
+    ] });
+    const shown = (await owner.query(api.orgs.current, {}))!.discountCodes;
+    expect(shown.map((c) => [c.code, c.refusedAtCheckout])).toEqual([["SUMMER10", false], ["ROOMAMONMOR20", true]]);
+    expect(await resolve(t, "ROOMAMONMOR20", roomA)).toBeNull();
+    // Toggling it off and on changes nothing, and Settings keeps saying so.
+    await owner.mutation(api.orgs.setDiscountCodes, { codes: [{ code: "ROOMAMONMOR20", pct: 20, label: "Room A Monday morning (9am-12pm)", active: true }] });
+    expect((await owner.query(api.orgs.current, {}))!.discountCodes[0].refusedAtCheckout).toBe(true);
+    // A member without the settings permission cannot keep it.
+    await expect(eng.mutation(api.orgs.setDiscountCodes, { codes: [{ code: "ROOMAMONMOR20", pct: 20, label: "Room A Monday morning (9am-12pm)", active: true, ownerKept: true }] })).rejects.toThrow();
+    expect(await resolve(t, "ROOMAMONMOR20", roomA)).toBeNull();
+    // The owner keeps it: checkout accepts it and Settings shows it as accepted.
+    await owner.mutation(api.orgs.setDiscountCodes, { codes: [{ code: "ROOMAMONMOR20", pct: 20, label: "Room A Monday morning (9am-12pm)", active: true, ownerKept: true }] });
+    expect(await resolve(t, "ROOMAMONMOR20", roomA)).toMatchObject({ code: "ROOMAMONMOR20", pct: 20 });
+    expect((await owner.query(api.orgs.current, {}))!.discountCodes[0].refusedAtCheckout).toBe(false);
+    // Kept but switched off is still off.
+    await owner.mutation(api.orgs.setDiscountCodes, { codes: [{ code: "ROOMAMONMOR20", pct: 20, label: "Room A Monday morning (9am-12pm)", active: false, ownerKept: true }] });
+    expect(await resolve(t, "ROOMAMONMOR20", roomA)).toBeNull();
+  });
+
   it("U-11: a deactivated promo does not fall back to a legacy code of the same name", async () => {
     const { t, owner, roomA } = await setup();
     const now = Date.now();

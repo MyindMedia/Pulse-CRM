@@ -414,6 +414,9 @@ export default defineSchema({
           pct: v.number(),
           label: v.optional(v.string()),
           active: v.boolean(),
+          // The owner chose to keep accepting a code the old weekly sweep
+          // made (checkout refuses those otherwise; H210-04).
+          ownerKept: v.optional(v.boolean()),
         }),
       ),
     ),

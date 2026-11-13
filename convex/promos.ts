@@ -47,8 +47,9 @@ export async function resolveCode(
     .first();
   if (anyPromo) return null;
   // Permanent codes the old weekly sweep wrote without anyone approving them
-  // are no longer accepted (truth-discount-codes).
-  if (isSweepMadeLegacyCode(legacy)) return null;
+  // are no longer accepted (truth-discount-codes), unless the owner chose to
+  // keep one in Settings, where a refused code is shown as refused (H210-04).
+  if (isSweepMadeLegacyCode(legacy) && legacy.ownerKept !== true) return null;
   return { code: legacy.code, pct: Math.min(Math.max(legacy.pct, 0), 100), label: legacy.label ?? null };
 }
 
@@ -214,7 +215,7 @@ export const reportSweepCodes = internalQuery({
       const rateCutCodes = new Set(promos.filter((p) => p.source === "rate_cut").map((p) => p.code));
       const legacy = (org.discountCodes ?? [])
         .filter((c) => isSweepMadeLegacyCode(c) || rateCutCodes.has(normalizeCode(c.code)))
-        .map((c) => ({ code: c.code, pct: c.pct, label: c.label ?? null, active: c.active }));
+        .map((c) => ({ code: c.code, pct: c.pct, label: c.label ?? null, active: c.active, ownerKept: c.ownerKept === true }));
       const unapprovedLivePromos = promos
         .filter((p) => p.source === "rate_cut" && p.active && !p.approvedAt)
         .map((p) => ({ promoId: p._id, code: p.code, pct: p.pct, label: p.label ?? null, endsAt: p.endsAt, redemptions: p.redemptions }));

@@ -1,4 +1,5 @@
 import { fileRefV } from "./lib/fileRef";
+import { isSweepMadeLegacyCode } from "./lib/rateCutCodes";
 import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
@@ -153,7 +154,12 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     poweredByPulse: POWERED_BY_PULSE_REQUIRED,
     // Pricing / discount / tax config (cycle: Pricing settings)
     servicePricing: org?.servicePricing ?? null,
-    discountCodes: org?.discountCodes ?? [],
+    // Each code says whether checkout really accepts it, so Settings never
+    // shows a code as on while checkout refuses it (H210-04).
+    discountCodes: (org?.discountCodes ?? []).map((c) => ({
+      ...c,
+      refusedAtCheckout: isSweepMadeLegacyCode(c) && c.ownerKept !== true,
+    })),
     // Booking-page social proof the studio curates.
     testimonials: org?.testimonials ?? [],
     defaultRateCutPct: org?.defaultRateCutPct ?? null,
@@ -391,6 +397,7 @@ export const setDiscountCodes = mutation({
         pct: v.number(),
         label: v.optional(v.string()),
         active: v.boolean(),
+        ownerKept: v.optional(v.boolean()),
       }),
     ),
   },

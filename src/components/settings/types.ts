@@ -22,6 +22,10 @@ export type DiscountCode = {
   pct: number;
   label?: string;
   active: boolean;
+  /** The owner chose to keep accepting a code the old weekly sweep made. */
+  ownerKept?: boolean;
+  /** Read-only, from the server: checkout does not accept this code. */
+  refusedAtCheckout?: boolean;
 };
 
 export type Testimonial = {
