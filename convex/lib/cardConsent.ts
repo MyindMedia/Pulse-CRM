@@ -104,6 +104,8 @@ export type AutoChargeInput = {
   stripeAccountId: string | null | undefined;
   chargesEnabled: boolean;
   stripeCustomerId: string | null | undefined;
+  /** The connected account the client's Stripe customer (and card) is on. */
+  stripeCustomerAccountId: string | null | undefined;
   /** The client's card on file right now. */
   defaultPaymentMethodId: string | null | undefined;
   consent: CardConsent | null | undefined;
@@ -139,6 +141,10 @@ export function autoChargeDecision(i: AutoChargeInput): AutoChargeDecision {
   if (!i.consent.paymentMethodId) return { charge: false, reason: "no card saved at checkout" };
   if (!i.stripeCustomerId || !i.defaultPaymentMethodId) {
     return { charge: false, reason: "no card on file" };
+  }
+  // A card is charged only on the connected account it was saved on.
+  if (i.stripeCustomerAccountId !== i.stripeAccountId) {
+    return { charge: false, reason: "the card was saved on a different Stripe connection" };
   }
   // Only the card the client agreed for, and only while it is still on file:
   // a card staff removed or replaced is never charged.

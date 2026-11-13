@@ -21,7 +21,10 @@ const fake: {
   setupIntents: { params: Record<string, unknown>; opts: Record<string, unknown> }[];
   customers: number;
   detached: string[];
-} = { pi: [], piMode: "succeed", checkout: [], setupIntents: [], customers: 0, detached: [] };
+  /** Customer ids that do not exist on any account (stale / other mode). */
+  missingCustomers: Set<string>;
+  retrieved: { id: string; opts: Record<string, unknown> }[];
+} = { pi: [], piMode: "succeed", checkout: [], setupIntents: [], customers: 0, detached: [], missingCustomers: new Set(), retrieved: [] };
 
 vi.mock("./lib/stripe", async (orig) => {
   const real = await orig<typeof import("./lib/stripe")>();
@@ -30,6 +33,13 @@ vi.mock("./lib/stripe", async (orig) => {
     stripeClient: () => ({
       customers: {
         create: async () => ({ id: `cus_new_${++fake.customers}` }),
+        retrieve: async (id: string, _p: unknown, opts: Record<string, unknown>) => {
+          fake.retrieved.push({ id, opts });
+          if (fake.missingCustomers.has(id)) {
+            throw Object.assign(new Error(`No such customer: '${id}'`), { type: "StripeInvalidRequestError", code: "resource_missing", statusCode: 404 });
+          }
+          return { id };
+        },
       },
       setupIntents: {
         create: async (params: Record<string, unknown>, opts: Record<string, unknown>) => {
@@ -40,6 +50,9 @@ vi.mock("./lib/stripe", async (orig) => {
       checkout: {
         sessions: {
           create: async (params: Record<string, unknown>, opts: Record<string, unknown>) => {
+            if (typeof params.customer === "string" && fake.missingCustomers.has(params.customer)) {
+              throw Object.assign(new Error("No such customer"), { code: "resource_missing", statusCode: 404 });
+            }
             fake.checkout.push({ params, opts });
             return { id: "cs_1", url: "https://checkout.stripe.test/cs_1" };
           },
@@ -193,6 +206,8 @@ beforeEach(() => {
   fake.setupIntents = [];
   fake.customers = 0;
   fake.detached = [];
+  fake.missingCustomers = new Set();
+  fake.retrieved = [];
   fake.piMode = "succeed";
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -399,8 +414,8 @@ describe("createSetupIntent", () => {
     const t = newT();
     const { a } = await seed(t);
     await t.run((ctx) => ctx.db.patch(a, { stripeCustomerId: undefined }));
-    const first = await t.mutation(internal.cardOnFile._saveCustomer, { artistId: a, stripeCustomerId: "cus_1" });
-    const second = await t.mutation(internal.cardOnFile._saveCustomer, { artistId: a, stripeCustomerId: "cus_2" });
+    const first = await t.mutation(internal.cardOnFile._saveCustomer, { artistId: a, stripeCustomerId: "cus_1", stripeAccountId: "acct_A" });
+    const second = await t.mutation(internal.cardOnFile._saveCustomer, { artistId: a, stripeCustomerId: "cus_2", stripeAccountId: "acct_A" });
     expect([first, second]).toEqual(["cus_1", "cus_1"]);
     expect((await artistRow(t, a))?.stripeCustomerId).toBe("cus_1");
   });
@@ -786,6 +801,7 @@ describe("autoChargeDecision", () => {
     stripeAccountId: "acct_A",
     chargesEnabled: true,
     stripeCustomerId: "cus_A",
+    stripeCustomerAccountId: "acct_A",
     defaultPaymentMethodId: "pm_1",
     consent: { text: "x", feePct: 50, windowHours: 24, maxFeeCents: 10_000, agreedAt: 1, paymentMethodId: "pm_1" },
     status: "no_show",
@@ -913,7 +929,7 @@ describe("H205-01 / H205-03: never charged for money already paid", () => {
   it("autoChargeDecision refuses when what was paid covers the fee, or the charge exceeds what is left", () => {
     const base: AutoChargeInput = {
       stripeConfigured: true, switchOn: true, stripeAccountId: "acct_A", chargesEnabled: true,
-      stripeCustomerId: "cus_A", defaultPaymentMethodId: "pm_1",
+      stripeCustomerId: "cus_A", stripeCustomerAccountId: "acct_A", defaultPaymentMethodId: "pm_1",
       consent: { text: "x", feePct: 50, windowHours: 24, maxFeeCents: 10_000, agreedAt: 1, paymentMethodId: "pm_1" },
       status: "no_show", feeCents: 10_000, chargeCents: 4_000, paidCents: 6_000, startTime: 10 * HOUR, now: 11 * HOUR,
     };
@@ -1004,5 +1020,106 @@ describe("H205-07: a no-show is charged only after an undo window, and never bef
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "confirmed" });
     const insights = await t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
     expect(insights.some((i) => i.title.includes(`Check the no-show fee on invoice ${inv.number}`))).toBe(true);
+  });
+});
+
+describe("H205-05 / H205-06: a Stripe customer from another connection is never reused", () => {
+  async function payDeposit(t: T, session: Id<"sessions">) {
+    const text = (await t.query(api.booking.booking, { sessionId: session }))!.cardSave!.text;
+    return t.action(api.booking.payViaStripe, { sessionId: session, kind: "deposit", cardConsentText: text });
+  }
+
+  it("a customer recorded on a previous connected account is replaced, and its old card cleared", async () => {
+    const t = newT();
+    const { a, session } = await seed(t, { autoCharge: true });
+    await t.run((ctx) => ctx.db.patch(a, { stripeCustomerId: "cus_old", stripeCustomerAccountId: "acct_OLD", defaultPaymentMethodId: "pm_old", cardLast4: "1111" }));
+    const res = await payDeposit(t, session);
+    expect(res.url).toBeTruthy();
+    expect(fake.checkout[0].params.customer).toBe("cus_new_1");
+    expect(fake.checkout[0].opts).toEqual({ stripeAccount: "acct_A" });
+    const row = await artistRow(t, a);
+    expect(row).toMatchObject({ stripeCustomerId: "cus_new_1", stripeCustomerAccountId: "acct_A" });
+    expect(row?.defaultPaymentMethodId).toBeUndefined();
+    expect(row?.cardLast4).toBeUndefined();
+  });
+
+  it("a legacy customer (no account recorded) that Stripe says is missing is replaced; the client can pay", async () => {
+    const t = newT();
+    const { a, session } = await seed(t, { autoCharge: true });
+    fake.missingCustomers.add("cus_A");
+    const res = await payDeposit(t, session);
+    expect(res.url).toBeTruthy();
+    expect(fake.retrieved[0]).toEqual({ id: "cus_A", opts: { stripeAccount: "acct_A" } });
+    expect(fake.checkout[0].params.customer).toBe("cus_new_1");
+    expect((await artistRow(t, a))?.stripeCustomerId).toBe("cus_new_1");
+  });
+
+  it("a legacy customer Stripe finds on this account is kept and its account recorded", async () => {
+    const t = newT();
+    const { a, session } = await seed(t, { autoCharge: true });
+    await payDeposit(t, session);
+    expect(fake.customers).toBe(0);
+    expect(await artistRow(t, a)).toMatchObject({ stripeCustomerId: "cus_A", stripeCustomerAccountId: "acct_A" });
+    // Next time it is trusted without asking Stripe again.
+    await payDeposit(t, session);
+    expect(fake.retrieved).toHaveLength(1);
+  });
+
+  it("if the card-saving checkout is still refused, the client pays without saving the card (so it is never charged)", async () => {
+    const t = newT();
+    const { a, session } = await seed(t, { autoCharge: true });
+    await t.run((ctx) => ctx.db.patch(a, { stripeCustomerId: "cus_gone", stripeCustomerAccountId: "acct_A" }));
+    fake.missingCustomers.add("cus_gone");
+    const res = await payDeposit(t, session);
+    expect(res.url).toBeTruthy();
+    expect(fake.checkout).toHaveLength(1);
+    expect(fake.checkout[0].params.customer).toBeUndefined();
+    expect(fake.checkout[0].params.payment_intent_data).toBeUndefined();
+  });
+
+  it("a card saved on another connection is never charged on the current one", () => {
+    const base: AutoChargeInput = {
+      stripeConfigured: true, switchOn: true, stripeAccountId: "acct_A", chargesEnabled: true,
+      stripeCustomerId: "cus_A", stripeCustomerAccountId: "acct_A", defaultPaymentMethodId: "pm_1",
+      consent: { text: "x", feePct: 50, windowHours: 24, maxFeeCents: 10_000, agreedAt: 1, paymentMethodId: "pm_1" },
+      status: "no_show", feeCents: 10_000, chargeCents: 10_000, paidCents: 0, startTime: 10 * HOUR, now: 11 * HOUR,
+    };
+    expect(autoChargeDecision(base).charge).toBe(true);
+    expect(autoChargeDecision({ ...base, stripeCustomerAccountId: "acct_OLD" }).charge).toBe(false);
+    expect(autoChargeDecision({ ...base, stripeCustomerAccountId: undefined }).charge).toBe(false);
+  });
+
+  it("the public booking page never returns the fee invoice id", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    const invoiceId = await t.run((ctx) => ctx.db.insert("invoices", {
+      orgId: ORG_A, number: "PLS-1", artistId: ids.a, sessionId: ids.session, status: "draft",
+      lineItems: [{ label: "fee", amountCents: 1 }], amountCents: 1, dueDate: Date.now(),
+    }));
+    await t.run((ctx) => ctx.db.patch(ids.session, { noShowFeeInvoiceId: invoiceId }));
+    const page = (await t.query(api.booking.booking, { sessionId: ids.session })) as Record<string, unknown>;
+    expect(page).not.toHaveProperty("noShowFeeInvoiceId");
+    expect(page).not.toHaveProperty("cardConsent");
+  });
+
+  it("the card webhook records which account the customer is on", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    expect((await artistRow(t, ids.a))?.stripeCustomerAccountId).toBe("acct_A");
+  });
+
+  it("a network error while checking a legacy customer never throws it away", async () => {
+    const t = newT();
+    const { a } = await seed(t, { autoCharge: true });
+    const { ensureCustomer } = await import("./cardOnFile");
+    const failing = { runMutation: async () => { throw new Error("should not record"); } } as never;
+    const retrieve = vi.fn(async () => { throw new Error("socket hang up"); });
+    const lib = await import("./lib/stripe");
+    const spy = vi.spyOn(lib, "stripeClient").mockReturnValue({ customers: { retrieve, create: vi.fn() } } as never);
+    await expect(ensureCustomer(failing, {
+      artistId: a, orgId: ORG_A, name: "Nova", email: null, stripeCustomerId: "cus_A", stripeCustomerAccountId: null, stripeAccountId: "acct_A",
+    })).rejects.toThrow(/socket hang up/);
+    spy.mockRestore();
   });
 });

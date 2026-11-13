@@ -59,6 +59,9 @@ async function recordSaved(
 ) {
   await ctx.db.patch(artist._id, {
     defaultPaymentMethodId: paymentMethodId,
+    // The event came from this studio's own account for this client's
+    // customer, so the customer (and the card) is on this account.
+    stripeCustomerAccountId: stripeAccountId,
     cardSavedAt: Date.now(),
     cardSavedVia: via,
     // Filled in by fetchCardDetails; never show the old card's digits.

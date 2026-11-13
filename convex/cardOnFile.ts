@@ -50,33 +50,100 @@ export const _artistCtx = internalQuery({
       name: artist.name,
       email: artist.email ?? null,
       stripeCustomerId: artist.stripeCustomerId ?? null,
+      stripeCustomerAccountId: artist.stripeCustomerAccountId ?? null,
       stripeAccountId: org?.stripeAccountId ?? null,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
     };
   },
 });
 
-/** Record the client's Stripe customer the first time one is made. Never
- *  replaces one already recorded (two clicks at once make two customers; the
- *  first recorded wins and both callers use it). Returns the customer to use. */
+/** Record the client's Stripe customer on a connected account. A customer
+ *  already recorded on that same account wins (two clicks at once make two
+ *  customers; the first recorded wins and both callers use it). A customer
+ *  recorded on another account, or a legacy one Stripe says is gone, is
+ *  replaced, and the card saved under it is cleared: it cannot be charged on
+ *  this account. Returns the customer to use. */
 export const _saveCustomer = internalMutation({
-  args: { artistId: v.id("artists"), stripeCustomerId: v.string() },
-  handler: async (ctx, { artistId, stripeCustomerId }): Promise<string> => {
+  args: { artistId: v.id("artists"), stripeCustomerId: v.string(), stripeAccountId: v.string() },
+  handler: async (ctx, { artistId, stripeCustomerId, stripeAccountId }): Promise<string> => {
     const artist = await ctx.db.get(artistId);
     if (!artist) throw new ConvexError("Client not found.");
-    if (artist.stripeCustomerId) return artist.stripeCustomerId;
-    await ctx.db.patch(artistId, { stripeCustomerId });
+    const existing = artist.stripeCustomerId;
+    if (existing && artist.stripeCustomerAccountId === stripeAccountId) return existing;
+    if (existing === stripeCustomerId) {
+      // A legacy customer Stripe confirmed is on this account: remember that.
+      await ctx.db.patch(artistId, { stripeCustomerAccountId: stripeAccountId });
+      return existing;
+    }
+    await ctx.db.patch(artistId, {
+      stripeCustomerId,
+      stripeCustomerAccountId: stripeAccountId,
+      ...(existing
+        ? {
+            defaultPaymentMethodId: undefined,
+            cardBrand: undefined,
+            cardLast4: undefined,
+            cardSavedAt: undefined,
+            cardSavedVia: undefined,
+          }
+        : {}),
+    });
+    if (existing) {
+      await ctx.db.insert("activity", {
+        orgId: artist.orgId,
+        kind: "client.stripe_customer_replaced",
+        summary: `${artist.name}'s Stripe customer was from a previous Stripe connection; a new one was made${artist.defaultPaymentMethodId ? " and the old saved card was cleared" : ""}`,
+        entityType: "artist",
+        entityId: artistId,
+        accent: "info",
+      });
+    }
     return stripeCustomerId;
   },
 });
 
+/** Stripe says this customer id does not exist (or was deleted) on the account. */
+function customerMissing(err: unknown): boolean {
+  const e = err as { code?: string; statusCode?: number } | null;
+  return e?.code === "resource_missing" || e?.statusCode === 404;
+}
+
 /** The client's Stripe customer on the studio's connected account, created
- *  when missing. Shared by staff "Add a card" and checkout. */
+ *  when missing. Shared by staff "Add a card" and checkout. A stored id is
+ *  reused only when it was made on this same account; a legacy id with no
+ *  recorded account is checked with Stripe first. */
 export async function ensureCustomer(
   ctx: Pick<ActionCtx, "runMutation">,
-  c: { artistId: Id<"artists">; orgId: string; name: string; email: string | null; stripeCustomerId: string | null; stripeAccountId: string },
+  c: {
+    artistId: Id<"artists">;
+    orgId: string;
+    name: string;
+    email: string | null;
+    stripeCustomerId: string | null;
+    stripeCustomerAccountId?: string | null;
+    stripeAccountId: string;
+  },
 ): Promise<string> {
-  if (c.stripeCustomerId) return c.stripeCustomerId;
+  if (c.stripeCustomerId && c.stripeCustomerAccountId === c.stripeAccountId) return c.stripeCustomerId;
+  if (c.stripeCustomerId && !c.stripeCustomerAccountId) {
+    try {
+      const found = (await stripeClient().customers.retrieve(c.stripeCustomerId, {}, { stripeAccount: c.stripeAccountId })) as {
+        id: string;
+        deleted?: boolean;
+      };
+      if (!found.deleted) {
+        return await ctx.runMutation(internal.cardOnFile._saveCustomer, {
+          artistId: c.artistId,
+          stripeCustomerId: c.stripeCustomerId,
+          stripeAccountId: c.stripeAccountId,
+        });
+      }
+    } catch (err) {
+      // Only a customer Stripe says is missing is replaced; any other error
+      // (network, outage) never throws away a customer that may be valid.
+      if (!customerMissing(err)) throw err;
+    }
+  }
   const customer = await stripeClient().customers.create(
     {
       name: c.name,
@@ -88,6 +155,7 @@ export async function ensureCustomer(
   return await ctx.runMutation(internal.cardOnFile._saveCustomer, {
     artistId: c.artistId,
     stripeCustomerId: customer.id,
+    stripeAccountId: c.stripeAccountId,
   });
 }
 
@@ -310,6 +378,7 @@ export const _claimFeeCharge = internalMutation({
       stripeAccountId: org?.stripeAccountId,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       stripeCustomerId: artist.stripeCustomerId,
+      stripeCustomerAccountId: artist.stripeCustomerAccountId,
       defaultPaymentMethodId: artist.defaultPaymentMethodId,
       consent: session.cardConsent,
       status: session.status,

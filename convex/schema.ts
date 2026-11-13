@@ -1144,6 +1144,11 @@ export default defineSchema({
     // Card on file (No-Show Shield): a Stripe customer + saved payment method on
     // the studio's connected account, so a no-show fee can be auto-charged.
     stripeCustomerId: v.optional(v.string()),
+    // The connected account stripeCustomerId was made on (or confirmed on).
+    // A customer from an earlier or test-mode account is never reused, and a
+    // card is charged only on the account it was saved on. Missing on rows
+    // written before this field existed; those are checked with Stripe first.
+    stripeCustomerAccountId: v.optional(v.string()),
     defaultPaymentMethodId: v.optional(v.string()),
     // Written only by the Stripe webhook (billingWebhooks) once Stripe says the
     // card was saved; never from the browser. Brand / last 4 are display only.

@@ -706,8 +706,10 @@ export const booking = query({
         cardSaved: false,
       };
     }
-    // The consent record holds a Stripe payment method id: never public.
-    const { cardConsent, ...publicSession } = session;
+    // The consent record holds a Stripe payment method id, and the fee
+    // invoice id is staff bookkeeping: neither is public.
+    const { cardConsent, noShowFeeInvoiceId: _feeInvoice, ...publicSession } = session;
+    void _feeInvoice;
     const stripeCheckout = Boolean(
       process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled,
     );
@@ -1393,6 +1395,7 @@ export const _chargeContext = internalQuery({
               name: artist.name,
               email: artist.email ?? null,
               stripeCustomerId: artist.stripeCustomerId ?? null,
+              stripeCustomerAccountId: artist.stripeCustomerAccountId ?? null,
               text: cardConsentText({
                 studioName: org?.name ?? "The studio",
                 feePct: policy.feePct,
@@ -1466,56 +1469,79 @@ export const payViaStripe = action({
       if (agreedText !== c.cardSave.text) {
         throw new ConvexError("The studio's cancellation terms changed. Reload the page to see the new terms.");
       }
-      await ctx.runMutation(internal.booking._recordCardConsent, {
-        sessionId,
-        text: c.cardSave.text,
-        feePct: c.cardSave.feePct,
-        windowHours: c.cardSave.windowHours,
-        maxFeeCents: c.cardSave.maxFeeCents,
-      });
-      const customer = await ensureCustomer(ctx, {
-        artistId: c.cardSave.artistId,
-        orgId: c.orgId,
-        name: c.cardSave.name,
-        email: c.cardSave.email,
-        stripeCustomerId: c.cardSave.stripeCustomerId,
-        stripeAccountId: c.stripeAccountId,
-      });
-      saveCard = { customer, artistId: c.cardSave.artistId };
+      // The client's customer on this studio's account. If Stripe cannot give
+      // us one, the client still pays: the checkout just does not save the
+      // card (and no agreement is recorded, so nothing is ever charged).
+      let customer: string | null = null;
+      try {
+        customer = await ensureCustomer(ctx, {
+          artistId: c.cardSave.artistId,
+          orgId: c.orgId,
+          name: c.cardSave.name,
+          email: c.cardSave.email,
+          stripeCustomerId: c.cardSave.stripeCustomerId,
+          stripeCustomerAccountId: c.cardSave.stripeCustomerAccountId,
+          stripeAccountId: c.stripeAccountId,
+        });
+      } catch (err) {
+        console.error("booking.payViaStripe: could not prepare the card save:", err instanceof Error ? err.message : String(err));
+      }
+      if (customer) {
+        await ctx.runMutation(internal.booking._recordCardConsent, {
+          sessionId,
+          text: c.cardSave.text,
+          feePct: c.cardSave.feePct,
+          windowHours: c.cardSave.windowHours,
+          maxFeeCents: c.cardSave.maxFeeCents,
+        });
+        saveCard = { customer, artistId: c.cardSave.artistId };
+      }
     }
 
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const back = `${appUrl}/book/${c.slug}/checkout/${sessionId}`;
-    const checkout = await stripeClient().checkout.sessions.create(
-      {
-        mode: "payment",
-        line_items: [
-          {
-            price_data: {
-              currency: "usd",
-              product_data: { name: `${kind === "deposit" ? "Deposit" : "Balance"} - ${c.title}` },
-              unit_amount: amount,
-            },
-            quantity: 1,
-          },
-        ],
-        success_url: `${back}?paid=1`,
-        cancel_url: back,
-        metadata: { sessionId, kind },
-        // Save the card for later fees, on the client's own customer. The
-        // webhook records it (payment_intent.succeeded, kind booking_card).
-        ...(saveCard
-          ? {
-              customer: saveCard.customer,
-              payment_intent_data: {
-                setup_future_usage: "off_session" as const,
-                metadata: { kind: "booking_card", sessionId, artistId: saveCard.artistId, orgId: c.orgId },
+    const create = (save: typeof saveCard) =>
+      stripeClient().checkout.sessions.create(
+        {
+          mode: "payment",
+          line_items: [
+            {
+              price_data: {
+                currency: "usd",
+                product_data: { name: `${kind === "deposit" ? "Deposit" : "Balance"} - ${c.title}` },
+                unit_amount: amount,
               },
-            }
-          : {}),
-      },
-      { stripeAccount: c.stripeAccountId }, // charge on the studio's own account
-    );
+              quantity: 1,
+            },
+          ],
+          success_url: `${back}?paid=1`,
+          cancel_url: back,
+          metadata: { sessionId, kind },
+          // Save the card for later fees, on the client's own customer. The
+          // webhook records it (payment_intent.succeeded, kind booking_card).
+          ...(save
+            ? {
+                customer: save.customer,
+                payment_intent_data: {
+                  setup_future_usage: "off_session" as const,
+                  metadata: { kind: "booking_card", sessionId, artistId: save.artistId, orgId: c.orgId },
+                },
+              }
+            : {}),
+        },
+        { stripeAccount: c.stripeAccountId! }, // charge on the studio's own account
+      );
+    let checkout: Awaited<ReturnType<typeof create>>;
+    try {
+      checkout = await create(saveCard);
+    } catch (err) {
+      // Saving the card must never stop the client paying: if Stripe refuses
+      // the card-saving checkout (for example the customer is not on this
+      // account), open a plain one. The card is not saved, so never charged.
+      if (!saveCard) throw err;
+      console.error("booking.payViaStripe: card-saving checkout refused, paying without saving:", err instanceof Error ? err.message : String(err));
+      checkout = await create(null);
+    }
     return { url: checkout.url ?? null };
   },
 });

@@ -628,6 +628,7 @@ async function assessNoShowShield(
       stripeAccountId: org?.stripeAccountId,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       stripeCustomerId: artist?.stripeCustomerId,
+      stripeCustomerAccountId: artist?.stripeCustomerAccountId,
       defaultPaymentMethodId: artist?.defaultPaymentMethodId,
       consent: s.cardConsent,
       status,
