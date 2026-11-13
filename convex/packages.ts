@@ -25,11 +25,14 @@ import { money } from "./lib/money";
    session work (sessions.edit). Nothing here rewires the public
    createBooking flow - redemption is STUDIO-INITIATED, lower risk.
 
-   Plan gate: SELLING (products, pay links, in-person sales) needs the
-   Growth "packages" entitlement, the plan the price list names. USING
-   hours a client already paid for (applying them to a session, taking
-   them off on completion, putting them back) is never plan-gated: a
-   studio that downgrades must not trap money its clients prepaid.
+   Plan gate: SELLING (pay links, in-person sales, the public list)
+   needs the Growth "packages" entitlement, the plan the price list
+   names. Managing the products (list, create, edit, hide, delete) keeps
+   its role-only gate so a Core studio that set packages up before the
+   gate keeps its page. USING hours a client already paid for (applying
+   them to a session, taking them off on completion, putting them back)
+   is never plan-gated: a studio that downgrades must not trap money its
+   clients prepaid.
 
    Draw-down: staff choose a block for a session ("Pay with prepaid
    hours"). From then on the session counts as paid for the hours the
@@ -53,7 +56,6 @@ export const list = query({
   handler: async (ctx, { activeOnly }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "invoices.read", { orgId });
-    await requireFeature(ctx, orgId, "packages");
     const rows = await ctx.db
       .query("packageProducts")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -105,7 +107,6 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "invoices.send", { orgId });
-    await requireFeature(ctx, orgId, "packages");
     const name = args.name.trim();
     if (!name) throw new ConvexError("Give the package a name.");
     if (!Number.isFinite(args.hours) || args.hours <= 0) {
@@ -137,7 +138,6 @@ export const update = mutation({
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "invoices.send", { orgId });
-    await requireFeature(ctx, orgId, "packages");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Package not found.");
     const clean: Record<string, unknown> = {};
@@ -171,10 +171,19 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "invoices.send", { orgId });
-    await requireFeature(ctx, orgId, "packages");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Package not found.");
     await ctx.db.delete(id);
+  },
+});
+
+/** Whether this studio's plan lets it sell blocks (Packages page buttons). */
+export const sellingAllowed = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "invoices.read", { orgId });
+    return orgHasFeature(ctx, orgId, "packages");
   },
 });
 

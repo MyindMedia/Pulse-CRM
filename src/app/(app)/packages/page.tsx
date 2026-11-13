@@ -21,6 +21,8 @@ export default function PackagesPage() {
   const credits = useQuery(api.packages.soldCredits, {});
   const update = useMutation(api.packages.update);
   const remove = useMutation(api.packages.remove);
+  // Selling blocks is on the Growth plan; managing existing ones is not.
+  const canSell = useQuery(api.packages.sellingAllowed) === true;
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [sellOpen, setSellOpen] = React.useState(false);
@@ -68,10 +70,12 @@ export default function PackagesPage() {
         description="Prepaid hour blocks - sell studio time up front at a discount. Cash comes forward and the client is locked in; hours draw down on their future sessions."
         actions={
           <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => setSellOpen(true)}>
-              <HandCoins className="size-4" />
-              Sell to a client
-            </Button>
+            {canSell && (
+              <Button variant="secondary" onClick={() => setSellOpen(true)}>
+                <HandCoins className="size-4" />
+                Sell to a client
+              </Button>
+            )}
             <Button onClick={openNew}>
               <Plus className="size-4" />
               New package

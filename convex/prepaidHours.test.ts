@@ -279,11 +279,24 @@ describe("H6 signed-out callers and the plan gate", () => {
       (err: { data?: { code?: string } }) => expect(err.data?.code).toBe("UPGRADE_REQUIRED"),
     );
     await upgrade(sell(owner, productId, artistId));
-    await upgrade(owner.mutation(api.packages.create, { name: "X", hours: 5, priceCents: 5000 }));
-    await upgrade(owner.query(api.packages.list, {}));
     await upgrade(owner.action(api.packages.purchaseCheckout, { productId, artistId }));
     expect(await owner.query(api.packages.listActivePublic, { slug: "org_c" })).toEqual([]);
+    expect(await owner.query(api.packages.sellingAllowed, {})).toBe(false);
     expect(await credits(t)).toHaveLength(0);
+  });
+
+  it("H207-12/H207-15 a Core studio keeps managing the packages it set up before the gate", async () => {
+    // Round 2: this used to assert that list and create were refused too,
+    // which locked existing Core studios out of their own products.
+    const owner = await studio(t, "org_c", "u_c", "core");
+    const productId = await product(t, "org_c");
+    expect(await owner.query(api.packages.list, {})).toHaveLength(1);
+    await owner.mutation(api.packages.update, { id: productId, active: false });
+    await owner.mutation(api.packages.create, { name: "X", hours: 5, priceCents: 5000 });
+    await owner.mutation(api.packages.remove, { id: productId });
+    expect(await owner.query(api.packages.list, {})).toHaveLength(1);
+    const eng = await engineer(t, "org_c", "u_ec");
+    await expect(eng.mutation(api.packages.create, { name: "Y", hours: 1, priceCents: 100 })).rejects.toThrow(/lacks invoices.send/);
   });
 
   it("a Core studio can still use hours a client already bought (never trapped by a downgrade)", async () => {
