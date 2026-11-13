@@ -780,3 +780,79 @@ describe("Round 2: hand-applied hours do not change engineer pay or lifetime val
     expect(a?.lifetimeValueCents).toBe(s?.rateCents);
   });
 });
+
+describe("Round 2: pay-link payments that settle later or cannot be matched (H207-04, H207-05, H207-09)", () => {
+  let t: T;
+  let productId: Id<"packageProducts">;
+  let artistId: Id<"artists">;
+  beforeEach(async () => {
+    t = convexTest(schema);
+    await studio(t, "org_a", "u_a");
+    await t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").first();
+      await ctx.db.patch(org!._id, { ownerEmail: "owner@example.com" });
+    });
+    productId = await product(t, "org_a", 10, 100000);
+    artistId = await artist(t, "org_a");
+  });
+  const meta = () => ({ productId, artistId, orgId: "org_a", hours: "10", priceCents: "100000", productName: "10h block" });
+  const acts = () => t.run(async (ctx) => ctx.db.query("activity").collect());
+  const ownerMail = () => t.run(async (ctx) => (await ctx.db.query("notifications").collect()).filter((n) => n.recipient === "owner@example.com"));
+
+  it("a bank payment that clears later becomes hours once, when it clears", async () => {
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: pkgEvent("evt_ach", "acct_org_a", meta(), { payment_status: "unpaid", payment_intent: "pi_ach", amount_total: 100000 }),
+    });
+    expect(await credits(t)).toHaveLength(0);
+    expect((await acts()).some((a) => a.kind === "package.payment_pending")).toBe(true);
+    const settled = { ...pkgEvent("evt_ach_ok", "acct_org_a", meta(), { payment_intent: "pi_ach", amount_total: 100000 }), type: "checkout.session.async_payment_succeeded" };
+    await t.mutation(internal.billingWebhooks.handle, { event: settled });
+    await t.mutation(internal.billingWebhooks.handle, { event: settled });
+    await t.mutation(internal.billingWebhooks.handle, { event: { ...settled, id: "evt_ach_ok_2" } });
+    const rows = await credits(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ hoursTotal: 10, priceCents: 100000, stripeReference: "pi_ach" });
+  });
+
+  it("a bank payment that fails adds no hours and tells the studio", async () => {
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: { ...pkgEvent("evt_ach_bad", "acct_org_a", meta(), { payment_intent: "pi_bad", amount_total: 100000 }), type: "checkout.session.async_payment_failed" },
+    });
+    expect(await credits(t)).toHaveLength(0);
+    expect((await acts()).some((a) => a.kind === "package.payment_alert")).toBe(true);
+    expect(await ownerMail()).toHaveLength(1);
+  });
+
+  it("a package deleted after the link was sent: the paid hours are still created from the link", async () => {
+    await t.run(async (ctx) => ctx.db.delete(productId));
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: pkgEvent("evt_gone", "acct_org_a", meta(), { amount_total: 100000 }),
+    });
+    const [c] = await credits(t);
+    expect(c).toMatchObject({ name: "10h block", hoursTotal: 10, hoursRemaining: 10, priceCents: 100000 });
+  });
+
+  it("a payment for a client who was removed adds no hours but alerts the studio with the amount", async () => {
+    await t.run(async (ctx) => ctx.db.delete(artistId));
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: pkgEvent("evt_noclient", "acct_org_a", meta(), { amount_total: 100000 }),
+    });
+    expect(await credits(t)).toHaveLength(0);
+    const alert = (await acts()).find((a) => a.kind === "package.payment_alert");
+    expect(alert?.summary).toContain("$1,000");
+    expect(alert?.summary).toContain("pi_evt_noclient");
+    expect(await ownerMail()).toHaveLength(1);
+  });
+
+  it("garbled ids from the studio's own account alert the studio; another account alerts nobody", async () => {
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: pkgEvent("evt_bad", "acct_org_a", { ...meta(), productId: "nope", artistId: "nope" }, { amount_total: 5000 }),
+    });
+    expect((await acts()).filter((a) => a.kind === "package.payment_alert")).toHaveLength(1);
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: pkgEvent("evt_other", "acct_someone_else", meta(), { amount_total: 5000 }),
+    });
+    expect((await acts()).filter((a) => a.kind === "package.payment_alert")).toHaveLength(1);
+    expect(await credits(t)).toHaveLength(0);
+  });
+});

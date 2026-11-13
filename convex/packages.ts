@@ -371,6 +371,9 @@ export const purchaseCheckout = action({
           orgId: c.orgId,
           hours: String(c.hours),
           priceCents: String(c.priceCents),
+          // Kept so the hours are still created if the package is deleted
+          // before the client pays.
+          productName: c.productName.slice(0, 200),
         },
       },
       { stripeAccount: c.stripeAccountId }, // charge on the studio's own account
@@ -402,13 +405,27 @@ export async function applyPackagePurchase(
     paymentMethod?: string;
     note?: string;
     saleKey?: string;
+    /** The package name the client was sold (pay-link metadata), used when
+     *  the product was deleted after the link was sent. */
+    name?: string;
   },
 ): Promise<Id<"packageCredits"> | null> {
+  const source = args.source ?? "stripe";
   const product = await ctx.db.get(args.productId);
-  if (!product || product.orgId !== args.orgId) return null;
+  if (product && product.orgId !== args.orgId) return null;
+  // A paid pay link still becomes hours if the package was deleted after the
+  // link was sent: hours and price come from what the client was offered.
+  if (
+    !product &&
+    !(source === "stripe" &&
+      args.hours !== undefined && Number.isFinite(args.hours) && args.hours > 0 &&
+      args.priceCents !== undefined && Number.isFinite(args.priceCents) && args.priceCents > 0)
+  ) {
+    return null;
+  }
   const artist = await ctx.db.get(args.artistId);
   if (!artist || artist.orgId !== args.orgId) return null;
-  const source = args.source ?? "stripe";
+  const productName = product?.name ?? (args.name?.trim().slice(0, 200) || "Prepaid hours");
 
   // A Stripe payment creates at most one credit, even if it arrives under a
   // second event id.
@@ -421,18 +438,18 @@ export async function applyPackagePurchase(
     if (dup) return dup._id;
   }
 
-  const hours = args.hours !== undefined && Number.isFinite(args.hours) && args.hours > 0 ? args.hours : product.hours;
+  const hours = args.hours !== undefined && Number.isFinite(args.hours) && args.hours > 0 ? args.hours : (product?.hours ?? 0);
   const priceCents =
     args.priceCents !== undefined && Number.isFinite(args.priceCents) && args.priceCents > 0
       ? Math.round(args.priceCents)
-      : product.priceCents;
+      : (product?.priceCents ?? 0);
   const now = Date.now();
 
   const creditId = await ctx.db.insert("packageCredits", {
     orgId: args.orgId,
     artistId: args.artistId,
     productId: args.productId,
-    name: product.name,
+    name: productName,
     hoursTotal: hours,
     hoursRemaining: hours,
     priceCents,
@@ -462,8 +479,8 @@ export async function applyPackagePurchase(
     kind: "package.purchased",
     summary:
       source === "manual"
-        ? `${args.recordedByName ?? "Staff"} recorded ${artist.name} paying ${money(priceCents)} (${paymentMethodLabel(args.paymentMethod)}) for "${product.name}" - ${hours}h`
-        : `${artist.name} bought "${product.name}" - ${hours}h for ${money(priceCents)}`,
+        ? `${args.recordedByName ?? "Staff"} recorded ${artist.name} paying ${money(priceCents)} (${paymentMethodLabel(args.paymentMethod)}) for "${productName}" - ${hours}h`
+        : `${artist.name} bought "${productName}" - ${hours}h for ${money(priceCents)}`,
     entityType: "artist",
     entityId: args.artistId,
     accent: "positive",
