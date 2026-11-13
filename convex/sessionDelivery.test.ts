@@ -261,6 +261,9 @@ describe("session delivery: staff side and the payment trigger", () => {
       const [row] = await ctx.db.query("sessionDeliveries").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).take(1);
       await ctx.db.patch(row._id, { expiresAt: Date.now() + 1000 });
     });
+    // Past the two-minute resend throttle (F2-06).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 121_000);
     const t0 = Date.now();
     await s.as(s.A.engineer).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
     const [row] = await deliveryRow(s, s.A.sessionId);
@@ -275,6 +278,9 @@ describe("session delivery: staff side and the payment trigger", () => {
   it("G-12 resend on a waiting delivery sends the pay email again", async () => {
     await finalFile(s);
     await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    // Past the two-minute resend throttle (F2-06).
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 121_000);
     await s.as(s.A.engineer).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
     expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.pay"]);
     expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
@@ -1155,5 +1161,32 @@ describe("session delivery: moving a file (F2-05)", () => {
     await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.a.assetId, name: "Lead vocal (final).wav", tags: ["final"] });
     await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.a.assetId, sessionId: s.A.sessionId });
     expect((await s.t.run(async (ctx) => await ctx.db.get(r.a.assetId)))!.clientFinal).toBe(true);
+  });
+});
+
+/* ── F2-06: resend is throttled ─────────────────────────────── */
+
+describe("session delivery: resend throttle (F2-06)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("A-18 resend within 2 minutes of the last send is refused and sends nothing", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    vi.setSystemTime(t0);
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const tooSoon = "Sent a moment ago. Try again in a couple of minutes.";
+    vi.setSystemTime(t0 + 119_000);
+    await expect(s.as(s.A.engineer).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow(tooSoon);
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ sendCount: 1, lastSentAt: t0 });
+    expect(await deliveryEmails(s, s.A.sessionId)).toHaveLength(1);
+    vi.setSystemTime(t0 + 120_000);
+    await s.as(s.A.engineer).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId });
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ sendCount: 2, lastSentAt: t0 + 120_000 });
+    // And again straight after: refused.
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow(tooSoon);
+    expect(await deliveryEmails(s, s.A.sessionId)).toHaveLength(2);
   });
 });

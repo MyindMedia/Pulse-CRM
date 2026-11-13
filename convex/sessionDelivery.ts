@@ -45,6 +45,8 @@ export const URL_TTL_S = 600;
 export const URL_RATE_MAX = 120;
 export const URL_RATE_WINDOW_MS = 3_600_000;
 export const OPENED_MIN_GAP_MS = 60_000;
+/** Resend at most this often: every send is an email to the client. */
+export const RESEND_MIN_GAP_MS = 2 * 60_000;
 
 /** Bound on the files read for one booking. */
 const MAX_FILES = 200;
@@ -517,6 +519,10 @@ export const resend = mutation({
     if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") {
       throw new ConvexError("There is no link to send. Tap Ready to deliver first.");
     }
+    const now = Date.now();
+    if (delivery.lastSentAt !== undefined && now - delivery.lastSentAt < RESEND_MIN_GAP_MS) {
+      throw new ConvexError("Sent a moment ago. Try again in a couple of minutes.");
+    }
     const f = await facts(ctx, delivery);
     if (!f || f.files.length === 0) throw new ConvexError("Mark at least one file Final first.");
     if (!f.artist?.email?.trim()) throw new ConvexError("Add an email for this client first.");
@@ -526,7 +532,6 @@ export const resend = mutation({
       if (!(await release(ctx, delivery, "payment", f))) throw new ConvexError("Add an email for this client first.");
       return null;
     }
-    const now = Date.now();
     const expiresAt = now + LINK_TTL_MS;
     const email = emailFor({ ...delivery, expiresAt }, f, delivery.status === "released" ? "ready" : "pay");
     if (!email) throw new ConvexError("Add an email for this client first.");
