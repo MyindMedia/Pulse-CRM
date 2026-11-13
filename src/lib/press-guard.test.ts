@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createPressGuard } from "./press-guard";
+import { createPressGuard, focusRescue } from "./press-guard";
 
 /* V3-01: a control stays focusable while its request runs, so repeat
    presses are refused by this guard instead of by `disabled`. */
@@ -81,5 +81,29 @@ describe("createPressGuard", () => {
       }),
     ).rejects.toThrow("sync");
     expect(g.busy("copy")).toBe(false);
+  });
+});
+
+/* V4-04: what to do about focus after the pressed button went away. */
+describe("focusRescue", () => {
+  const base = { pressedConnected: false, now: 1000, until: Infinity, focusOn: "body" as const };
+
+  it("waits while the pressed button is still on the page", () => {
+    expect(focusRescue({ ...base, pressedConnected: true })).toBe("wait");
+  });
+
+  it("moves focus when the button is gone and focus fell to the page or the dialog container", () => {
+    expect(focusRescue({ ...base, focusOn: "body" })).toBe("focus");
+    expect(focusRescue({ ...base, focusOn: "none" })).toBe("focus");
+    expect(focusRescue({ ...base, focusOn: "dialog" })).toBe("focus");
+  });
+
+  it("leaves focus alone when the person moved to something else themselves", () => {
+    expect(focusRescue({ ...base, focusOn: "other" })).toBe("drop");
+  });
+
+  it("gives up after the window closes, even if focus is lost", () => {
+    expect(focusRescue({ ...base, until: 999 })).toBe("drop");
+    expect(focusRescue({ ...base, until: 1000 })).toBe("focus");
   });
 });

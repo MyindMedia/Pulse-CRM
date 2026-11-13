@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -9,7 +9,7 @@ import { Check, Link2, Lock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { createPressGuard } from "@/lib/press-guard";
+import { createPressGuard, focusRescue } from "@/lib/press-guard";
 import { uploads } from "@/lib/upload-manager";
 import safe from "@/components/delivery/text-safe.module.css";
 import {
@@ -34,10 +34,18 @@ import {
    V3-01: no button sets `disabled` while its own request runs (that drops
    keyboard focus to the dialog). One request runs at a time, guarded by
    createPressGuard; the others stay focusable and a press on them is
-   refused. When the pressed button goes away because the state moved on
-   (Ready to deliver becomes Send now anyway, Turn off link becomes Ready),
-   focus moves to the card's first action, or its heading, instead of being
-   lost. */
+   refused.
+
+   V4-04: when the pressed button goes away because the state moved on (Ready
+   to deliver becomes Send now anyway, Turn off link becomes Ready), focus
+   moves to the card's heading. Why a passive effect failed: removing the
+   focused element leaves document.activeElement on <body> for an instant, and
+   Radix's FocusScope (the dialog's focus trap) watches for exactly that with
+   a MutationObserver and moves focus to the dialog container. The old effect
+   ran after paint, found the container focused (not <body>), took it for the
+   user's own move and gave up. The fix runs in a layout effect, in the same
+   commit that removes the button and before that observer's callback, and
+   targets the heading, which is always mounted and has tabIndex -1. */
 
 /** How long after a request focus may still be moved back into the card. */
 const REFOCUS_MS = 5000;
@@ -84,33 +92,38 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
   const [guard] = useState(createPressGuard);
   const cardRef = useRef<HTMLElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // Set after a request that started with focus in the card: until then, if
-  // focus falls to the page (the pressed button unmounted), put it back.
-  const refocusUntil = useRef(0);
+  // The button that had focus when a request started, until its request has
+  // finished and (if it went away) focus was put back. `until` is Infinity
+  // while the request runs, then a few seconds for the live query to catch up.
+  const pending = useRef<{ el: HTMLElement; until: number } | null>(null);
   const [loadedAt] = useState(() => Date.now());
   // Set when the clipboard refused: the link in a read-only field to copy by hand.
   const [manualLink, setManualLink] = useState<string | null>(null);
   const manualField = useRef<HTMLInputElement>(null);
 
-  // Every render: the state change that removes the pressed button is a render.
-  useEffect(() => {
-    if (!refocusUntil.current) return;
-    if (Date.now() > refocusUntil.current) {
-      refocusUntil.current = 0;
-      return;
-    }
+  // V4-04. A layout effect on every commit: the state change that removes the
+  // pressed button is a commit, and this runs inside it, before Radix's
+  // MutationObserver can send focus to the dialog container.
+  useLayoutEffect(() => {
+    const p = pending.current;
+    if (!p) return;
     const card = cardRef.current;
-    const el = document.activeElement;
-    if (!card) return;
-    const lost = !el || el === document.body;
-    if (!lost) {
-      // Still on a control in the card (it may yet unmount), or moved on by the user.
-      if (!card.contains(el)) refocusUntil.current = 0;
+    if (!card) {
+      // The card is not on screen (it is loading): keep waiting until the window closes.
+      if (Date.now() > p.until) pending.current = null;
       return;
     }
-    refocusUntil.current = 0;
-    const target = card.querySelector<HTMLElement>("[data-card-action]:not([disabled])") ?? headingRef.current;
-    target?.focus();
+    const dialog = card.closest('[role="dialog"]');
+    const el = document.activeElement;
+    const verdict = focusRescue({
+      pressedConnected: p.el.isConnected,
+      now: Date.now(),
+      until: p.until,
+      focusOn: !el ? "none" : el === document.body ? "body" : el === dialog ? "dialog" : "other",
+    });
+    if (verdict === "wait") return;
+    pending.current = null;
+    if (verdict === "focus") headingRef.current?.focus();
   });
 
   useEffect(() => {
@@ -138,14 +151,16 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
   /** Runs one card request unless another is in flight. */
   function guarded(key: CardActionKey, fn: () => Promise<void>) {
     if (guard.anyBusy()) return;
-    const hadFocus = !!cardRef.current?.contains(document.activeElement);
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && cardRef.current?.contains(active) ? active : null;
+    if (focused) pending.current = { el: focused, until: Infinity };
     void guard.run("card", async () => {
       setBusy(key);
       try {
         await fn();
       } finally {
         setBusy(null);
-        if (hadFocus) refocusUntil.current = Date.now() + REFOCUS_MS;
+        if (pending.current) pending.current.until = Date.now() + REFOCUS_MS;
       }
     });
   }

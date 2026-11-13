@@ -38,3 +38,22 @@ export function createPressGuard() {
 }
 
 export type PressGuard = ReturnType<typeof createPressGuard>;
+
+/** After a request from a control that had focus: what to do about focus on
+ *  this commit (V4-04).
+ *  - "wait": the pressed control is still on the page, so focus is where it was.
+ *  - "focus": the control is gone and focus fell to the page or the dialog
+ *    container (Radix's focus trap puts it there), so move it into the card.
+ *  - "drop": the window closed, or the person moved focus themselves. */
+export function focusRescue(input: {
+  pressedConnected: boolean;
+  now: number;
+  until: number;
+  /** Where focus is now: nowhere or the page body, the dialog container, or
+   *  some other element. */
+  focusOn: "none" | "body" | "dialog" | "other";
+}): "wait" | "focus" | "drop" {
+  if (input.now > input.until) return "drop";
+  if (input.pressedConnected) return "wait";
+  return input.focusOn === "other" ? "drop" : "focus";
+}
