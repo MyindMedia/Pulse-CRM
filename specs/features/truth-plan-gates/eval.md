@@ -33,3 +33,10 @@ RD: ./rd.md
 |---|---|---|---|---|
 | R2-01 | H210-05: a member without the chosen role cannot read, add or check out visitors | convex-test with the lowest role → FORBIDDEN | NOT RUN | Not built, same as U-08: decision 3 (which role may read the visitor log) is not made in the write-up or in the round-2 owner decisions, and the existing client-read permission is held by every role including intern, so reusing it would change nothing. Owner: name the role and the check is one line in each of `visitors.list`, `directory`, `registerManual`, `checkOut` |
 
+
+## Round 3 checks (re-review, 2026-11-12)
+| ID | Check | How to verify | Result | Evidence |
+|---|---|---|---|---|
+| R3-01 | H210-R2-04 (part): the visitor log (`list`, `directory`, `registerManual`, `checkOut`) needs a studio role that can read clients (`artists.read`); a member without it is refused, front-desk staff such as an intern keep working | convex-test with a member whose `artists.read` is removed | PASS | `convex/visitors.test.ts` "H210-R2-04: the visitor log needs a studio role that can read clients" |
+
+R2-01 above stays NOT RUN: every staff role, intern included, holds `artists.read`, so this check only shuts out callers with no client-read right (overrides, non-staff viewers). Keeping an intern out of the visitor log is a choice of role the owner has not made.
