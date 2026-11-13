@@ -1245,3 +1245,31 @@ describe("session delivery: many working files (F2-07)", () => {
     for (const name of ["Master.wav", "Notes.pdf", "Stems.zip"]) expect(mail.html).toContain(name);
   });
 });
+
+describe("session delivery: dates in the studio's zone (F2-10)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("C-13 a session at 11 PM Pacific shows the same date in the email and on the page", async () => {
+    // 11 PM on November 10 in Los Angeles is already November 11 in UTC.
+    const elevenPmPacific = Date.UTC(2026, 10, 11, 7, 0);
+    await s.t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+      await ctx.db.patch(org!._id, { timezone: "America/Los_Angeles" });
+      await ctx.db.patch(s.A.sessionId, { startTime: elevenPmPacific, endTime: elevenPmPacific + 3_600_000 });
+    });
+    const { token, row } = await released(s);
+    // 10 PM on December 13 in Los Angeles is December 14 in UTC.
+    const expiresAt = Date.UTC(2026, 11, 14, 6, 0);
+    await s.t.run(async (ctx) => { await ctx.db.patch(row._id, { expiresAt }); });
+
+    const mail = (await deliveryEmails(s, s.A.sessionId))[0];
+    expect(mail.html).toContain("November 10");
+    expect(mail.html).not.toContain("November 11");
+
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.booking.dateLabel).toBe("November 10, 2026");
+    expect(p!.expiresLabel).toBe("Dec 13, 2026");
+  });
+});

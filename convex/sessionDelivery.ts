@@ -185,6 +185,11 @@ function longDate(ts: number, tz: string): string {
   return new Date(ts).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: tz });
 }
 
+/** "Dec 13, 2026" in the studio's zone. */
+function shortDate(ts: number, tz: string): string {
+  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: tz });
+}
+
 type Facts = {
   session: Doc<"sessions">;
   org: Doc<"orgs"> | null;
@@ -621,6 +626,9 @@ export const page = query({
           ? `${base}/book/${org.slug}/checkout/${session._id}`
           : null;
     const accent = org?.accentColor?.trim();
+    // Dates are formatted here, in the studio's zone, the same zone the email
+    // uses, so the page and the email never disagree about the day.
+    const tz = orgTz(org);
     return {
       studio: {
         name: org?.name ?? "Your studio",
@@ -630,6 +638,7 @@ export const page = query({
       booking: {
         title: session.title,
         startTime: session.startTime,
+        dateLabel: longDate(session.startTime, tz),
         roomName: room && room.orgId === delivery.orgId ? room.name : null,
       },
       clientFirstName: firstName(artist && artist.orgId === delivery.orgId ? artist.name : undefined),
@@ -644,6 +653,7 @@ export const page = query({
       balanceCents: ledger ? shownCents(ledger.owed) : null,
       payUrl,
       expiresAt: delivery.expiresAt,
+      expiresLabel: shortDate(delivery.expiresAt, tz),
     };
   },
 });
