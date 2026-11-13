@@ -2,6 +2,8 @@ import type { MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { recordRecoveryOnPaid } from "./recoveryOnPaid";
+import { notifyTeam } from "./notify";
+import { money } from "./money";
 
 /* ============================================================
    Stripe webhook branches for a client's card on file. The ONLY writers of
@@ -163,9 +165,60 @@ async function settleFee(ctx: MutationCtx, account: string, pi: Obj, meta: Recor
   const inv = invoiceId ? await ctx.db.get(invoiceId) : null;
   if (!inv || !(await accountOwnsOrg(ctx, account, inv.orgId))) return ".account_mismatch";
   const reference = idOf(pi.id);
-  if (pi.status !== "succeeded" || !reference || pi.amount !== inv.amountCents) return ".not_succeeded";
+  if (pi.status !== "succeeded" || !reference) return ".not_succeeded";
+  const charged = typeof pi.amount === "number" ? pi.amount : null;
+  if (charged !== inv.amountCents) {
+    // Money came in, but not the amount on the invoice: never settle it
+    // silently, and never drop it silently either.
+    await flagFeeChargeToCheck(
+      ctx,
+      inv,
+      reference,
+      `${charged === null ? "An unknown amount" : money(charged)} was charged to the client's saved card for invoice ${inv.number}, which is for ${money(inv.amountCents)}. The invoice was not marked paid. Check the charge in Stripe and refund or settle it by hand.`,
+    );
+    return ".amount_mismatch";
+  }
+  if ((inv.status === "paid" || inv.status === "void") && inv.autoCharge?.reference !== reference) {
+    // The invoice was settled or cancelled another way (for example the
+    // client paid the invoice link after the card charge reported failure).
+    await flagFeeChargeToCheck(
+      ctx,
+      inv,
+      reference,
+      `The ${money(inv.amountCents)} no-show fee was charged to the client's saved card, but invoice ${inv.number} had already been marked ${inv.status}. Refund the charge in Stripe if the client should not pay twice.`,
+    );
+    return ".already_settled";
+  }
   await markFeeInvoicePaid(ctx, inv, reference);
   return "";
+}
+
+/** A fee charge that needs a person: an insight and a team email. Shared by
+ *  the webhook and the charge action's outcome. */
+export async function flagFeeChargeToCheck(
+  ctx: MutationCtx,
+  inv: Doc<"invoices">,
+  reference: string,
+  body: string,
+): Promise<void> {
+  const title = `Check charge ${reference}: invoice ${inv.number}`;
+  await ctx.db.insert("insights", {
+    orgId: inv.orgId,
+    kind: "risk",
+    severity: "warning",
+    title,
+    body,
+    entityType: "invoice",
+    entityId: inv._id,
+    status: "new",
+  });
+  await notifyTeam(ctx, {
+    orgId: inv.orgId,
+    subject: title,
+    body,
+    kind: "invoice.fee_charge_check",
+    sessionId: inv.sessionId,
+  });
 }
 
 /** Mark a fee invoice paid by a card charge. Idempotent: a second call for the

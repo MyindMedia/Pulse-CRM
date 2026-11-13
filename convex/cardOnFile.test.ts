@@ -1205,3 +1205,68 @@ describe("H205-08 / H205-09: a charge whose action died is checked and never lef
     expect((await invoicesA(t))[0].status).toBe("paid");
   });
 });
+
+describe("H205-10 / H205-11: a late fee-charge webhook on an invoice settled another way is flagged, not dropped", () => {
+  async function failedChargeThenPaidByLink(t: T) {
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    fake.piMode = "network";
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    expect((await invoicesA(t))[0].autoCharge?.status).toBe("failed");
+    // Staff sent the invoice and the client paid it by link.
+    await t.run((ctx) => ctx.db.patch(inv._id, { status: "paid", paidAt: Date.now(), paymentMethod: "zelle" }));
+    return { ids, inv };
+  }
+  const feeEvent = (invoiceId: string, over: Record<string, unknown> = {}) =>
+    evt("payment_intent.succeeded", { id: "pi_late", status: "succeeded", amount: 10_000, metadata: { kind: "no_show_fee", invoiceId }, ...over }, "acct_A");
+  const checks = (t: T) =>
+    t.run(async (ctx) => (await ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect()).filter((i) => i.title.startsWith("Check charge")));
+
+  it("the client paid the invoice, then the card charge's webhook arrives: staff are told to refund", async () => {
+    const t = newT();
+    const { inv } = await failedChargeThenPaidByLink(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id) });
+    const found = await checks(t);
+    expect(found).toHaveLength(1);
+    expect(found[0].body).toMatch(/Refund the charge in Stripe if the client should not pay twice/);
+    expect(await emails(t, "invoice.fee_charge_check")).toHaveLength(1);
+    expect((await invoicesA(t))[0].paymentMethod).toBe("zelle");
+    expect(await stripeEventTypes(t)).toContain("payment_intent.succeeded.already_settled");
+  });
+
+  it("the same webhook replayed is flagged once", async () => {
+    const t = newT();
+    const { inv } = await failedChargeThenPaidByLink(t);
+    const e = feeEvent(inv._id);
+    await t.mutation(internal.billingWebhooks.handle, { event: e });
+    await t.mutation(internal.billingWebhooks.handle, { event: e });
+    expect(await checks(t)).toHaveLength(1);
+  });
+
+  it("a charge for a different amount than the invoice is flagged and does not settle it", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, { amount: 7_777 }) });
+    expect((await invoicesA(t))[0].status).toBe("draft");
+    expect(await checks(t)).toHaveLength(1);
+  });
+
+  it("our own charge's webhook on the invoice it paid raises nothing", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, { id: "pi_1" }) });
+    expect(await checks(t)).toHaveLength(0);
+  });
+});

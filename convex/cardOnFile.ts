@@ -10,7 +10,7 @@ import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS, paidTowardSession } from "./lib/cardConsent";
-import { markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
+import { flagFeeChargeToCheck, markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
 
 /* ============================================================
    Card on file - the No-Show Shield's auto-charge path.
@@ -517,16 +517,12 @@ export const _feeChargeOutcome = internalMutation({
         // Money came in for an invoice someone already settled or cancelled
         // while the charge ran. Never keep it silently.
         await ctx.db.patch(invoiceId, { autoCharge: { status: "succeeded", at: Date.now(), reference } });
-        await ctx.db.insert("insights", {
-          orgId: inv.orgId,
-          kind: "risk",
-          severity: "warning",
-          title: `Check charge ${reference}: invoice ${inv.number} was already ${inv.status}`,
-          body: `The ${money(inv.amountCents)} no-show fee was charged to the client's saved card, but invoice ${inv.number} had already been marked ${inv.status}. Refund the charge in Stripe if the client should not pay twice.`,
-          entityType: "invoice",
-          entityId: inv._id,
-          status: "new",
-        });
+        await flagFeeChargeToCheck(
+          ctx,
+          inv,
+          reference,
+          `The ${money(inv.amountCents)} no-show fee was charged to the client's saved card, but invoice ${inv.number} had already been marked ${inv.status}. Refund the charge in Stripe if the client should not pay twice.`,
+        );
         return;
       }
       if (!ours) await markFeeInvoicePaid(ctx, inv, reference);
