@@ -13,7 +13,7 @@ import {
   Play,
 } from "lucide-react";
 import { fileKind, formatBytes, isPlayable, typeLabel, type FileKind } from "./format";
-import { CONTROLS_STACKS_ONE, CONTROLS_STACKS_TWO, NAME_STACKS_ONE, NAME_STACKS_TWO } from "./row-layout";
+import { NAME_STACKS_ONE, NAME_STACKS_TWO } from "./row-layout";
 import { Waveform } from "./waveform";
 
 export type DeliveryFile = { versionId: string; name: string; size: number; mimeType: string };
@@ -61,9 +61,11 @@ export function FileRow({
   const audio = isPlayable(file.mimeType);
   // Two round controls (Play and Download) or one (Download, or the lock).
   // When the row is too narrow for the icon, an 8rem name and the controls, the
-  // name takes the first line and the icon and controls share the second
-  // (thresholds and reasoning in row-layout.ts, V3-03 and V4-03). The icon is
-  // decorative, so moving it changes nothing for assistive tech or tab order.
+  // name takes the first line and the icon and controls wrap below it
+  // (thresholds in row-layout.ts, V3-03, V4-03 and V5-01). The icon, Play and
+  // Download are direct children of this one flex-wrap row, so they wrap as
+  // single items and no control is ever cut off. The icon is decorative, so
+  // its place in the order changes nothing for assistive tech or tab order.
   const twoControls = audio && !locked;
   return (
     <li className="@container grid gap-2.5 px-3.5 py-3">
@@ -77,46 +79,44 @@ export function FileRow({
             {typeLabel(file.name, file.mimeType)} · {formatBytes(file.size)}
           </p>
         </div>
-        <div className={`ml-auto flex flex-none items-center gap-3 ${twoControls ? CONTROLS_STACKS_TWO : CONTROLS_STACKS_ONE}`}>
-          {locked ? (
-            <span role="img" aria-label="Locked" className={`${ROUND} text-steel`}>
-              <Lock className="size-4" strokeWidth={1.75} aria-hidden />
-            </span>
-          ) : (
-            <>
-              {audio && (
-                <button
-                  type="button"
-                  className={ROUND}
-                  onClick={onPlay}
-                  aria-label={`${playing ? "Pause" : "Play"} ${file.name}`}
-                  aria-busy={playBusy || undefined}
-                >
-                  {playBusy ? (
-                    <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
-                  ) : playing ? (
-                    <Pause className="size-4" strokeWidth={1.75} aria-hidden />
-                  ) : (
-                    <Play className="size-4" strokeWidth={1.75} aria-hidden />
-                  )}
-                </button>
-              )}
+        {locked ? (
+          <span role="img" aria-label="Locked" className={`${ROUND} text-steel`}>
+            <Lock className="size-4" strokeWidth={1.75} aria-hidden />
+          </span>
+        ) : (
+          <>
+            {audio && (
               <button
                 type="button"
                 className={ROUND}
-                onClick={onDownload}
-                aria-label={`Download ${file.name}`}
-                aria-busy={downloadBusy || undefined}
+                onClick={onPlay}
+                aria-label={`${playing ? "Pause" : "Play"} ${file.name}`}
+                aria-busy={playBusy || undefined}
               >
-                {downloadBusy ? (
+                {playBusy ? (
                   <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
+                ) : playing ? (
+                  <Pause className="size-4" strokeWidth={1.75} aria-hidden />
                 ) : (
-                  <Download className="size-4" strokeWidth={1.75} aria-hidden />
+                  <Play className="size-4" strokeWidth={1.75} aria-hidden />
                 )}
               </button>
-            </>
-          )}
-        </div>
+            )}
+            <button
+              type="button"
+              className={ROUND}
+              onClick={onDownload}
+              aria-label={`Download ${file.name}`}
+              aria-busy={downloadBusy || undefined}
+            >
+              {downloadBusy ? (
+                <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
+              ) : (
+                <Download className="size-4" strokeWidth={1.75} aria-hidden />
+              )}
+            </button>
+          </>
+        )}
       </div>
       {audio && !locked && <Waveform seedKey={file.name} progress={progress} />}
       {message && (

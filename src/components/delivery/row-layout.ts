@@ -9,6 +9,12 @@
    Everything is in rem, so the threshold follows the reader's text size: at
    150% text the same pieces need more pixels, and the row stacks sooner.
 
+   Stacked, the row is one flex-wrap container: the name takes the first line
+   (basis-full, order-first), and the icon, Play and Download are its direct
+   children, so they wrap below the name as single items. Each control is
+   88 px at 200% text, so the widest line is one control and always fits
+   (V5-01). The buttons carry no wrapper and no margin-left: auto.
+
    The class names below are literals because Tailwind reads them from the
    source; row-layout.test.ts checks them against the numbers computed here. */
 
@@ -31,15 +37,6 @@ export const STACK_TWO_REM = 18;
 /** Classes for the name block. Stacked, it takes the whole first line. */
 export const NAME_STACKS_ONE = "@max-[14.5rem]:order-first @max-[14.5rem]:basis-full";
 export const NAME_STACKS_TWO = "@max-[18rem]:order-first @max-[18rem]:basis-full";
-
-/** Classes for the controls block. Inline it keeps its size and sits at the
- *  right. Stacked it fills what is left of the line under the name and wraps
- *  inside it, so no control is ever cut off at the row's edge, at any text
- *  size. min-w-0 lets it be narrower than its content. */
-export const CONTROLS_STACKS_ONE =
-  "@max-[14.5rem]:min-w-0 @max-[14.5rem]:flex-auto @max-[14.5rem]:flex-wrap @max-[14.5rem]:justify-end";
-export const CONTROLS_STACKS_TWO =
-  "@max-[18rem]:min-w-0 @max-[18rem]:flex-auto @max-[18rem]:flex-wrap @max-[18rem]:justify-end";
 
 /** The row's inner (container) width in px on a viewport, for a root font
  *  size: page side padding 1rem each (narrow layout), the list's 1px borders,

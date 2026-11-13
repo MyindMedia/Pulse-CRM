@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONTROLS_STACKS_ONE,
-  CONTROLS_STACKS_TWO,
   NAME_STACKS_ONE,
   NAME_STACKS_TWO,
   STACK_ONE_REM,
@@ -26,19 +24,9 @@ describe("row stacking threshold (V4-03)", () => {
   it("the class names carry the computed numbers", () => {
     for (const [classes, rem] of [
       [NAME_STACKS_ONE, 14.5],
-      [CONTROLS_STACKS_ONE, 14.5],
       [NAME_STACKS_TWO, 18],
-      [CONTROLS_STACKS_TWO, 18],
     ] as const) {
       for (const token of classes.split(" ")) expect(token.startsWith(`@max-[${rem}rem]:`), token).toBe(true);
-    }
-  });
-
-  it("the controls wrap and may shrink when stacked, and never take a fixed width", () => {
-    for (const c of [CONTROLS_STACKS_ONE, CONTROLS_STACKS_TWO]) {
-      expect(c).toContain("flex-wrap");
-      expect(c).toContain("min-w-0");
-      expect(c).not.toMatch(/(^| )@max-\[[^\]]+\]:(w|min-w|basis)-(?!0)/);
     }
   });
 });
