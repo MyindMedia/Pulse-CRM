@@ -151,3 +151,45 @@ describe("discount codes: public validation + booking redemption", () => {
     expect(session?.compReason).toBeUndefined();
   });
 });
+
+/* H210-02: the public slug lookup is anonymous, so it must never list the
+   studio's codes (or prices, billing or the owner's contact details). */
+describe("public studio lookup by slug", () => {
+  it("returns branding only, never discount codes", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org1", name: "Studio", slug: "studio", tier: "max", status: "active", accentColor: "#123456",
+        ownerEmail: "owner@studio.com", taxRate: 8, defaultRateCutPct: 30,
+        discountCodes: [
+          { code: "VIP90", pct: 90, label: "One client only", active: true },
+          { code: "OLD10", pct: 10, active: false },
+        ],
+      });
+    });
+    // No identity: an anonymous browser on the public page.
+    const res = await t.query(api.orgs.getBySlug, { slug: "studio" });
+    expect(res).not.toBeNull();
+    const json = JSON.stringify(res);
+    expect(json).not.toContain("VIP90");
+    expect(json).not.toContain("OLD10");
+    expect(json).not.toContain("owner@studio.com");
+    expect(Object.keys(res!).sort()).toEqual(["accentColor", "brandSecondary", "logoUrl", "name", "slug", "tagline"]);
+    expect(res!.name).toBe("Studio");
+    expect(res!.accentColor).toBe("#123456");
+    expect(await t.query(api.orgs.getBySlug, { slug: "nope" })).toBeNull();
+  });
+
+  it("the public booking page payload carries no discount codes either", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org1", name: "Studio", slug: "studio", tier: "max", status: "active",
+        discountCodes: [{ code: "VIP90", pct: 90, active: true }],
+      });
+      await ctx.db.insert("rooms", { orgId: "org1", name: "Room A", status: "available", bookable: true, hourlyRateCents: 10000, minimumHours: 1, depositPct: 30 });
+    });
+    const front = await t.query(api.booking.studioFront, { slug: "studio" });
+    expect(JSON.stringify(front)).not.toContain("VIP90");
+  });
+});

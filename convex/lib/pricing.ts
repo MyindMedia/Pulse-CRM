@@ -673,7 +673,9 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Charts", "growth", "reports"),
       f("What the booking page earned", "growth", "reports"),
       f("How much of the plan is used", "growth"),
-      f("Download your numbers", "growth", "apiExports"),
+      // Every plan, on purpose (convex/exports.ts): the data is the studio's
+      // whether or not the plan is paid (truth-plan-gates, decision 1a).
+      f("Download your numbers", "core"),
     ],
   },
   {
@@ -1279,8 +1281,8 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "allowances",
   ],
   "Download your numbers": [
-    "An export of your studio's figures.",
-    "You can pull your own figures out whenever you want them.",
+    "Spreadsheets of your clients, songs, bookings, invoices, split sheets and activity.",
+    "Every plan has it, even if a payment lapses: your data is yours.",
   ],
 
   /* Making it look like theirs */

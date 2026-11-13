@@ -320,7 +320,7 @@ const DESC: Record<string, string> = {
   "How much of the plan is used":
     "How much assistant use, storage, texting and email the studio has used against what the plan includes.",
   "Download your numbers":
-    "The studio can pull its own figures out whenever it wants them.",
+    "Every plan can download its clients, songs, bookings, invoices, split sheets and activity as spreadsheets, even if a payment lapses.",
   "Colors from your logo":
     "Upload the logo. Pulse pulls the colors out of it and repaints the app while you watch.",
   "A photo at the top of the booking page":

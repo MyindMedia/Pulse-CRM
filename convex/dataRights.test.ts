@@ -55,6 +55,23 @@ describe("GDPR data rights - export + erasure", () => {
     expect(data!.messages).toHaveLength(1);
   });
 
+  it("H210-R2-03: erasure clears the contact-on-file stamp and the booked contact; export lists the stamp", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.patch(aArtist, { phone: "+14045550101", contactOnFile: { email: "nova@x.com", emailAt: 1, phone: "+14045550101", phoneAt: 1 } });
+      await ctx.db.patch(aSession, { bookedContact: { email: "nova@x.com", phone: "+14045550101" } });
+    });
+    const data = await t.query(api.dataRights.exportArtist, { artistId: aArtist });
+    expect(data!.subject.contactOnFile).toEqual({ email: "nova@x.com", emailAt: 1, phone: "+14045550101", phoneAt: 1 });
+    await t.mutation(api.dataRights.eraseArtist, { artistId: aArtist });
+    const { artist, session } = await t.run(async (ctx) => ({ artist: await ctx.db.get(aArtist), session: await ctx.db.get(aSession) }));
+    expect(artist!.contactOnFile).toBeUndefined();
+    expect(artist!.email).toBeUndefined();
+    expect(artist!.phone).toBeUndefined();
+    expect(session!.bookedContact).toBeUndefined();
+    expect(JSON.stringify(artist)).not.toContain("nova@x.com");
+    expect(JSON.stringify(artist)).not.toContain("4045550101");
+  });
+
   it("anonymizes the client and scrubs their identity from records", async () => {
     const res = await t.mutation(api.dataRights.eraseArtist, { artistId: aArtist });
     expect(res.scrubbed).toBeGreaterThanOrEqual(2);

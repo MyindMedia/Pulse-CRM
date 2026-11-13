@@ -24,9 +24,11 @@ describe("Pulse Agent", () => {
     const d = await t.query(api.agent.getPolicy, {});
     expect(d.enabled).toBe(true);
     expect(d.autonomy).toBe("suggest");
+    // "Auto low-risk" is no longer offered (truth-assistant-auto-send): a
+    // request for it is stored and read back as suggest.
     await t.mutation(api.agent.updatePolicy, { autonomy: "auto_low", defaultTone: "friendly", digestEnabled: false });
     const p = await t.query(api.agent.getPolicy, {});
-    expect(p.autonomy).toBe("auto_low");
+    expect(p.autonomy).toBe("suggest");
     expect(p.defaultTone).toBe("friendly");
     expect(p.digestEnabled).toBe(false);
   });
@@ -241,11 +243,15 @@ describe("Pulse Agent", () => {
   });
 
   it("autonomy: auto_trusted auto-approves a low-risk send; medium-risk still waits", async () => {
+    // Auto-send now needs a named reminder to one of the studio's own clients
+    // (truth-assistant-auto-send), so the low-risk send goes to a client
+    // whose address was on file before the conversation (H210-01).
+    await t.run(async (ctx) => { await ctx.db.insert("artists", { orgId: ORG, name: "AB", type: "artist", email: "a@b.com", contactOnFile: { email: "a@b.com", emailAt: 1 }, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" }); });
     const runId = await t.run((ctx) => ctx.db.insert("agentRuns", { orgId: ORG, initiatedBy: "system", runType: "analytics_review", status: "running" }));
     await t.mutation(internal.agent._finalize, {
       runId, orgId: ORG, status: "needs_approval", summary: "x", autonomy: "auto_trusted",
       approvals: [
-        { actionType: "send_email", title: "Low reminder", explanation: "x", riskLevel: "low", proposedPayload: { to: "a@b.com", body: "hi" } },
+        { actionType: "send_email", title: "Low reminder", explanation: "x", riskLevel: "low", proposedPayload: { to: "a@b.com", body: "hi", reminderKind: "session_reminder" } },
         { actionType: "send_sms", title: "Medium nudge", explanation: "x", riskLevel: "medium", proposedPayload: { to: "+1", body: "hi" } },
       ],
     });

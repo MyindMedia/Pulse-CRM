@@ -85,7 +85,7 @@ export const MODULES: ModuleDef[] = [
   { key: "calendar", label: "Calendar", area: "bookings", nav: true, core: true,
     blurb: "Sessions calendar and the session sheet" },
   { key: "discountCodes", label: "Discount codes", area: "bookings", nav: false,
-    blurb: "Owner-issued and AI-generated codes at checkout" },
+    blurb: "Codes you issue, plus suggested codes for quiet hours that you approve" },
   { key: "calendarSync", label: "Calendar sync", area: "bookings", nav: false,
     blurb: "Two-way Google sync, other calendars shown read-only on the room page" },
 
@@ -203,7 +203,7 @@ export const MODULES: ModuleDef[] = [
   { key: "reports", label: "Reports", area: "reporting", nav: true,
     blurb: "Revenue command center and operating KPIs" },
   { key: "apiExports", label: "Data exports", area: "reporting", nav: false,
-    blurb: "The studio's numbers, out, on demand" },
+    blurb: "The studio's numbers, out, on demand, on every plan" },
 
   // ── Branding & white label ──
   { key: "whiteLabelUi", label: "White-label UI", area: "brand", nav: false,

@@ -414,6 +414,9 @@ export default defineSchema({
           pct: v.number(),
           label: v.optional(v.string()),
           active: v.boolean(),
+          // The owner chose to keep accepting a code the old weekly sweep
+          // made (checkout refuses those otherwise; H210-04).
+          ownerKept: v.optional(v.boolean()),
         }),
       ),
     ),
@@ -421,6 +424,13 @@ export default defineSchema({
     // an underused window. When unset the recommender uses its rule-based
     // default (15% / 20%).
     defaultRateCutPct: v.optional(v.number()),
+    // "Suggest quiet-hour deals": the weekly sweep drafts promos for
+    // underused windows only when this is on. Off when absent.
+    quietHourDeals: v.optional(v.boolean()),
+    // Plan gates (truth-plan-gates): a studio below Growth that was already
+    // using the AI receptionist or visitor check-in keeps it until this
+    // date. Absent means no notice date has been set yet (keeps working).
+    planGraceUntil: v.optional(v.number()),
     // Marketing: which GHL location this org publishes through. Absent means
     // the platform default (GHL_LOCATION_ID + GHL_API_KEY). tokenRef names an
     // env var; the token itself is never stored in the database.
@@ -875,6 +885,9 @@ export default defineSchema({
     decidedBy: v.optional(v.string()),
     decidedAt: v.optional(v.number()),
     executedAt: v.optional(v.number()),
+    // Set by the one executeApproval call that claimed this row, so a
+    // second call never sends the same message again.
+    executingAt: v.optional(v.number()),
     result: v.optional(v.string()),
     createdAt: v.number(),
   })
@@ -1144,6 +1157,15 @@ export default defineSchema({
     // be forgotten). Identifying fields are anonymized; financial/operational
     // records are retained under the accounting legitimate-interest basis.
     erasedAt: v.optional(v.number()),
+    // When the current email and phone went on file (lib/agentAutoSend.ts).
+    // The assistant only sends alone to a contact on file before the
+    // conversation it read began. Missing or stale means "not proven".
+    contactOnFile: v.optional(v.object({
+      email: v.optional(v.string()),
+      emailAt: v.optional(v.number()),
+      phone: v.optional(v.string()),
+      phoneAt: v.optional(v.number()),
+    })),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -1611,6 +1633,10 @@ export default defineSchema({
     // auto-archived rows ("expired_hold" | "auto_completed" | "auto_no_show")
     // from staff-set statuses.
     autoResolved: v.optional(v.string()),
+    // The email and phone a public booking was made with (normalized). When
+    // the session completes, the client's matching contact goes on file for
+    // the assistant (lib/agentAutoSend.ts stampBookedContactOnCompletion).
+    bookedContact: v.optional(v.object({ email: v.optional(v.string()), phone: v.optional(v.string()) })),
     // Comped / discounted session cost tracking. `compType` marks the session;
     // `listValueCents` is what it would normally bill (so foregone revenue =
     // listValue - rateCents); `compReason` is why. Absent = a normal booking.
@@ -3380,6 +3406,11 @@ export default defineSchema({
     redemptions: v.number(),
     source: v.union(v.literal("owner"), v.literal("rate_cut")),
     active: v.boolean(),
+    // A sweep suggestion created switched off, waiting for a person to
+    // approve it (its draft post, or Approve on the Promos screen).
+    awaitingApproval: v.optional(v.boolean()),
+    approvedBy: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
     createdBy: v.string(),
     createdAt: v.number(),
   })

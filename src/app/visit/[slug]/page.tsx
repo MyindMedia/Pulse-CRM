@@ -38,6 +38,7 @@ export default function VisitPage() {
   const slug = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
   const studio = useQuery(api.orgs.getBySlug, slug ? { slug } : "skip");
   const register = useMutation(api.visitors.register);
+  const available = useQuery(api.visitors.checkInAvailable, slug ? { slug } : "skip");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -132,6 +133,11 @@ export default function VisitPage() {
         {studio === null ? (
           <div className="rounded-lg border border-graphite/50 bg-coal p-8 text-center">
             <p className="font-grotesk text-lg font-semibold">This check-in link isn&apos;t active</p>
+            <p className="mt-2 text-sm text-steel/70">Ask the front desk for help signing in.</p>
+          </div>
+        ) : available === false ? (
+          <div className="rounded-lg border border-graphite/50 bg-coal p-8 text-center">
+            <p className="font-grotesk text-lg font-semibold">Check-in is not available</p>
             <p className="mt-2 text-sm text-steel/70">Ask the front desk for help signing in.</p>
           </div>
         ) : done ? (

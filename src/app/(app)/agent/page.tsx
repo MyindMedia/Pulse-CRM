@@ -367,8 +367,7 @@ function AgentSettings() {
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="suggest">Suggest only</SelectItem>
-              <SelectItem value="auto_low">Auto low-risk</SelectItem>
-              <SelectItem value="auto_trusted">Auto trusted</SelectItem>
+              <SelectItem value="auto_trusted">Plain reminders go out alone</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -376,7 +375,7 @@ function AgentSettings() {
           <span className="text-steel">Daily brief</span>
           <Switch checked={policy.digestEnabled} onCheckedChange={(v) => set({ digestEnabled: v })} aria-label="Toggle daily brief" />
         </div>
-        <p className="text-[0.6875rem] text-steel/70">Approval-first: client, money, file, and automation actions always wait for your approval unless you raise autonomy.</p>
+        <p className="text-[0.6875rem] text-steel/70">Approval-first: everything waits for your approval. With &ldquo;Plain reminders go out alone&rdquo; (Max), a session, balance or files-ready reminder to one of your own clients is sent without approval; texts never go to a number that replied STOP.</p>
       </CardContent>
     </Card>
   );

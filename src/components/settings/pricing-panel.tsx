@@ -428,7 +428,10 @@ function DiscountCodesCard({ org }: { org: Org }) {
     setSaving(true);
     try {
       // Skip empty codes.
-      const clean = codes.filter((c) => c.code.trim());
+      // refusedAtCheckout is computed by the server; never send it back.
+      const clean = codes
+        .filter((c) => c.code.trim())
+        .map(({ code, pct, label, active, ownerKept }) => ({ code, pct, label, active, ...(ownerKept ? { ownerKept } : {}) }));
       await setCodes({ codes: clean });
       const pct = parseFloat(defaultPct);
       if (Number.isFinite(pct) && pct > 0) {
@@ -537,6 +540,21 @@ function DiscountCodesCard({ org }: { org: Org }) {
                   >
                     <Trash2 className="size-3.5" />
                   </IconButton>
+                  {c.refusedAtCheckout && !c.ownerKept && (
+                    <div className="col-span-full flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-steel">
+                      <span>
+                        Checkout does not accept this code: Pulse&apos;s old weekly promo job made it without anyone approving it.
+                      </span>
+                      <Button variant="outline" size="sm" onClick={() => update(i, { ownerKept: true })}>
+                        Accept it again
+                      </Button>
+                    </div>
+                  )}
+                  {c.refusedAtCheckout && c.ownerKept && (
+                    <p className="col-span-full px-1 text-xs text-steel">
+                      Checkout will accept this code again once you save.
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

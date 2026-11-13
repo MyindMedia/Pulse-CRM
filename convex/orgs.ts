@@ -1,7 +1,8 @@
 import { fileRefV } from "./lib/fileRef";
+import { isSweepMadeLegacyCode } from "./lib/rateCutCodes";
 import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
-import { mutation, internalMutation } from "./functions";
+import { mutation } from "./functions";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -19,6 +20,7 @@ import {
 } from "./lib/entitlements";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
 import { royaltiesSwitchOn } from "./lib/royaltiesGate";
+import { requireFeature } from "./lib/entitlements";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
  * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
@@ -30,6 +32,31 @@ export const listActiveOrgIds = internalQuery({
     return orgs
       .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo")
       .map((o) => o.orgId);
+  },
+});
+
+/** Studios the weekly quiet-hour sweep runs for: active, and the studio
+ *  turned "Suggest quiet-hour deals" on (truth-discount-codes, decision 3). */
+export const listQuietHourDealOrgIds = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("orgs").collect();
+    return orgs
+      .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo" && o.quietHourDeals === true)
+      .map((o) => o.orgId);
+  },
+});
+
+/** "Suggest quiet-hour deals": lets the weekly sweep draft a promo for an
+ *  underused room window. A suggestion never works at checkout until a
+ *  person approves it. Off unless the studio turns it on. */
+export const setQuietHourDeals = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrgWithCapability(ctx, "marketing.approve");
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { quietHourDeals: enabled });
   },
 });
 
@@ -127,10 +154,16 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     poweredByPulse: POWERED_BY_PULSE_REQUIRED,
     // Pricing / discount / tax config (cycle: Pricing settings)
     servicePricing: org?.servicePricing ?? null,
-    discountCodes: org?.discountCodes ?? [],
+    // Each code says whether checkout really accepts it, so Settings never
+    // shows a code as on while checkout refuses it (H210-04).
+    discountCodes: (org?.discountCodes ?? []).map((c) => ({
+      ...c,
+      refusedAtCheckout: isSweepMadeLegacyCode(c) && c.ownerKept !== true,
+    })),
     // Booking-page social proof the studio curates.
     testimonials: org?.testimonials ?? [],
     defaultRateCutPct: org?.defaultRateCutPct ?? null,
+    quietHourDeals: org?.quietHourDeals === true,
     taxState: org?.taxState ?? null,
     taxRate: org?.taxRate ?? null,
     taxApply: org?.taxApply ?? false,
@@ -165,7 +198,11 @@ export const current = query({
   },
 });
 
-/** Public - resolve a studio by its slug for the /book/<slug> page. */
+/** Public - resolve a studio by its slug for its public pages (the visitor
+ *  check-in at /visit/<slug>). Anyone can call it, so it returns branding
+ *  only: never discount codes, prices, tax, billing, plan or the owner's
+ *  contact details (H210-02). Codes are checked one at a time on the server
+ *  (booking.validateCode), never listed. */
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {
@@ -174,7 +211,14 @@ export const getBySlug = query({
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
     if (!org) return null;
-    return brandOf(ctx, org, org.orgId);
+    return {
+      name: org.name,
+      slug: org.slug,
+      accentColor: org.accentColor ?? "#fdb913",
+      brandSecondary: brandSecondaryOf(org),
+      tagline: org.tagline ?? "Your music business runs itself.",
+      logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
+    };
   },
 });
 
@@ -353,6 +397,7 @@ export const setDiscountCodes = mutation({
         pct: v.number(),
         label: v.optional(v.string()),
         active: v.boolean(),
+        ownerKept: v.optional(v.boolean()),
       }),
     ),
   },
@@ -398,24 +443,6 @@ export const setTestimonials = mutation({
       // A testimonial with no author or no quote is not proof of anything.
       .filter((t) => t.author.length > 0 && t.quote.length > 0);
     await ctx.db.patch(org._id, { testimonials: clean });
-  },
-});
-
-/** Internal: register (or refresh) a single discount code on an org, so a code
- *  the AI rate-cut recommender generates and emails to clients is actually
- *  redeemable at checkout. Idempotent: upserts by normalized code. */
-export const ensureDiscountCode = internalMutation({
-  args: { orgId: v.string(), code: v.string(), pct: v.number(), label: v.optional(v.string()) },
-  handler: async (ctx, { orgId, code, pct, label }) => {
-    const normalized = code.trim().toUpperCase();
-    if (!normalized) return;
-    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-    if (!org) return;
-    const clampedPct = Math.max(1, Math.min(90, Math.round(pct)));
-    const existing = org.discountCodes ?? [];
-    const rest = existing.filter((c) => c.code.trim().toUpperCase() !== normalized);
-    rest.push({ code: normalized, pct: clampedPct, label, active: true });
-    await ctx.db.patch(org._id, { discountCodes: rest });
   },
 });
 
@@ -466,6 +493,9 @@ export const setAiReceptionist = mutation({
   args: { enabled: v.boolean() },
   handler: async (ctx, { enabled }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    // Turning it ON needs the plan (Growth) and the operator's module switch.
+    // Turning it off is always allowed.
+    if (enabled) await requireFeature(ctx, orgId, "aiReceptionist");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { aiReceptionistEnabled: enabled });

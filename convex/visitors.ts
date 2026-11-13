@@ -2,16 +2,17 @@ import { query, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 import { sameEmail } from "./lib/emailKey";
+import { gatedFeatureOn, requireGatedFeature } from "./lib/planGates";
 
 /* ============================================================
    Visitors - the front-desk guest log.
    `register` is PUBLIC (the /visit/<slug> QR page): the org is
    derived from the slug, never from the caller, mirroring the
    public booking backend. Everything else requires a signed-in
-   studio viewer via currentOrg.
+   studio member with artists.read (no guest or portal viewer).
    Every visit also upserts the contact into `artists` (deduped
    by lowercased email) so walk-ins land in the Clients directory
    as leads - the outreach database - without a parallel CRM.
@@ -21,6 +22,19 @@ import { sameEmail } from "./lib/emailKey";
    ============================================================ */
 
 const HOURLY_CHECKIN_CAP = 60;
+
+const CHECKIN_UNAVAILABLE = "Check-in is not available for this studio. Ask the front desk for help.";
+
+/** PUBLIC - may the /visit/<slug> page offer check-in? Says only yes or no,
+ *  so the page can show a plain message instead of a form that will fail. */
+export const checkInAvailable = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first();
+    if (!org) return false;
+    return await gatedFeatureOn(ctx, org.orgId, "visitors");
+  },
+});
 
 // How far around "now" a booking counts as the visit the guest is arriving
 // for. Wide on the late side (a 9pm session's client can sign in at noon for
@@ -172,8 +186,16 @@ async function recordVisit(
   let artistId: Id<"artists">;
   if (existing) {
     artistId = existing._id;
+    // Fill a missing phone only: a public check-in must never replace the
+    // number a client already has on file (anyone can type any email here).
+    // A check-in never puts a contact on file for the assistant
+    // (lib/agentAutoSend.ts): the stamp is left as it was. An empty stamp
+    // object keeps a filled legacy row out of the legacy-contact report.
+    const nextPhone = existing.phone ?? phone;
+    const filled = nextPhone !== existing.phone;
     await ctx.db.patch(existing._id, {
-      phone: phone ?? existing.phone,
+      phone: nextPhone,
+      ...(filled && !existing.contactOnFile ? { contactOnFile: {} } : {}),
       lastContactAt: Date.now(),
       source: existing.source ?? "visitor_qr",
       ...(existing.tags.includes("Visitor") ? {} : { tags: [...existing.tags, "Visitor"] }),
@@ -185,6 +207,9 @@ async function recordVisit(
       type: "other",
       email,
       phone,
+      // Typed into a form (QR or keyed by the front desk from what the guest
+      // says): never on file for the assistant by itself.
+      contactOnFile: {},
       genres: [],
       tags: ["Visitor"],
       status: "lead",
@@ -253,6 +278,10 @@ export const register = mutation({
       .first();
     if (!org) throw new Error("This check-in link isn't active. Ask the front desk for help.");
     const orgId = org.orgId;
+    // Visitor check-in is a Growth feature (lib/planGates.ts).
+    if (!(await gatedFeatureOn(ctx, orgId, "visitors"))) {
+      throw new Error(CHECKIN_UNAVAILABLE);
+    }
 
     // Abuse guard: an unauthenticated endpoint that writes CRM rows needs a
     // ceiling. 60 check-ins/org/hour is far above any real lobby's traffic.
@@ -290,7 +319,8 @@ export const register = mutation({
 export const registerManual = mutation({
   args: registerFields,
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
+    await requireGatedFeature(ctx, orgId, "visitors");
     return recordVisit(ctx, orgId, args, "front_desk");
   },
 });
@@ -299,7 +329,8 @@ export const registerManual = mutation({
 export const checkOut = mutation({
   args: { id: v.id("visitors") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visit = await ctx.db.get(id);
     if (!visit || visit.orgId !== orgId) throw new Error("Not found");
     if (visit.checkOutAt) return; // already checked out - keep the first stamp
@@ -312,7 +343,8 @@ export const checkOut = mutation({
 export const list = query({
   args: { from: v.optional(v.number()), to: v.optional(v.number()) },
   handler: async (ctx, { from, to }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")
       .withIndex("by_org_checkin", (idx) => {
@@ -344,7 +376,8 @@ export const list = query({
 export const directory = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

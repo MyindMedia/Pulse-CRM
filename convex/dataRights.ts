@@ -53,6 +53,7 @@ export const exportArtist = query({
         type: artist.type,
         email: artist.email ?? null,
         phone: artist.phone ?? null,
+        contactOnFile: artist.contactOnFile ?? null,
         location: artist.location ?? null,
         instagram: artist.instagram ?? null,
         spotify: artist.spotify ?? null,
@@ -104,6 +105,8 @@ export const eraseArtist = mutation({
       spotify: undefined,
       notes: undefined,
       tags: [],
+      // The assistant's contact-on-file stamp holds the email and phone too.
+      contactOnFile: undefined,
       erasedAt: Date.now(),
     });
 
@@ -113,6 +116,8 @@ export const eraseArtist = mutation({
       await ctx.db.patch(s._id, {
         title: redactText(s.title, terms) ?? s.title,
         notes: redactText(s.notes, terms),
+        // The contact a public booking was made with.
+        bookedContact: undefined,
       });
       scrubbed++;
     }

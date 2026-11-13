@@ -704,6 +704,8 @@ export const booking = query({
     }
     return {
       ...session,
+      // Public page: the contact the booking was made with stays server-side.
+      bookedContact: undefined,
       ...people,
       pricingHidden: false as const,
       addOns: session.addOns ?? [],
@@ -976,8 +978,17 @@ export const createBooking = mutation({
       // artist has none yet and the ref is not the artist referring themselves.
       const setReferrer =
         !existing.referredByArtistId && referredByArtistId && referredByArtistId !== existing._id;
+      // Fill a missing phone only: the public form must never replace the
+      // number a client already has on file (anyone can type any email).
+      // A phone filled in here is NOT on file for the assistant: a public
+      // form never stamps (lib/agentAutoSend.ts). It goes on file only if
+      // this booking completes. An empty stamp object keeps a filled legacy
+      // row out of the owner's legacy-contact report.
+      const nextPhone = existing.phone ?? args.clientPhone;
+      const filled = nextPhone !== existing.phone;
       await ctx.db.patch(existing._id, {
-        phone: args.clientPhone ?? existing.phone,
+        phone: nextPhone,
+        ...(filled && !existing.contactOnFile ? { contactOnFile: {} } : {}),
         ...(dealsConsent && !existing.dealsOptInAt ? dealsConsent : {}),
         lastContactAt: Date.now(),
         source: existing.source ?? effectiveSource,
@@ -990,6 +1001,8 @@ export const createBooking = mutation({
         type: "artist",
         email: normalizeEmail(args.clientEmail),
         phone: args.clientPhone,
+        // Typed into a public form: not on file until a booking completes.
+        contactOnFile: {},
         genres: [],
         tags: ["Booked online"],
         status: "lead",
@@ -1078,6 +1091,10 @@ export const createBooking = mutation({
       amountPaidCents: 0,
       ...(serviceAddOns.length ? { serviceAddOns } : {}),
       source: "public_booking",
+      bookedContact: {
+        ...(normalizeEmail(args.clientEmail) ? { email: normalizeEmail(args.clientEmail) } : {}),
+        ...(args.clientPhone && normalizePhone(args.clientPhone) ? { phone: normalizePhone(args.clientPhone)! } : {}),
+      },
       // A request holds the slot until an owner or manager decides, so it
       // never gets the 60-minute payment window (automation.tick step 3).
       ...(asRequest

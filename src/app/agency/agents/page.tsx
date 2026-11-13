@@ -76,12 +76,11 @@ export default function AgencyAgentsPage() {
                     <Badge tone="caution"><Inbox className="size-3" />{s.pendingApprovals} pending</Badge>
                   )}
 
-                  <Select value={s.autonomy} onValueChange={(v) => setAutonomy({ orgId: s.orgId, autonomy: v as never }).catch(() => toast.error("Failed"))}>
+                  <Select value={s.autonomy} onValueChange={(v) => setAutonomy({ orgId: s.orgId, autonomy: v as never }).catch((e) => toast.error(e?.data ?? "Failed"))}>
                     <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="suggest">Suggest only</SelectItem>
-                      <SelectItem value="auto_low">Auto low-risk</SelectItem>
-                      <SelectItem value="auto_trusted">Auto trusted</SelectItem>
+                      <SelectItem value="auto_trusted" disabled>Reminders alone (owner sets)</SelectItem>
                     </SelectContent>
                   </Select>
 

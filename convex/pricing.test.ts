@@ -77,12 +77,14 @@ describe("the feature list", () => {
     expect(FEATURE_GROUPS[14].title).toBe("Production, media and gear check-out");
   });
 
-  it("totals Core 82 / Growth 50 / Max 26 over the 158 listed features", () => {
+  it("totals Core 83 / Growth 49 / Max 26 over the 158 listed features", () => {
     const totals = tierTotals(EXISTING_GROUPS);
     // Actual computed totals, asserted exactly. Step-by-step setup moved from
     // the Max multi-studio group to Core (every studio gets the /welcome
     // wizard), and "Switch off parts of the app you do not use" is a new Core row.
-    expect(totals).toEqual({ core: 82, growth: 50, max: 26 });
+    // "Download your numbers" moved from Growth to Core: exports are open on
+    // every plan on purpose (truth-plan-gates, decision 1a).
+    expect(totals).toEqual({ core: 83, growth: 49, max: 26 });
     expect(totals.core + totals.growth + totals.max).toBe(158);
   });
 

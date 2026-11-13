@@ -488,6 +488,8 @@ export const _findOrCreateArtistForSub = internalMutation({
       name: name.trim() || email,
       type: "artist",
       email: normalizeEmail(email),
+      // Typed into the public sign-up: never on file for the assistant by itself.
+      contactOnFile: {},
       genres: [],
       tags: [],
       status: "lead",
