@@ -122,6 +122,33 @@ function strayFields(eventId: string, stripeAccountId: string, obj: Record<strin
   };
 }
 
+/** A Checkout paid after its booking or invoice row was deleted (for example
+ *  a studio deleted a duplicate invoice while the client had it open). The
+ *  money is on a studio's connected account, so it is never dropped: when the
+ *  account belongs to exactly one studio, it is recorded for that studio to
+ *  review (no automatic refund). Returns false when no studio owns the
+ *  account, so the caller keeps the account_mismatch path. */
+async function recordDeletedTargetPayment(
+  ctx: MutationCtx,
+  event: { id: string; account?: string },
+  obj: Record<string, unknown>,
+  what: "booking" | "invoice",
+): Promise<boolean> {
+  if (!event.account) return false;
+  const orgs = await ctx.db
+    .query("orgs")
+    .withIndex("by_stripe_account", (q) => q.eq("stripeAccountId", event.account))
+    .take(2);
+  if (orgs.length !== 1) return false;
+  await recordStrayPayment(ctx, {
+    orgId: orgs[0].orgId,
+    reason: "unmatched",
+    ...strayFields(event.id, event.account, obj),
+    note: `the ${what} it paid for was deleted in Pulse`,
+  });
+  return true;
+}
+
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
   if (!stripeAccountId) return false;
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
@@ -167,6 +194,10 @@ export const handle = internalMutation({
       if (meta.sessionId) {
         const sessionId = ctx.db.normalizeId("sessions", meta.sessionId);
         const session = sessionId ? await ctx.db.get(sessionId) : null;
+        if (sessionId && !session && await recordDeletedTargetPayment(ctx, event, obj, "booking")) {
+          await markProcessed(ctx, event.id, `${e.type}.deleted_booking`);
+          return { ok: true };
+        }
         if (!session || !await connectedAccountOwnsOrg(ctx, event.account, session.orgId)) {
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };
@@ -244,6 +275,10 @@ export const handle = internalMutation({
       if (meta.invoiceId) {
         const invoiceId = ctx.db.normalizeId("invoices", meta.invoiceId);
         const invoice = invoiceId ? await ctx.db.get(invoiceId) : null;
+        if (invoiceId && !invoice && await recordDeletedTargetPayment(ctx, event, obj, "invoice")) {
+          await markProcessed(ctx, event.id, `${e.type}.deleted_invoice`);
+          return { ok: true };
+        }
         if (!invoice || !await connectedAccountOwnsOrg(ctx, event.account, invoice.orgId)) {
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };

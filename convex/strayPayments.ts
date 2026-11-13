@@ -127,7 +127,8 @@ async function describe(
       slug: null,
     };
   }
-  const s = row.sessionId ? await ctx.db.get(row.sessionId) : null;
+  if (!row.sessionId) return { label: "a Stripe Checkout", closed: "was deleted", artistId: null, slug: null };
+  const s = await ctx.db.get(row.sessionId);
   const org = s ? await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", s.orgId)).first() : null;
   return { label: `"${s?.title ?? "a booking"}"`, closed: "was released", artistId: s?.artistId ?? null, slug: org?.slug ?? null };
 }

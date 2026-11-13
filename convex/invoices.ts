@@ -367,6 +367,12 @@ export const remove = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) throw new Error("Not found");
+    // A sent invoice may have a pay link open in the client's browser.
+    // Deleting it would leave a payment with nothing to land on: void it
+    // instead, so a late payment is refunded (truth-void-invoice-payable).
+    if (inv.status === "sent" || inv.status === "viewed" || inv.status === "overdue") {
+      throw new Error("This invoice was sent to the client. Void it instead of deleting it.");
+    }
     await ctx.db.delete(id);
   },
 });
