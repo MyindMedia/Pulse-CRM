@@ -80,3 +80,17 @@ Owner decisions for round 2 (take these as given):
 - **#208:** editing or removing time entries needs the payroll permission, not the schedule one, and nobody edits their own hours. A posted period can be posted again for hours added later without double counting what was already posted.
 - **#209:** only the owner can change a contributor's email or share once anyone has signed, and doing so clears that contributor's signature so the sheet is no longer "signed by everyone".
 - **#210:** the assistant may send without approval only to a client who already exists in the studio's client list with that exact address or number on file before the conversation began. The public booking page never returns discount codes.
+
+## Round 3: closing what round 2 left open (added 2026-11-12)
+
+The re-review found 41 of 50 round 1 findings fixed and 31 items open (`docs/feature-truth/HIGH-RISK-REREVIEW-2026-11-12.md` and `high-risk-rereview-2026-11-12.json` on `chore/feature-truth-audit`; ids `H<pr>-R2-<nn>`, entries whose `pr` is yours). A "round 3" agent for a pull request does exactly what the Round 2 section says, with these differences:
+
+- Work only from the round 2 re-review list for your pull request. Fix every item, majors first. This is the last patch round: if an item cannot be fixed with a small, local change, do not redesign anything. Leave it, and say so at the top of the pull request with what a proper fix would need.
+- For each fix, also add the test the re-review asks for, and check the neighboring paths for the same mistake before you push.
+- **#207 (prepaid hours) is on hold and gets no round 3.** Do not touch that branch.
+
+Owner decisions for round 3 (take these as given):
+- **#205:** a charge on the saved card counts as ours only when the invoice's auto-charge reference matches AND its status is succeeded or charging. A payment that arrives for a fee invoice already paid another way, or voided, always raises a "check this charge" alert for staff. When the client has paid enough since the no-show, the draft fee invoice is voided or reduced to what is still owed, and nobody is told to send it.
+- **#206:** a booking with a short payment is never forfeited automatically. Staff are alerted to the shortfall and decide.
+- **#209:** once anyone has signed, only the owner can clear signatures or unmark the sheet, as well as change an email or a share.
+- **#210:** a client's address or number counts as "on file" for the assistant only if staff entered it, or the client has a completed booking made with it. Something typed into a public form never counts by itself, however old it is. Erasing a client also erases the new contact-on-file data.
