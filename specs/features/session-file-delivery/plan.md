@@ -386,3 +386,63 @@ Round 4 left three places where the words do not match the situation. All three 
 | P4-01 | Team card (`deliveryCardView`) | With cards off and a correct open invoice: "Invoice X is open for $180.00, but $180.00 is owed." With hidden prices and an open invoice: "Send an invoice". | For money-sighted callers, decide by `openInvoice` first, then by reason: `openInvoice` present and `openInvoice.cents === balanceCents` -> `Invoice <number> for <amount> is open. The files unlock when it is paid.`; `openInvoice` present and amounts differ -> the existing "Void or correct it" line; no `openInvoice` -> the existing line for the reason. Callers without money sight: unchanged. Tests for each. |
 | P4-02 | Client page | Locked with no Pay button always says the studio "will send you a way to pay". | `page` adds `invoiceOpen: boolean` (an open invoice exists on the booking; no number, no amount). Lock copy with no `payUrl`: `invoiceOpen` true -> `Pay with the invoice <Studio> sent you. Your files unlock here as soon as it is paid.`; false -> unchanged. Tests in `lock-copy.test.ts` and a convex test for the field. |
 | P4-03 | Pay email with no target | Always says "<Studio> will send you a way to pay it." | When an open invoice exists at the time the email is built: `Pay it with the invoice <Studio> sent you. Once it is paid, your download link arrives right away.` Otherwise unchanged. Template test for both. |
+
+---
+
+## Addendum 5: round 5, the last fix round (2026-11-13, from the round 4 review)
+
+Round 4 review: 0 critical, 2 major, 2 minor. Payment math still identical to `develop`; still no Pay button whose charge differs from the amount shown. Both majors came from Addendum 4 part 3 (my rule, not the builders'): it told the client to "pay with the invoice the studio sent you" whenever any invoice was open, even one for a different amount, or one of two. That is the same class as every earlier round: **a surface pointing the client at a payment whose amount is not the amount shown.** This round removes the class instead of narrowing it again.
+
+### The rule
+1. **Client surfaces (download page, pay email) point at a payment in exactly one case: the exact-match Pay button that already exists.** In every other case they name no invoice, no link and no method. One neutral sentence, always true.
+2. **The team card states facts, not a guess:** which invoices are open and for how much, and what is owed. Advice is given only where it cannot create a second payable record.
+3. Addendum 4 part 3 (P4-02, P4-03) is withdrawn: remove `page.invoiceOpen`, the `invoiceOpen` template argument and their copy. P4-01 is replaced by the card table below.
+
+### Interface changes
+```ts
+// convex/sessionDelivery.ts
+page:   remove invoiceOpen
+        add    nothingOwed: boolean      // locked and nothing is owed (the delivery just has not released); reveals no amount; false when unlocked
+status: remove openInvoice
+        add    payFacts: {               // null for callers without money sight
+                 openInvoices: Array<{ number: string; cents: number }>;  // status sent, viewed or overdue; oldest first; at most 5
+                 openInvoiceCount: number;                                 // the real count, may exceed 5
+                 draftInvoices: number;                                    // count of draft invoices on the booking
+                 pricesHidden: boolean;
+                 cardsOn: boolean;
+               } | null
+        keep   onlinePay, onlinePayReason (reason values unchanged; the card no longer reads the reason)
+```
+`decidePayTarget` and every amount are NOT changed in this round.
+
+### Copy, every situation (tests pin every cell; `<amt>` always two decimals)
+Client page, locked:
+| Situation | Heading | Line | Button |
+|---|---|---|---|
+| exact-match target | `Pay <owed> to unlock your files` | `Downloads open on this page as soon as the payment goes through.` | Pay and unlock |
+| no target, amount visible | `There is a <owed> balance on this booking` | `<Studio> will be in touch about payment. Your files unlock here as soon as the balance is paid.` | none |
+| no target, prices hidden | `Your files are ready once the balance is paid` | same line as above | none |
+| `nothingOwed` (any prices setting) | `Payment received` | `<Studio> is sending your files. This page unlocks as soon as they do.` | none, and no "Balance due" pill |
+
+Pay email with no target (replaces every other no-target wording): `Your <title> session from <date> is finished and waiting. There is a <owed> balance on this booking. <Studio> will be in touch about payment. Once it is paid, your download link arrives right away.` With hidden prices: `There is a balance on this booking.` in place of the amount sentence. With a target the email is unchanged.
+
+Team card, waiting state, caller sees money, something is owed, `onlinePay` is `none` (first matching row wins):
+| # | Facts | Line |
+|---|---|---|
+| 1 | exactly one open invoice and its amount equals what is owed | `Invoice <number> for <amt> is open. The files unlock when it is paid.` |
+| 2 | one or more open invoices otherwise (wrong amount, or more than one) | `Open invoices: <number> (<amt>), <number> (<amt>). <owed> is owed. Leave one open invoice for exactly that amount so the files unlock when it is paid.` With more than 5 open, list 5 and add ` and <k> more` before the period of the first sentence. |
+| 3 | no open invoice, at least one draft | `A balance invoice is drafted but not sent. Send it so <first name> can pay.` |
+| 4 | no open or draft invoice, prices hidden | `Prices are hidden on this booking. Send <first name> an invoice to collect the balance.` |
+| 5 | none of the above | `There is no online pay link for this balance. Send <first name> an invoice for it.` |
+When `onlinePay` is `invoice` or `checkout`: no extra line. Callers without money sight: only `A balance is still owed.`, never a number, an amount or an invoice count.
+Nothing owed while waiting: with a client email, `Nothing is owed now. Tap Resend to send the files.`; with no email on file, `Nothing is owed now, but there is no email on file. Add one for <first name>, then tap Resend.`
+
+### Fix list
+| ID | From | Side | Fix |
+|---|---|---|---|
+| R5-01 | R4x-01, R4x-02, R4x-04 | backend | `page`: remove `invoiceOpen`, add `nothingOwed`. `status`: remove `openInvoice`, add `payFacts` (money sight only). Pay email no-target copy as above; remove the `invoiceOpen` argument. Tests: the wrong-amount, two-invoice, duplicate-invoice, cards-off-with-draft and hidden-prices situations each assert the page shape, the email text, and that no client surface contains the words `invoice` or `sent you` unless a target exists. |
+| R5-02 | R4x-01, R4x-02, R4x-04 | frontend | `lock-copy.ts` per the page table (driven by `payUrl`, `balanceCents`, `nothingOwed`). `deliveryCardView` per the card table (driven by `payFacts`, not by the reason). One table-driven test per table covering every row, plus: two open invoices of $500 each with $500 owed gives row 2 and names both; 7 open invoices lists 5 and `and 2 more`; no money sight gives only the balance line with no digit followed by `.00`, no `$`, no invoice number. |
+| R5-03 | R4x-03 | both | `nothingOwed` works for hidden prices too (page says `Payment received`). Card nothing-owed line names the missing email. |
+| R5-04 | R4x-05 | backend | `greetingName`: the whole name when it contains a comma; strip leading and trailing non-letter characters from the first word before matching the stop list and before returning it (`Lil' Kim` -> whole name; `Jordan, Ellis`-style names -> whole name). Tests: "Tyler, The Creator", "Ellis, Jordan", "Lil' Kim" -> whole name; "Jordan Ellis" -> "Jordan". |
+
+This is round 5 of 5. Whatever the final verification finds after it is reported to Lawrence as is, not patched again without him.
