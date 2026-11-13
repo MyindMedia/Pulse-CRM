@@ -156,9 +156,36 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       }
     }
 
+    // A request from a link without prices is billed by the studio itself:
+    // Pulse has no working pay link for it (booking.payViaStripe refuses it)
+    // and never cancels it for non-payment. The team, not the client, gets one
+    // heads-up at the reminder time so the studio still chases its money.
+    const studioBilled = s.pricingHidden === true;
+    if (
+      studioBilled &&
+      s.status === "confirmed" &&
+      !fullyPaid &&
+      !s.balanceRemindedAt &&
+      s.startTime - now <= 4 * HOUR &&
+      s.startTime - now > 0
+    ) {
+      await ctx.db.patch(s._id, { balanceRemindedAt: now });
+      const hoursOut = Math.max(1, Math.round((s.startTime - now) / HOUR));
+      await notifyTeam(ctx, {
+        orgId: s.orgId,
+        subject: `Studio-billed session in ${hoursOut} hour${hoursOut === 1 ? "" : "s"} - ${s.title}`,
+        body: `"${s.title}" was booked through a link without prices, so the studio bills the client directly. No payment in full is recorded in Pulse yet. Pulse has not messaged the client and will not cancel the booking.`,
+        kind: "booking.studio_billed_unpaid",
+        sessionId: s._id,
+      });
+      out.remindersSent++;
+    }
+
     // 2. Balance reminder - confirmed, not fully paid, 2-4h out, once.
     //    Applies to public AND internal bookings; includes the pay link.
+    //    Never for a studio-billed booking (above).
     if (
+      !studioBilled &&
       s.status === "confirmed" &&
       !fullyPaid &&
       !s.balanceRemindedAt &&
@@ -357,7 +384,12 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
 
     // 4. Forfeit - confirmed but not paid in full inside the 2h window.
+    //    Never a studio-billed booking, and never a booking whose Stripe
+    //    payment arrived short (the client paid what their Checkout showed):
+    //    the studio decides, not Pulse.
     if (
+      !studioBilled &&
+      !s.shortPaidAt &&
       s.status === "confirmed" &&
       !fullyPaid &&
       now >= s.startTime - 2 * HOUR &&

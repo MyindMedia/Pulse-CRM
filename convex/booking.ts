@@ -11,7 +11,7 @@ import {
 } from "./lib/roomBusy";
 import { announceRequest } from "./bookingRequests";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
-import { mutation } from "./functions";
+import { mutation, internalMutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
 import { fireRules } from "./agentRules";
 import { Doc, Id } from "./_generated/dataModel";
@@ -704,6 +704,8 @@ export const booking = query({
     }
     return {
       ...session,
+      // Staff-facing marker (H206-R2-01); the public page does not need it.
+      shortPaidAt: undefined,
       ...people,
       pricingHidden: false as const,
       addOns: session.addOns ?? [],
@@ -1349,7 +1351,32 @@ export const _chargeContext = internalQuery({
       // A request from a link without prices is billed by the studio
       // directly; the public page never opens a checkout for it.
       pricingHidden: session.pricingHidden === true,
+      status: session.status,
+      holdExpiresAt: session.holdExpiresAt ?? null,
     };
+  },
+});
+
+/** Stripe Checkout must stay open at least 30 minutes. A client who starts
+ *  paying with less than that left on the hold gets the hold extended to
+ *  cover it (they are actively paying). Only an unexpired tentative hold is
+ *  ever extended, never shortened, and never past the original hold plus one
+ *  Checkout window, so re-opening Checkout cannot keep a slot held forever.
+ *  Returns the hold's end, "gone" when the hold is gone (released, expired or
+ *  confirmed), or "too_short" when too little hold is left to pay in. */
+export const CHECKOUT_MIN_MS = 31 * 60 * 1000;
+const STRIPE_MIN_EXPIRY_MS = 30 * 60 * 1000 + 30_000;
+export const _extendHoldForCheckout = internalMutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }): Promise<number | "gone" | "too_short"> => {
+    const s = await ctx.db.get(sessionId);
+    const now = Date.now();
+    if (!s || s.status !== "tentative" || !s.holdExpiresAt || s.holdExpiresAt <= now) return "gone";
+    const cap = s._creationTime + HOLD_MINUTES * 60_000 + CHECKOUT_MIN_MS;
+    const until = Math.max(s.holdExpiresAt, Math.min(now + CHECKOUT_MIN_MS, cap));
+    if (until - now < STRIPE_MIN_EXPIRY_MS) return "too_short";
+    if (until !== s.holdExpiresAt) await ctx.db.patch(sessionId, { holdExpiresAt: until });
+    return until;
   },
 });
 
@@ -1362,6 +1389,8 @@ export const payViaStripe = action({
     const c = await ctx.runQuery(internal.booking._chargeContext, { sessionId });
     if (!c) throw new ConvexError("Booking not found.");
     if (c.pricingHidden) throw new ConvexError("The studio will follow up about payment for this booking.");
+    // A released booking can never be paid (the page says so too).
+    if (c.status === "cancelled") throw new ConvexError("This booking was released and can no longer be paid.");
     // No connected Stripe (or platform Stripe unconfigured) → caller falls back
     // to the simulated path.
     if (!c.configured || !c.stripeAccountId || !c.chargesEnabled) return { url: null };
@@ -1369,11 +1398,22 @@ export const payViaStripe = action({
     const amount = kind === "deposit" ? Math.min(c.depositCents, c.balanceCents) : c.balanceCents;
     if (amount <= 0) return { url: null };
 
+    // A held booking's Checkout closes when the hold does, so a client cannot
+    // pay after the slot was released. Stripe's default is 24 hours.
+    let expiresAt: number | undefined;
+    if (c.status === "tentative" && c.holdExpiresAt !== null) {
+      const until = await ctx.runMutation(internal.booking._extendHoldForCheckout, { sessionId });
+      if (until === "gone") throw new ConvexError("This hold expired. Start a new booking from the studio front.");
+      if (until === "too_short") throw new ConvexError("Your hold is about to expire, so it can no longer be paid. Start a new booking from the studio front.");
+      expiresAt = Math.floor(Math.min(until, Date.now() + 23 * 60 * 60 * 1000) / 1000);
+    }
+
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const back = `${appUrl}/book/${c.slug}/checkout/${sessionId}`;
     const checkout = await stripeClient().checkout.sessions.create(
       {
         mode: "payment",
+        ...(expiresAt ? { expires_at: expiresAt } : {}),
         line_items: [
           {
             price_data: {

@@ -165,15 +165,18 @@ export function InvoiceActions({
           </Button>
         )}
 
-        <Button
-          variant="danger"
-          className="w-full justify-start"
-          onClick={() => setConfirmDelete(true)}
-          disabled={busy !== null}
-        >
-          <Trash2 className="size-4" />
-          Delete invoice
-        </Button>
+        {/* A sent invoice is voided, not deleted; a void one is kept (invoices.remove). */}
+        {(status === "draft" || status === "paid") && (
+          <Button
+            variant="danger"
+            className="w-full justify-start"
+            onClick={() => setConfirmDelete(true)}
+            disabled={busy !== null}
+          >
+            <Trash2 className="size-4" />
+            Delete invoice
+          </Button>
+        )}
       </div>
 
       <RecordPaymentDialog

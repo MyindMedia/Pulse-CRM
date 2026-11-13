@@ -139,7 +139,8 @@ export default function CheckoutPage() {
       {released && (
         <div className="rounded-lg border border-critical/30 bg-critical/10 px-5 py-4 text-sm text-critical">
           This booking was released and can no longer be paid. Start a new booking
-          from the studio front.
+          from the studio front. If a payment went through after it was released,
+          it is refunded to your card in full and we email you when it is done.
         </div>
       )}
 

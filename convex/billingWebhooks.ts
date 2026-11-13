@@ -7,6 +7,9 @@ import { tierForPriceId } from "./lib/stripe";
 import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
+import { recordStrayPayment, applyRefundUpdate } from "./strayPayments";
+import { notifyTeam } from "./lib/notify";
+import { money } from "./lib/money";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
@@ -109,6 +112,44 @@ async function applyAgencySubscription(ctx: MutationCtx, ag: Doc<"agencies">, st
   if (ag.status === "paused" && ag.billingPausedOrgIds?.length) await unlockAgencyStudios(ctx, ag);
 }
 
+/** The Stripe facts a stray payment needs, read from a Checkout session. */
+function strayFields(eventId: string, stripeAccountId: string, obj: Record<string, unknown>) {
+  return {
+    eventId,
+    stripeAccountId,
+    paymentIntent: typeof obj.payment_intent === "string" && obj.payment_intent ? obj.payment_intent : undefined,
+    checkoutSessionId: typeof obj.id === "string" ? obj.id : undefined,
+    amountCents: typeof obj.amount_total === "number" ? obj.amount_total : 0,
+  };
+}
+
+/** A Checkout paid after its booking or invoice row was deleted (for example
+ *  a studio deleted a duplicate invoice while the client had it open). The
+ *  money is on a studio's connected account, so it is never dropped: when the
+ *  account belongs to exactly one studio, it is recorded for that studio to
+ *  review (no automatic refund). Returns false when no studio owns the
+ *  account, so the caller keeps the account_mismatch path. */
+async function recordDeletedTargetPayment(
+  ctx: MutationCtx,
+  event: { id: string; account?: string },
+  obj: Record<string, unknown>,
+  what: "booking" | "invoice",
+): Promise<boolean> {
+  if (!event.account) return false;
+  const orgs = await ctx.db
+    .query("orgs")
+    .withIndex("by_stripe_account", (q) => q.eq("stripeAccountId", event.account))
+    .take(2);
+  if (orgs.length !== 1) return false;
+  await recordStrayPayment(ctx, {
+    orgId: orgs[0].orgId,
+    reason: "unmatched",
+    ...strayFields(event.id, event.account, obj),
+    note: `the ${what} it paid for was deleted in Pulse`,
+  });
+  return true;
+}
+
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
   if (!stripeAccountId) return false;
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
@@ -147,6 +188,18 @@ export const handle = internalMutation({
       return { ok: true };
     }
 
+    // A refund Pulse started for a stray payment changed state at Stripe
+    // (an asynchronous refund settled or failed). Only acts on a refund whose
+    // metadata names a strayPayments row on this same connected account.
+    if (
+      (e.type === "refund.updated" || e.type === "refund.failed" || e.type === "charge.refund.updated") &&
+      obj.object === "refund"
+    ) {
+      const applied = await applyRefundUpdate(ctx, { account: event.account, refund: obj });
+      await markProcessed(ctx, event.id, applied ? e.type : `${e.type}.ignored`);
+      return { ok: true };
+    }
+
     if (e.type === "checkout.session.completed") {
       const meta = (obj.metadata as Record<string, string>) ?? {};
 
@@ -154,21 +207,77 @@ export const handle = internalMutation({
       if (meta.sessionId) {
         const sessionId = ctx.db.normalizeId("sessions", meta.sessionId);
         const session = sessionId ? await ctx.db.get(sessionId) : null;
+        if (sessionId && !session && await recordDeletedTargetPayment(ctx, event, obj, "booking")) {
+          await markProcessed(ctx, event.id, `${e.type}.deleted_booking`);
+          return { ok: true };
+        }
         if (!session || !await connectedAccountOwnsOrg(ctx, event.account, session.orgId)) {
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };
         }
         const kind = (meta.kind as "deposit" | "balance" | "full") ?? "deposit";
+        const stray = strayFields(event.id, event.account!, obj);
+        // The booking was released (hold expired, forfeited or declined)
+        // before the money landed: the client owes nothing, so refund it in
+        // full and tell them and the team. Decided at the moment the webhook
+        // runs, so a booking the studio re-opened by hand is not refunded.
+        if (session.status === "cancelled") {
+          await recordStrayPayment(ctx, { orgId: session.orgId, reason: "released_booking", sessionId: session._id, ...stray });
+          await markProcessed(ctx, event.id, `${e.type}.released`);
+          return { ok: true };
+        }
         try {
-          await settlePayment(ctx, {
+          const settled = await settlePayment(ctx, {
             sessionId: session._id,
             kind,
             provider: "stripe",
-            reference: (obj.payment_intent as string) ?? (obj.id as string),
+            reference: stray.paymentIntent ?? stray.checkoutSessionId,
+            // Record what Stripe actually took, never more (H206-02).
+            ...(typeof obj.amount_total === "number" ? { collectedCents: obj.amount_total } : {}),
           });
+          if (settled.shortCents > 0) {
+            // The Checkout was opened at an older, lower price. Only the money
+            // that arrived is recorded; the rest stays due and the team is told.
+            // The booking is never forfeited automatically for this: staff
+            // decide (owner decision, H206-R2-01).
+            await ctx.db.patch(session._id, { shortPaidAt: Date.now() });
+            await ctx.db.insert("activity", {
+              orgId: session.orgId,
+              kind: "payment.short",
+              summary: `${money(settled.amountCents)} paid on "${session.title}" - ${money(settled.shortCents)} less than owed, still due`,
+              entityType: "session",
+              entityId: session._id,
+              accent: "critical",
+            });
+            await notifyTeam(ctx, {
+              orgId: session.orgId,
+              subject: `Payment short - ${session.title} (${money(settled.shortCents)} still due)`,
+              body: `The client paid ${money(settled.amountCents)} on "${session.title}" through a Stripe Checkout opened before the price went up, so ${money(settled.shortCents)} of that payment is still owed. Pulse recorded only the ${money(settled.amountCents)} that arrived; ${money(settled.balance)} remains due on the booking. Pulse will not cancel or forfeit this booking automatically: you decide whether to collect the rest, waive it or release the booking.`,
+              kind: "payment.short",
+              sessionId: session._id,
+            });
+          }
+          // A Checkout opened before an earlier payment landed charges the
+          // old amount; Pulse applies only what was still owed. The rest is
+          // the client's money: flag it for the studio, never drop it.
+          const applied = settled.paidTotal - (session.amountPaidCents ?? 0);
+          if (stray.amountCents > applied) {
+            await recordStrayPayment(ctx, {
+              orgId: session.orgId,
+              reason: "unmatched",
+              sessionId: session._id,
+              ...stray,
+              amountCents: stray.amountCents - applied,
+              note: `the client paid ${money(stray.amountCents)} and only ${money(applied)} was still owed`,
+            });
+          }
         } catch (err) {
-          // Already-paid / released bookings settle to a no-op; don't 500 the webhook.
-          console.error("[webhook] settlePayment skipped:", (err as Error).message);
+          // Money came in that could not be applied (for example the booking
+          // is already paid in full): never drop it silently. The team is
+          // told to review it; nothing is refunded automatically.
+          const note = (err as Error).message;
+          console.error("[webhook] settlePayment skipped:", note);
+          await recordStrayPayment(ctx, { orgId: session.orgId, reason: "unmatched", sessionId: session._id, note, ...stray });
         }
         // Mark processed so a Stripe retry of this event can't double-record the
         // payment (settlePayment is not idempotent per-event).
@@ -203,9 +312,62 @@ export const handle = internalMutation({
       if (meta.invoiceId) {
         const invoiceId = ctx.db.normalizeId("invoices", meta.invoiceId);
         const invoice = invoiceId ? await ctx.db.get(invoiceId) : null;
+        if (invoiceId && !invoice && await recordDeletedTargetPayment(ctx, event, obj, "invoice")) {
+          await markProcessed(ctx, event.id, `${e.type}.deleted_invoice`);
+          return { ok: true };
+        }
         if (!invoice || !await connectedAccountOwnsOrg(ctx, event.account, invoice.orgId)) {
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };
+        }
+        const stray = strayFields(event.id, event.account!, obj);
+        // A cancelled (void) or unsent (draft) invoice is not owed: the money
+        // is refunded in full and the invoice keeps its status. A second
+        // payment on a paid invoice is flagged for the studio.
+        if (invoice.status === "void" || invoice.status === "draft") {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: invoice.status === "void" ? "void_invoice" : "draft_invoice",
+            invoiceId: invoice._id,
+            ...stray,
+          });
+          await markProcessed(ctx, event.id, `${e.type}.${invoice.status}_invoice`);
+          return { ok: true };
+        }
+        if (invoice.status === "paid") {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            note: `invoice ${invoice.number} was already paid`,
+          });
+          await markProcessed(ctx, event.id, e.type);
+          return { ok: true };
+        }
+        // Same rule as bookings: never record more than Stripe collected.
+        // An invoice is paid in one amount, so a short payment leaves it open
+        // and goes to the studio to review; an overpayment flags the extra.
+        if (typeof obj.amount_total === "number" && obj.amount_total < invoice.amountCents) {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            note: `the client paid ${money(stray.amountCents)} but invoice ${invoice.number} is for ${money(invoice.amountCents)}, so it was not marked paid`,
+          });
+          await markProcessed(ctx, event.id, `${e.type}.short`);
+          return { ok: true };
+        }
+        if (typeof obj.amount_total === "number" && obj.amount_total > invoice.amountCents) {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            amountCents: obj.amount_total - invoice.amountCents,
+            note: `the client paid ${money(stray.amountCents)} and invoice ${invoice.number} is for ${money(invoice.amountCents)}`,
+          });
         }
         try {
           await settleInvoice(ctx, invoice._id);

@@ -173,5 +173,9 @@ crons.daily("beta-ending-warnings", { hourUTC: 16, minuteUTC: 0 }, internal.beta
 // Reminders for people who started a trial and stopped at checkout
 // (signupLeads.ts). Sends nothing until TRIAL_NUDGES_LIVE=true.
 crons.interval("signup-lead-reminders", { minutes: 15 }, internal.signupLeads.sweep, {});
+// Refunds of stray payments (money on a released booking or a cancelled
+// invoice) still unconfirmed after 15 minutes: finish them from Stripe's
+// answer, or tell the team once. Never left silent (strayPayments.ts).
+crons.interval("stray-refunds-sweep", { minutes: 15 }, internal.strayPayments.sweepStuck, {});
 
 export default crons;

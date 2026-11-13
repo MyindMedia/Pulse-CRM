@@ -367,6 +367,18 @@ export const remove = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) throw new Error("Not found");
+    // A sent invoice may have a pay link open in the client's browser.
+    // Deleting it would leave a payment with nothing to land on: void it
+    // instead, so a late payment is refunded (truth-void-invoice-payable).
+    if (inv.status === "sent" || inv.status === "viewed" || inv.status === "overdue") {
+      throw new Error("This invoice was sent to the client. Void it instead of deleting it.");
+    }
+    // A void invoice stays too: a pay link opened before the void can still
+    // be paid, and only a void row that exists lets the webhook refund that
+    // payment and tell the client (H206-R2-04).
+    if (inv.status === "void") {
+      throw new Error("A void invoice is kept so a late payment on it is refunded automatically. It cannot be deleted.");
+    }
     await ctx.db.delete(id);
   },
 });

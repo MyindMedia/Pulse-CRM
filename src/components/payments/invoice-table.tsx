@@ -202,14 +202,19 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                         Void
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      destructive
-                      onSelect={() => deleteInvoice(row._id, row.number)}
-                    >
-                      <Trash2 className="size-4" />
-                      Delete
-                    </DropdownMenuItem>
+                    {/* A sent invoice is voided, not deleted; a void one is kept (invoices.remove). */}
+                    {(row.status === "draft" || row.status === "paid") && (
+                      <>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          destructive
+                          onSelect={() => deleteInvoice(row._id, row.number)}
+                        >
+                          <Trash2 className="size-4" />
+                          Delete
+                        </DropdownMenuItem>
+                      </>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </TD>
