@@ -9,7 +9,7 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
-import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS } from "./lib/cardConsent";
+import { autoChargeDecision, feeEmailBody, feeStillOwedCents, NO_SHOW_CHARGE_DELAY_MS } from "./lib/cardConsent";
 import { flagFeeChargeToCheck, isOurFeeCharge, markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
 import { paidTowardSessionAll } from "./lib/sessionPaid";
 
@@ -350,11 +350,14 @@ export const _claimFeeCharge = internalMutation({
   handler: async (ctx, { invoiceId }): Promise<ChargePlan | null> => {
     const inv = await ctx.db.get(invoiceId);
     if (!inv || inv.autoCharge?.status !== "pending") return null;
+    const pendingAt = inv.autoCharge.at;
+    // The invoice as it will be charged (reduced if the client paid since).
+    let current: Doc<"invoices"> = inv;
     // Never before the undo window has passed; the scheduled run comes later.
-    if (Date.now() < inv.autoCharge.at + NO_SHOW_CHARGE_DELAY_MS) return null;
+    if (Date.now() < pendingAt + NO_SHOW_CHARGE_DELAY_MS) return null;
     const skip = async (message: string) => {
       await ctx.db.patch(invoiceId, { autoCharge: { status: "skipped", at: Date.now(), message } });
-      await feeFallback(ctx, inv, "skipped", message);
+      await feeFallback(ctx, current, "skipped", message);
       return null;
     };
     if (inv.status === "paid" || inv.status === "void") {
@@ -376,6 +379,43 @@ export const _claimFeeCharge = internalMutation({
       ctx.db.get(inv.artistId),
     ]);
     if (!artist || artist.orgId !== inv.orgId || artist._id !== session.artistId) return await skip("client not found");
+    // What the client has paid toward the session as it stands now (the
+    // session's own total plus paid invoices for it): a payment made since the
+    // fee was assessed is never charged again, and nobody is told to bill it.
+    const paidCents = await paidTowardSessionAll(ctx, session, inv._id);
+    let chargeCents = inv.amountCents;
+    if (session.cancellationFeeCents !== undefined) {
+      const owed = feeStillOwedCents(session.cancellationFeeCents, paidCents);
+      if (owed <= 0) {
+        // Fully covered since the no-show: void the draft fee invoice, no
+        // charge, no "send invoice" alert and no client email.
+        const message = "the client paid the fee since the no-show was marked";
+        await ctx.db.patch(invoiceId, { status: "void", autoCharge: { status: "skipped", at: Date.now(), message } });
+        await ctx.db.insert("activity", {
+          orgId: inv.orgId,
+          kind: "invoice.auto_charge_cancelled",
+          summary: `No-show fee not charged on ${session.title}: ${message}. Invoice ${inv.number} was voided.`,
+          entityType: "invoice",
+          entityId: inv._id,
+          accent: "info",
+        });
+        return null;
+      }
+      if (owed < inv.amountCents) {
+        // Partly covered since: the invoice is reduced to what is still owed,
+        // and only that is charged (or billed, if the charge cannot run).
+        const lineItems =
+          inv.lineItems.length === 1 ? [{ label: inv.lineItems[0].label, amountCents: owed }] : null;
+        if (!lineItems) {
+          return await skip(
+            `the client paid ${money(paidCents)} toward the session since the fee was assessed; only ${money(owed)} is still owed, so edit invoice ${inv.number} to that amount before sending it`,
+          );
+        }
+        await ctx.db.patch(invoiceId, { amountCents: owed, lineItems });
+        current = { ...inv, amountCents: owed, lineItems };
+        chargeCents = owed;
+      }
+    }
     const decision = autoChargeDecision({
       stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
       switchOn: org?.noShowAutoCharge === true,
@@ -387,13 +427,11 @@ export const _claimFeeCharge = internalMutation({
       consent: session.cardConsent,
       status: session.status,
       feeCents: session.cancellationFeeCents ?? inv.amountCents,
-      chargeCents: inv.amountCents,
-      // What the client has paid toward the session as it stands now (its
-      // own total plus paid invoices for it): never charged again.
-      paidCents: await paidTowardSessionAll(ctx, session, inv._id),
+      chargeCents,
+      paidCents,
       startTime: session.startTime,
       // When the fee was assessed, not when this ran.
-      now: inv.autoCharge.at,
+      now: pendingAt,
     });
     if (!decision.charge) return await skip(decision.reason);
     const claimedAt = Date.now();
@@ -409,7 +447,7 @@ export const _claimFeeCharge = internalMutation({
     });
     return {
       invoiceId,
-      amountCents: inv.amountCents,
+      amountCents: chargeCents,
       title: session.title,
       orgId: inv.orgId,
       sessionId: session._id,

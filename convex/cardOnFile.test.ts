@@ -937,6 +937,12 @@ describe("H205-01 / H205-03: never charged for money already paid", () => {
     await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
     expect(fake.pi).toHaveLength(0);
     expect((await invoicesA(t))[0].autoCharge?.status).toBe("skipped");
+    // Round 3 (H205-R2-03 / R2-06): nobody is told to bill a covered fee.
+    expect((await invoicesA(t))[0].status).toBe("void");
+    const insights = await t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
+    expect(insights.some((i) => i.title.includes("Send invoice"))).toBe(false);
+    expect(await emails(t, "invoice.auto_charge_failed")).toHaveLength(0);
+    expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
   });
 
   it("autoChargeDecision refuses when what was paid covers the fee, or the charge exceeds what is left", () => {
@@ -1399,3 +1405,61 @@ describe("H205-R2-05: money paid on the session's invoices counts as paid", () =
     expect(fee.amountCents).toBe(10_000);
   });
 });
+
+describe("H205-R2-03 / R2-06: a payment made after the no-show is credited before the charge", () => {
+  it("a partial payment since the no-show reduces the invoice and the charge to what is still owed, with no 'send invoice' alert", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session, { depositPaid: true, amountPaidCents: 6_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    expect(inv.amountCents).toBe(4_000);
+    // The client pays $15 more within the window.
+    await t.run((ctx) => ctx.db.patch(ids.session, { amountPaidCents: 7_500 }));
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(1);
+    expect(fake.pi[0].params.amount).toBe(2_500);
+    const [after] = await invoicesA(t);
+    expect(after).toMatchObject({ status: "paid", amountCents: 2_500, lineItems: [{ amountCents: 2_500 }] });
+    expect((await insightsA(t)).some((i) => i.title.includes("Send invoice"))).toBe(false);
+    const [mail] = await emails(t, "session.no_show_fee");
+    expect(mail.body).toMatch(/We charged the \$25 balance/);
+  });
+
+  it("partly covered and the charge then fails: staff are told to send only what is still owed", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run((ctx) => ctx.db.patch(ids.session, { amountPaidCents: 7_000 }));
+    fake.piMode = "decline";
+    await runCharge(t, inv._id);
+    expect((await invoicesA(t))[0].amountCents).toBe(3_000);
+    const send = (await insightsA(t)).find((i) => i.title.includes("Send invoice"));
+    expect(send?.body).toMatch(/\$30 fee/);
+    const [mail] = await emails(t, "session.no_show_fee");
+    expect(mail.body).toMatch(/invoice for the \$30 balance/);
+  });
+
+  it("an invoice paid for the session since the no-show covers the fee: voided, nothing charged, nobody told", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run((ctx) => ctx.db.insert("invoices", {
+      orgId: ORG_A, number: "PLS-BAL", artistId: ids.a, sessionId: ids.session, status: "paid", paidAt: Date.now(),
+      lineItems: [{ label: "Nova - Studio A - balance", amountCents: 20_000 }], amountCents: 20_000, dueDate: Date.now(),
+    }));
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(0);
+    expect((await t.run((ctx) => ctx.db.get(inv._id)))?.status).toBe("void");
+    expect((await insightsA(t)).some((i) => i.title.includes("Send invoice"))).toBe(false);
+    expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
+  });
+});
+
