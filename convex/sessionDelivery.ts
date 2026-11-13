@@ -225,7 +225,10 @@ async function release(ctx: MutationCtx, delivery: Delivery, by: string, f: Fact
 }
 
 /** Called from payments.settlePayment when a payment leaves nothing owed, and
- *  from sessions.setComp when a comp does. Releases a delivery that was waiting for payment, exactly once. Returns
+ *  from every other path that can leave nothing owed: sessions.setComp (a
+ *  comp or discount), sessions.payDeposit (a deposit that covers the rate),
+ *  sessions.applyReschedule (a shorter session) and packages.redeem (package
+ *  hours). `refresh` is the net for any path that still misses it. Releases a delivery that was waiting for payment, exactly once. Returns
  *  true only when it released one and queued the files email (so the caller can
  *  skip its own "Paid in full" email). Any other case, including one where the
  *  files email cannot go (no email on file, no Final file left), writes nothing
@@ -567,6 +570,24 @@ export const fileUrl = mutation({
       downloadCount: delivery.downloadCount + 1,
     });
     return { url, fileName };
+  },
+});
+
+/** The safety net for a missed trigger. The page calls it once when it first
+ *  renders locked: a waiting delivery whose booking no longer owes anything
+ *  (some path lowered the balance without calling onBalanceSettled) is
+ *  released through the same `release`, by "payment". Anything else (a balance
+ *  still owed, already released, off, expired, cancelled, no Final file, no
+ *  email on file) changes nothing. Never throws for a bad token. */
+export const refresh = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const live = await liveDelivery(ctx, token);
+    if (!live || live.delivery.status !== "awaiting_payment" || owed(live.session) > 0) return null;
+    const f = await facts(ctx, live.delivery);
+    if (!f) return null;
+    await release(ctx, live.delivery, "payment", f);
+    return null;
   },
 });
 

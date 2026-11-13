@@ -431,6 +431,10 @@ export const payDeposit = mutation({
       patch.amountPaidCents = (s.amountPaidCents ?? 0) + s.depositCents;
     }
     await ctx.db.patch(id, patch);
+    // Session file delivery: a deposit that covers the whole rate leaves
+    // nothing owed, which releases a delivery that was waiting for payment.
+    const paidNow = (patch.amountPaidCents as number | undefined) ?? s.amountPaidCents ?? 0;
+    if (s.rateCents - paidNow <= 0) await onBalanceSettled(ctx, id);
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
     await ctx.db.insert("activity", {
       orgId,
@@ -871,6 +875,9 @@ export async function applyReschedule(
     if (rate.listValueCents !== undefined) patch.listValueCents = rate.listValueCents;
   }
   await ctx.db.patch(s._id, patch);
+  // Session file delivery: a shorter session can leave nothing owed, which
+  // releases a delivery that was waiting for payment.
+  if (rate && rate.rateCents - (s.amountPaidCents ?? 0) <= 0) await onBalanceSettled(ctx, s._id);
 
   // Keep the engineer's auto-shift aligned with the new window (soft warning
   // only, never blocks), then refresh room status. The Google mirror follows

@@ -610,6 +610,84 @@ describe("session delivery: public page and downloads", () => {
     expect((await s.t.query(api.sessionDelivery.page, { token: row.token }))!.state).toBe("unlocked");
   });
 
+  it("B-02 refresh releases a waiting delivery once nothing is owed, exactly once", async () => {
+    const { token } = await waiting(s);
+    // A path that lowered what is owed without calling the hook.
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 18000 }); });
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect(row).toMatchObject({ status: "released", releasedBy: "payment", sendCount: 2, sentTo: "jordan.ellis@example.com" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.state).toBe("unlocked");
+    // A second refresh queues nothing and changes nothing.
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([row]);
+    expect(await deliveryEmails(s, s.A.sessionId)).toHaveLength(2);
+  });
+
+  it("B-02 refresh with a balance still owed changes nothing", async () => {
+    const { token, row } = await waiting(s);
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    expect(await deliveryRow(s, s.A.sessionId)).toEqual([row]);
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
+  });
+
+  it("B-02 refresh never throws for a bad token, and a dead link never releases", async () => {
+    for (const token of ["nope", "", "d".repeat(64), "D".repeat(64)]) {
+      expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    }
+    const { token } = await waiting(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 18000 }); });
+    // Expired.
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    await s.t.run(async (ctx) => { await ctx.db.patch(row._id, { expiresAt: Date.now() - 1 }); });
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
+    // Cancelled booking.
+    await s.t.run(async (ctx) => {
+      await ctx.db.patch(row._id, { expiresAt: Date.now() + LINK_TTL_MS });
+      await ctx.db.patch(s.A.sessionId, { status: "cancelled" });
+    });
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    // Turned off.
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "confirmed" }); });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.turnOff, { sessionId: s.A.sessionId });
+    expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("off");
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
+  });
+
+  it("B-02 a package redemption that leaves nothing owed releases", async () => {
+    await waiting(s);
+    const creditId = await s.t.run(async (ctx) =>
+      await ctx.db.insert("packageCredits", {
+        orgId: "studio_a", artistId: s.A.artistId, name: "10 hours", hoursTotal: 10, hoursRemaining: 10,
+        priceCents: 100_000, status: "active", purchasedAt: Date.now(),
+      }),
+    );
+    // 2 hours at $100 an hour: the rate drops to $160, under the $180 already paid.
+    await s.as(s.A.owner).mutation(api.packages.redeem, { sessionId: s.A.sessionId, creditId, hours: 2 });
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+  });
+
+  it("B-02 a shorter session that leaves nothing owed releases", async () => {
+    await waiting(s);
+    // Four hours at $360 cut to two: $180, all of it already paid.
+    await s.as(s.A.owner).mutation(api.sessions.extend, { id: s.A.sessionId, addMinutes: -120 });
+    expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+  });
+
+  it("B-02 a recorded deposit that covers the whole rate releases", async () => {
+    await finalFile(s, s.A.otherSessionId);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId });
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.otherSessionId, { depositCents: 20000 }); });
+    await s.as(s.A.owner).mutation(api.sessions.payDeposit, { id: s.A.otherSessionId });
+    expect((await deliveryRow(s, s.A.otherSessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
+    expect((await deliveryEmails(s, s.A.otherSessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+  });
+
   it("opened stamps first and last opened at most once a minute, and never throws", async () => {
     const { token } = await released(s);
     vi.useFakeTimers({ toFake: ["Date"] });
