@@ -537,7 +537,7 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
   beforeEach(() => { r2Env(); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
-  it("G-21 for 300 random bookings: a button only for exactly what is owed; owed never negative or NaN; released only at 0 owed", async () => {
+  it("G-21 R4-06 for 600 random bookings: owed matches an independent sum; a button only for exactly what is owed; cancelled and no-show never pay or release; released only at 0 owed", async () => {
     const SEED = 20261113;
     const rand = rng(SEED);
     const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)];
@@ -552,12 +552,18 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
     const orgDocId = (await s.t.run(async (ctx) => await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first()))!._id;
 
     const RATES = [0, 10000, 36000, 40000, 45000, 12345, Number.NaN, -100, Number.POSITIVE_INFINITY] as const;
-    const DEPOSITS = [0, 5000, 10000, 18000, 40000, 60000] as const;
-    const PAID = [undefined, 0, 5000, 10000, 18000, 36000, 40000, 50000, Number.NaN, -500] as const;
-    const STATUSES = ["draft", "sent", "viewed", "paid", "overdue", "void"] as const;
-    const kinds = { invoice: 0, checkout: 0, none: 0, released: 0 };
+    const DEPOSITS = [0, 5000, 10000, 12000, 18000, 40000, 60000, Number.NaN, -1000] as const;
+    const PAID = [undefined, 0, 5000, 10000, 18000, 36000, 40000, 50000, Number.NaN, -500, Number.POSITIVE_INFINITY] as const;
+    const INVOICE_STATUSES = ["draft", "sent", "viewed", "paid", "overdue", "void"] as const;
+    const BOOKING_STATUSES = ["confirmed", "confirmed", "completed", "completed", "cancelled", "no_show"] as const;
+    const kinds = { invoice: 0, checkout: 0, none: 0, released: 0, closed: 0 };
 
-    for (let i = 0; i < 300; i++) {
+    /** Only finite positive amounts count as money (a NaN, Infinity, zero or
+     *  negative amount is nothing). Written here, not imported: the test must
+     *  not trust the code it tests. */
+    const money = (n: number | undefined): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
+
+    for (let i = 0; i < 600; i++) {
       const rateCents = pick(RATES);
       const depositCents = pick(DEPOSITS);
       const amountPaidCents = pick(PAID);
@@ -565,17 +571,28 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
       const pricingHidden = rand() < 0.2 ? true : rand() < 0.1 ? false : undefined;
       const roomId = pick([undefined, rooms.deposit, rooms.full, rooms.legacy]);
       const cards = rand() < 0.85;
-      // A guess at what is owed, only to make matching invoices likely; the
-      // assertions never use it.
-      const credit = Math.max(amountPaidCents && amountPaidCents > 0 ? amountPaidCents : 0, depositPaid ? depositCents : 0);
-      const guess = Math.max(0, (Number.isFinite(rateCents) ? rateCents : 0) - credit);
+      const status = pick(BOOKING_STATUSES);
+      const trigger = rand() < 0.5 ? "settle" : "refresh";
+      // A guess at what is owed, only to make matching invoices likely.
+      const guess = Math.max(0, (Number.isFinite(rateCents) ? rateCents : 0) - Math.max(money(amountPaidCents), depositPaid ? money(depositCents) : 0));
       const invoices = Array.from({ length: pick([0, 0, 0, 1, 1, 1, 2, 3]) }, () => ({
-        status: pick(STATUSES),
-        amountCents: rand() < 0.5 ? guess : pick([5000, 10000, 18000, 30000, Math.max(0, guess - 5000), 0, Number.NaN]),
+        status: pick(INVOICE_STATUSES),
+        amountCents: rand() < 0.5 ? guess : pick([5000, 10000, 18000, 30000, Math.max(0, guess - 5000), 0, Number.NaN, -2000]),
       }));
 
+      // The expected amount owed, from the generated inputs alone:
+      //   max(0, rate - max(paid, depositPaid ? deposit : 0) - sum of paid invoices)
+      // A rate that is not a finite, non-negative number is owed forever (G-20).
+      const rateUsable = typeof rateCents === "number" && Number.isFinite(rateCents) && rateCents >= 0;
+      const paidInvoices = invoices.filter((inv) => inv.status === "paid").reduce((sum, inv) => sum + money(inv.amountCents), 0);
+      const expectedOwed = rateUsable
+        ? Math.max(0, rateCents - Math.max(money(amountPaidCents), depositPaid ? money(depositCents) : 0) - paidInvoices)
+        : Number.POSITIVE_INFINITY;
+      const closed = status === "cancelled" || status === "no_show";
+      const expectRelease = !closed && expectedOwed === 0;
+
       await s.t.run(async (ctx) => {
-        await ctx.db.patch(s.A.sessionId, { rateCents, depositCents, amountPaidCents, depositPaid, pricingHidden, roomId, status: "confirmed" });
+        await ctx.db.patch(s.A.sessionId, { rateCents, depositCents, amountPaidCents, depositPaid, pricingHidden, roomId, status });
         await ctx.db.patch(orgDocId, { stripeChargesEnabled: cards });
         for (const old of await ctx.db.query("invoices").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).take(50)) await ctx.db.delete(old._id);
         for (const inv of invoices) {
@@ -587,36 +604,53 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
         const d = await ctx.db.query("sessionDeliveries").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).first();
         await ctx.db.patch(d!._id, { status: "awaiting_payment", releasedAt: undefined, releasedBy: undefined, expiresAt: Date.now() + 86_400_000 });
       });
-      const label = JSON.stringify({ i, rateCents, depositCents, amountPaidCents, depositPaid, pricingHidden, room: roomId ? "room" : "none", cards, invoices });
+      const label = JSON.stringify({ i, status, rateCents, depositCents, amountPaidCents, depositPaid, pricingHidden, room: roomId ? "room" : "none", cards, trigger, invoices, expectedOwed });
 
-      const v = await look(s, token);
-      // owed: never negative, never NaN; Infinity only for a broken rate.
-      expect(Number.isNaN(v.owed), label).toBe(false);
-      expect(v.owed >= 0, label).toBe(true);
-      expect(v.owed === Number.POSITIVE_INFINITY, label).toBe(!(Number.isFinite(rateCents) && rateCents >= 0));
-      // The amount shown: owed, or none with hidden prices or a broken rate.
-      expect(v.page.state, label).toBe("locked");
-      expect(v.page.balanceCents, label).toBe(pricingHidden === true || !Number.isFinite(v.owed) ? null : v.owed);
-      // The rule.
-      kinds[v.target.kind]++;
-      if (v.target.kind !== "none") {
-        const charge = await realCharge(s, v.target);
-        expect(charge.cents, label).toBe(v.owed);
-        expect(v.target.cents, label).toBe(v.owed);
-        expect(v.owed > 0, label).toBe(true);
-        // V4-01: never a button without the amount beside it.
-        expect(typeof v.page.balanceCents, label).toBe("number");
-        expect(charge.cents, label).toBe(v.page.balanceCents);
+      const { owed, target } = await s.t.run(async (ctx) => {
+        const session = (await ctx.db.get(s.A.sessionId))!;
+        const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
+        return { owed: await owedOnBooking(ctx, session), target: await payTargetFor(ctx, session, org) };
+      });
+      // owed: exactly the independent sum.
+      expect(owed, label).toBe(expectedOwed);
+      kinds[target.kind]++;
+
+      if (closed) {
+        // Cancelled and no-show: nowhere to pay, a dead page, nothing to do.
+        kinds.closed++;
+        expect(target.kind, label).toBe("none");
+        expect(await s.t.query(api.sessionDelivery.page, { token }), label).toBeNull();
+        const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+        expect(st, label).toMatchObject({ onlinePay: "none", canRelease: false, canMarkReady: false, cancelled: status === "cancelled", noShow: status === "no_show" });
       } else {
-        expect(v.page.payUrl, label).toBeNull();
+        const v = await look(s, token);
+        expect(v.page.state, label).toBe("locked");
+        // The amount shown: owed, or none with hidden prices or a broken rate.
+        expect(v.page.balanceCents, label).toBe(pricingHidden === true || !rateUsable ? null : expectedOwed);
+        if (target.kind !== "none") {
+          const charge = await realCharge(s, target);
+          expect(charge.cents, label).toBe(expectedOwed);
+          expect(target.cents, label).toBe(expectedOwed);
+          expect(expectedOwed > 0, label).toBe(true);
+          // V4-01: never a button without the amount beside it.
+          expect(typeof v.page.balanceCents, label).toBe("number");
+          expect(charge.cents, label).toBe(v.page.balanceCents);
+        } else {
+          expect(v.page.payUrl, label).toBeNull();
+        }
       }
-      // Release only when nothing is owed, and always then (a Final file and
-      // an email are on file throughout).
-      const settled = await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId));
-      await s.t.mutation(api.sessionDelivery.refresh, { token });
+
+      // Release only when nothing is owed on an open booking, and always then
+      // (a Final file and an email are on file throughout). Each trigger is
+      // tried on its own, so either one releasing wrongly is caught.
+      if (trigger === "settle") {
+        const settled = await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId));
+        expect(settled, label).toBe(expectRelease);
+      } else {
+        expect(await s.t.mutation(api.sessionDelivery.refresh, { token }), label).toBeNull();
+      }
       const released = (await row(s)).status === "released";
-      expect(released, label).toBe(v.owed === 0);
-      expect(settled, label).toBe(v.owed === 0);
+      expect(released, label).toBe(expectRelease);
       if (released) kinds.released++;
     }
     // The run covered every outcome.
@@ -625,7 +659,8 @@ describe("session delivery: the Pay rule over random bookings (G-21 property)", 
     expect(kinds.checkout).toBeGreaterThan(5);
     expect(kinds.none).toBeGreaterThan(50);
     expect(kinds.released).toBeGreaterThan(5);
-  }, 120_000);
+    expect(kinds.closed).toBeGreaterThan(100);
+  }, 180_000);
 
   it("checkoutKindsOffered agrees with the checkout page's own checkoutView for every payment mode, deposit and status", async () => {
     const { checkoutKindsOffered } = await import("./lib/checkout");
