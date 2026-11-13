@@ -1461,7 +1461,25 @@ describe("H205-R2-03 / R2-06: a payment made after the no-show is credited befor
     expect((await insightsA(t)).some((i) => i.title.includes("Send invoice"))).toBe(false);
     expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
   });
+  it("an invoice staff already sent is never rewritten or voided; staff are told what is still owed", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(inv._id, { status: "sent" });
+      await ctx.db.patch(ids.session, { amountPaidCents: 20_000 });
+    });
+    await runCharge(t, inv._id);
+    expect(fake.pi).toHaveLength(0);
+    expect((await invoicesA(t))[0]).toMatchObject({ status: "sent", amountCents: 10_000, autoCharge: { status: "skipped" } });
+    const alert = (await insightsA(t)).find((i) => i.title.includes(inv.number));
+    expect(alert?.body).toMatch(/nothing more is owed/);
+  });
 });
+
 
 
 describe("H205-R2-04 / R2-07: undo then re-mark the no-show", () => {

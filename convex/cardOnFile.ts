@@ -386,6 +386,13 @@ export const _claimFeeCharge = internalMutation({
     let chargeCents = inv.amountCents;
     if (session.cancellationFeeCents !== undefined) {
       const owed = feeStillOwedCents(session.cancellationFeeCents, paidCents);
+      if (owed < inv.amountCents && inv.status !== "draft") {
+        // Staff already sent it: never rewrite or void an invoice the client
+        // has seen. Staff are told what is really still owed.
+        return await skip(
+          `the client paid ${money(paidCents)} toward the session since the fee was assessed; ${owed > 0 ? `only ${money(owed)} is still owed` : "nothing more is owed"}, so correct or void invoice ${inv.number}`,
+        );
+      }
       if (owed <= 0) {
         // Fully covered since the no-show: void the draft fee invoice, no
         // charge, no "send invoice" alert and no client email.

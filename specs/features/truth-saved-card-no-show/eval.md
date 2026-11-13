@@ -1,5 +1,5 @@
 # Eval: Saved card and charging a no-show
-Status: built on `fix/high-saved-card` (H1), round 2 and round 3 review fixes applied. 29 PASS, 5 NOT RUN (need staging / Stripe test mode)
+Status: built on `fix/high-saved-card` (H1), round 2 and round 3 review fixes applied. 30 PASS, 5 NOT RUN (need staging / Stripe test mode)
 Risk: High. It turns on off-session card charges on studios' own Stripe accounts for the first time. If it is wrong, a client is charged without consent, the wrong client's card is saved, or a studio's card is charged twice.
 RD: ./rd.md
 
@@ -55,4 +55,5 @@ RD: ./rd.md
 | R3-02 | When the client pays during the undo window, a fully covered fee voids the draft invoice with no charge, no "send invoice" alert and no client email; a partly covered fee reduces the invoice and the charge to what is still owed, and a failed charge then tells staff and the client the reduced amount (H205-R2-03, H205-R2-06) | convex-test | PASS | `convex/cardOnFile.test.ts` › H205-R2-03 / R2-06 (3 tests); › H205-01 / H205-03 › a payment made after the no-show was marked stops the charge (now asserts void, no alert, no emails) |
 | R3-03 | Money paid on the session's own invoices counts as already paid: a completed session paid by invoice and then marked a no-show is not charged; partly paid by invoice charges only the rest; an unpaid invoice or another session's invoice is not counted (H205-R2-05) | convex-test | PASS | `convex/cardOnFile.test.ts` › H205-R2-05 (3 tests) |
 | R3-04 | Undo then re-mark a no-show: the undone fee invoice is voided, the re-mark makes a fresh invoice and schedules a fresh charge (after 15 minutes) for the right amount, no "invoice to follow" email is sent while the charge is scheduled, and the forfeited deposit is recorded once (H205-R2-04, H205-R2-07) | convex-test | PASS | `convex/cardOnFile.test.ts` › H205-R2-04 / R2-07 › re-marking after an undo schedules a fresh charge on a fresh invoice, and the deposit is counted once |
+| R3-06 | An invoice staff already sent is never rewritten or voided by the claim; staff are told what is still owed (same-class sweep of R3-02) | convex-test | PASS | `convex/cardOnFile.test.ts` › H205-R2-03 / R2-06 › an invoice staff already sent is never rewritten or voided |
 | R3-05 | Every round 3 test fails before its fix and passes after | Ran the new tests against round 2's code | PASS | 10 of the 11 new behaviour tests failed on round 2's code (the eleventh, "an unpaid or another session's invoice is not counted", is a guard that already held); all pass on round 3 |
