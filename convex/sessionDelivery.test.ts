@@ -132,12 +132,12 @@ describe("session delivery: staff side and the payment trigger", () => {
     let mails = await deliveryEmails(s, s.A.sessionId);
     expect(mails.map((m) => m.kind)).toEqual(["delivery.pay"]);
     expect(mails[0]).toMatchObject({ subject: "Your files are ready. One step left" });
-    expect(mails[0].html).toContain("\">Pay $180 and unlock</a>");
+    expect(mails[0].html).toContain("\">Pay $180.00 and unlock</a>");
     expect(mails[0].html).toContain("background-color:#3b63e6");
     await settle(s, s.A.sessionId, "balance");
     mails = await deliveryEmails(s, s.A.sessionId);
     expect(mails.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
-    expect(mails[1].html).toContain("Payment received: $180. Thank you.");
+    expect(mails[1].html).toContain("Payment received: $180.00. Thank you.");
     expect(mails[1].body).toContain("Payment received. Thank you.");
     expect(mails[1].body).not.toContain("$");
     const [row] = await deliveryRow(s, s.A.sessionId);
@@ -311,17 +311,25 @@ describe("session delivery: staff side and the payment trigger", () => {
   it("G-14 a cancelled booking cannot be marked ready, and a delivery on it does not release", async () => {
     await finalFile(s);
     await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ cancelled: false });
     await finalFile(s, s.A.otherSessionId);
     await s.t.run(async (ctx) => {
       await ctx.db.patch(s.A.otherSessionId, { status: "cancelled" });
       await ctx.db.patch(s.A.sessionId, { status: "cancelled", amountPaidCents: 36000 });
     });
     await expect(s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId })).rejects.toThrow(
-      "This booking was released.",
+      "This booking was cancelled.",
     );
     expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
     expect((await deliveryRow(s, s.A.sessionId))[0].status).toBe("awaiting_payment");
-    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.releaseNow, { sessionId: s.A.sessionId })).rejects.toThrow();
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.releaseNow, { sessionId: s.A.sessionId })).rejects.toThrow(
+      "This booking was cancelled.",
+    );
+    // F2-13: the staff panel is told why, and resend says the same.
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ cancelled: true });
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow(
+      "This booking was cancelled.",
+    );
     expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
   });
 
@@ -396,7 +404,7 @@ describe("session delivery: staff side and the payment trigger", () => {
     // The stored rows still hold the designed email (with the amount) for sending.
     const stored = await deliveryEmails(s, s.A.sessionId);
     expect(stored.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
-    expect(stored[0].html).toContain("$180");
+    expect(stored[0].html).toContain("$180.00");
     for (const m of stored) expect(m.body).not.toContain("$");
 
     const eng = (await s.as(s.A.engineer).query(api.notifications.forSession, { sessionId: s.A.sessionId })) as Array<Record<string, unknown>>;
@@ -917,7 +925,7 @@ describe("session delivery: paid invoices count, every trigger guarded (F2-01, F
     expect(row).toMatchObject({ status: "released", releasedBy: "payment", sendCount: 2 });
     const fromPayment = (await allClientEmails()).slice(before);
     expect(fromPayment.map((m) => m.kind)).toEqual(["delivery.ready"]);
-    expect(fromPayment[0].html).toContain("Payment received: $180");
+    expect(fromPayment[0].html).toContain("Payment received: $180.00. Thank you.");
     // The team still hears about it.
     const team = await s.t.run(async (ctx) =>
       (await ctx.db.query("notifications").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).take(200)).filter((r) => r.recipient === "owner@studio-a.example.com" && r.kind === "invoice.paid"),
@@ -950,7 +958,7 @@ describe("session delivery: paid invoices count, every trigger guarded (F2-01, F
     expect((await deliveryRow(s, s.A.sessionId))[0]).toMatchObject({ status: "released", releasedBy: "payment" });
     const fromPayment = (await allClientEmails()).slice(before);
     expect(fromPayment.map((m) => m.kind)).toEqual(["delivery.ready"]);
-    expect(fromPayment[0].html).toContain("Payment received: $180");
+    expect(fromPayment[0].html).toContain("Payment received: $180.00. Thank you.");
   });
 
   it("G-17 charging a saved card releases the same way", async () => {

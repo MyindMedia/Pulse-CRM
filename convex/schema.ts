@@ -1637,9 +1637,6 @@ export default defineSchema({
     .index("by_song", ["songId"])
     .index("by_artist", ["artistId"]),
 
-  // Staff-only notes on one booking, newest first in the session modal. Never
-  // sent to the client and never on a public page. The author is the signed-in
-  // staff member (agency operators carry no member id, only their user id).
   // Final session files handed to the client (convex/sessionDelivery.ts). One
   // row per booking. The public /delivery/<token> page reads only through this
   // row; the files it lists are the booking's mediaAssets marked clientFinal.
@@ -1669,6 +1666,9 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_org", ["orgId"]),
 
+  // Staff-only notes on one booking, newest first in the session modal. Never
+  // sent to the client and never on a public page. The author is the signed-in
+  // staff member (agency operators carry no member id, only their user id).
   sessionNotes: defineTable({
     orgId: v.string(),
     sessionId: v.id("sessions"),

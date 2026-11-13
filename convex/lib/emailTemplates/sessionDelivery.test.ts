@@ -29,7 +29,7 @@ describe("session delivery emails", () => {
     expect(m.html).toContain("color:#ffffff;text-decoration:none;\">Download your files</a>");
     expect(m.html).toContain(`href="${url}"`);
     expect(m.html).toContain("Your files are ready, Jordan");
-    expect(m.html).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received: $180. Thank you.");
+    expect(m.html).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received: $180.00. Thank you.");
     // The plain copy is the booking's message log, which staff without money sight read: no amount.
     expect(m.text).toContain("Everything from your Vocal tracking session on Tue, Nov 10 is ready to download. Payment received. Thank you.");
     expect(m.text).not.toContain("$");
@@ -58,10 +58,10 @@ describe("session delivery emails", () => {
   it("E-02 pay to unlock: exact subject, the amount and the Pay and unlock button", () => {
     const m = pay();
     expect(m.subject).toBe("Your files are ready. One step left");
-    expect(m.html).toContain("\">Pay $180 and unlock</a>");
+    expect(m.html).toContain("\">Pay $180.00 and unlock</a>");
     expect(m.html).toContain("Your files are finished, Jordan");
     expect(m.html).toContain(
-      "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a $180 balance on this booking. Once it is paid, your download link arrives right away.",
+      "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away.",
     );
     // B-03: the plain copy (the message log) never carries the amount.
     expect(m.text).toContain(
@@ -126,7 +126,7 @@ describe("session delivery emails", () => {
   it("B-04 the button sits in the body under the file list and above the small print, as in the mockup", () => {
     for (const [m, label, fine] of [
       [ready(), "Download your files", "The link works until"],
-      [pay(), "Pay $180 and unlock", "Already paid?"],
+      [pay(), "Pay $180.00 and unlock", "Already paid?"],
     ] as const) {
       expect(m).not.toHaveProperty("ctaLabel");
       expect(m).not.toHaveProperty("ctaUrl");

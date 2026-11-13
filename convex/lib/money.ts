@@ -7,6 +7,18 @@ export function money(cents: number): string {
   }).format(cents / 100);
 }
 
+/** Integer cents as USD, always with cents: 18000 -> "$180.00". For copy
+ *  that names an amount someone pays, where "$180" next to an invoice that
+ *  says "$180.00" reads like two different numbers. */
+export function moneyExact(cents: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
 /* Money, and who may see it.
  *
  * The floor runs the room: engineers, assistants, producers, interns, artist

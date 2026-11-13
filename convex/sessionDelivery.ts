@@ -170,6 +170,7 @@ function shownCents(owed: number): number | null {
 }
 
 const PRICE_BROKEN = "This booking's price needs fixing first.";
+const CANCELLED = "This booking was cancelled.";
 
 function firstName(name: string | undefined): string {
   return (name ?? "").trim().split(/\s+/)[0] ?? "";
@@ -411,6 +412,7 @@ export const status = query({
         holds(viewer, "deliverables.upload") && (state === "none" || state === "off") && files.length > 0 && !!clientEmail && !cancelled,
       canRelease: manage && state === "awaiting_payment" && !cancelled,
       canTurnOff: manage && (state === "awaiting_payment" || state === "released"),
+      cancelled,
     };
   },
 });
@@ -424,7 +426,7 @@ export const markReady = mutation({
   handler: async (ctx, { sessionId }): Promise<{ state: "awaiting_payment" | "released" }> => {
     const access = await staffSession(ctx, sessionId, "deliverables.upload");
     const { orgId, session } = access;
-    if (session.status === "cancelled") throw new ConvexError("This booking was released.");
+    if (session.status === "cancelled") throw new ConvexError(CANCELLED);
     const files = await finalFiles(ctx, orgId, sessionId);
     if (files.length === 0) throw new ConvexError("Mark at least one file Final first.");
     const artist = await ctx.db.get(session.artistId);
@@ -488,7 +490,7 @@ export const releaseNow = mutation({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const access = await staffSession(ctx, sessionId, "schedule.manage");
-    if (access.session.status === "cancelled") throw new ConvexError("This booking was released.");
+    if (access.session.status === "cancelled") throw new ConvexError(CANCELLED);
     const delivery = await deliveryFor(ctx, sessionId);
     if (!delivery || delivery.orgId !== access.orgId || delivery.status !== "awaiting_payment") {
       throw new ConvexError("Nothing is waiting to send.");
@@ -520,7 +522,7 @@ export const resend = mutation({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const access = await staffSession(ctx, sessionId, "deliverables.upload");
-    if (access.session.status === "cancelled") throw new ConvexError("This booking was released.");
+    if (access.session.status === "cancelled") throw new ConvexError(CANCELLED);
     const delivery = await deliveryFor(ctx, sessionId);
     if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") {
       throw new ConvexError("There is no link to send. Tap Ready to deliver first.");

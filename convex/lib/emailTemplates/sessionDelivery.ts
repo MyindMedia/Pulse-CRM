@@ -16,7 +16,7 @@
    styles, no classes. */
 
 import { escapeEmailHtml as esc, emailButtonHtml, readableEmailInk } from "./layout";
-import { money } from "../money";
+import { moneyExact } from "../money";
 
 export type DeliveryFile = { name: string; size: number };
 
@@ -105,7 +105,7 @@ export function filesReadyEmail(a: {
   const head = name ? `Your files are ready, ${name}` : "Your files are ready";
   const paidNow = typeof a.paidCents === "number" && a.paidCents > 0;
   const lead = `Everything from your ${a.title} session on ${a.sessionDate} is ready to download.`;
-  const body = paidNow ? `${lead} Payment received: ${money(a.paidCents!)}. Thank you.` : lead;
+  const body = paidNow ? `${lead} Payment received: ${moneyExact(a.paidCents!)}. Thank you.` : lead;
   // The message log copy: staff without money sight read it, so no amount.
   const logBody = paidNow ? `${lead} Payment received. Thank you.` : lead;
   const fine = `The link works until ${a.expiresOn}. If it stops working, reply to this email for a new one.`;
@@ -126,7 +126,7 @@ export function payToUnlockEmail(a: {
   accent?: string;
 }): Rendered {
   const name = cleanName(a.firstName);
-  const amount = money(a.balanceCents);
+  const amount = moneyExact(a.balanceCents);
   const subject = "Your files are ready. One step left";
   const head = name ? `Your files are finished, ${name}` : "Your files are finished";
   const opening = `Your ${a.title} session from ${a.sessionDate} is finished and waiting.`;
