@@ -1301,6 +1301,32 @@ describe("session delivery: who the client is greeted as (V3-02) and the title (
     expect(greetingName(null)).toBe("");
   });
 
+  it("R4-05 greetingName: a stage name or a short first word is greeted whole; an erased client is not greeted", () => {
+    const g = (name: string, type: Doc<"artists">["type"] = "artist", erasedAt?: number) => greetingName({ name, type, erasedAt });
+    expect(g("Jordan Ellis")).toBe("Jordan");
+    expect(g("Jordan Lee Ellis")).toBe("Jordan");
+    for (const name of ["Lil Baby", "DJ Premier", "MC Lyte", "The Midnight Tape", "Prince", "Big Sean", "Young Thug", "Yung Gravy",
+      "Dr. Dre", "Dr Dre", "Mr. Eazi", "Mrs. Green Apple", "Ms. Lauryn Hill", "Sir Mix", "King Princess", "Queen Latifah", "Saint Jhn",
+      "St. Vincent", "St Vincent", "A Boogie", "An Echo", "dj premier", "LIL BABY", "Jo Smith", "Ty Dolla Sign", "Jordan Lee Ellis Smith"]) {
+      expect(g(name), name).toBe(name);
+    }
+    expect(g("Crosstown Records", "label")).toBe("Crosstown Records");
+    expect(g("Crosstown Records", "other")).toBe("Crosstown Records");
+    expect(g("Midnight Tape", "band")).toBe("Midnight Tape");
+    expect(g("Sam Rivera", "producer")).toBe("Sam");
+    // Whole first words only: "Drake" and "Kingston" are not "dr" and "king".
+    expect(g("Drake Graham")).toBe("Drake");
+    expect(g("Kingston Rhodes")).toBe("Kingston");
+    expect(g("Stella Mae")).toBe("Stella");
+    expect(g("Jordan Ellis", "artist", Date.now())).toBe("");
+    expect(g("Erased client a1b2c3", "artist", Date.now())).toBe("");
+  });
+
+  it("R4-05 an erased client is greeted by no name on the card", async () => {
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "Erased client abc123", erasedAt: Date.now() }); });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ clientFirstName: "" });
+  });
+
   it("V3-02 a band is greeted by its whole name on the card, in both emails and on the page", async () => {
     await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "The Midnight Tape", type: "band" }); });
     await finalFile(s);
