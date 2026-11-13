@@ -1630,7 +1630,14 @@ export default defineSchema({
     rebookHoldUntil: v.optional(v.number()),
     // Set once the freed slot has been offered to the waitlist by SMS.
     waitlistBlastAt: v.optional(v.number()),
+    // Prepaid block chosen to pay for this session. Hours come off it when the
+    // session is completed (convex/packages.ts drawDownOnCompletion).
+    packageCreditId: v.optional(v.id("packageCredits")),
+    // When the cron last asked staff to close a session paid from prepaid
+    // hours (it never completes or no-shows one by itself). Sent once.
+    prepaidCloseNudgedAt: v.optional(v.number()),
   })
+    .index("by_package_credit", ["packageCreditId"])
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_start", ["orgId", "startTime"])
@@ -1947,9 +1954,45 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("depleted"), v.literal("expired")),
     purchasedAt: v.number(),
     stripeReference: v.optional(v.string()),
+    // How the block was paid for. Absent on rows from before in-person sales
+    // existed; those were all Stripe checkouts.
+    source: v.optional(v.union(v.literal("stripe"), v.literal("manual"))),
+    // In-person sales only: who recorded it, how the client paid, and the
+    // one-time key the "Record payment" dialog sends so a double click or a
+    // retry records the sale once.
+    recordedBy: v.optional(v.id("members")),
+    recordedByName: v.optional(v.string()),
+    paymentMethod: v.optional(v.string()),
+    note: v.optional(v.string()),
+    saleKey: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_artist", ["orgId", "artistId"]),
+    .index("by_org_artist", ["orgId", "artistId"])
+    .index("by_org_sale_key", ["orgId", "saleKey"]),
+
+  /* Hours taken off a prepaid block, one row per draw. "applied" rows count
+     against the block; "returned" rows were put back (session voided or
+     refunded) and are kept so the history shows what happened and who did it. */
+  packageDrawdowns: defineTable({
+    orgId: v.string(),
+    creditId: v.id("packageCredits"),
+    sessionId: v.id("sessions"),
+    artistId: v.id("artists"),
+    hours: v.number(),
+    valueCents: v.number(),
+    kind: v.union(v.literal("manual"), v.literal("completion")),
+    status: v.union(v.literal("applied"), v.literal("returned")),
+    appliedAt: v.number(),
+    returnedAt: v.optional(v.number()),
+    returnedByName: v.optional(v.string()),
+    returnReason: v.optional(v.string()),
+    // A voided draw leaves the session's price cut (putting hours back never
+    // raises a price). Set when the session is completed again and the cut is
+    // undone so it can be billed or drawn in full.
+    repricedAt: v.optional(v.number()),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_credit", ["creditId"]),
 
   // ── Reviews / testimonials collected after sessions. A post-session request
   //    links a token; the client rates + writes a note. Owner can hide any.
@@ -2195,7 +2238,8 @@ export default defineSchema({
     orgId: v.string(),
     sourceType: v.union(v.literal("package"), v.literal("membership")),
     sourceId: v.string(),
-    provider: v.literal("stripe"),
+    // "manual": a prepaid block the studio recorded as paid in person.
+    provider: v.union(v.literal("stripe"), v.literal("manual")),
     providerReference: v.optional(v.string()),
     incomeCategory: incomeCategoryV,
     amountCents: v.number(),

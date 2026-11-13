@@ -1,4 +1,5 @@
 import { MutationCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
@@ -7,6 +8,7 @@ import { money } from "./lib/money";
 import { appUrl } from "./lib/links";
 import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
+import { prepaidCoverCents } from "./packages";
 import { normalizePhone } from "./lib/phone";
 import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
 import { dropPreChecklistFor } from "./checklists";
@@ -71,6 +73,22 @@ async function emailFor(ctx: MutationCtx, artistId: import("./_generated/dataMod
   return artist?.email ?? null;
 }
 
+/** A session paid from prepaid hours that has ended is left open for staff:
+ *  completing it takes the hours off, a no-show leaves them on the block. One
+ *  caution on the activity feed, once per session. */
+async function askStaffToClosePrepaid(ctx: MutationCtx, s: Doc<"sessions">): Promise<void> {
+  if (s.prepaidCloseNudgedAt) return;
+  await ctx.db.patch(s._id, { prepaidCloseNudgedAt: Date.now() });
+  await ctx.db.insert("activity", {
+    orgId: s.orgId,
+    kind: "session.package.close_needed",
+    summary: `"${s.title}" has ended and is paid from prepaid hours - mark it completed to take the hours off, or mark it a no-show`,
+    entityType: "session",
+    entityId: s._id,
+    accent: "caution",
+  });
+}
+
 export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
   const now = Date.now();
   const out: Outcome = {
@@ -91,7 +109,12 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     // max() not sum: ledger deposits set BOTH amountPaidCents and depositPaid,
     // so adding them would double-credit; legacy internal rows may only carry
     // the flag.
-    const paid = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
+    const cashPaid = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
+    // A session paid from prepaid hours is paid: the hours the chosen block
+    // covers count like money already in, so no step below chases, bills,
+    // releases or forfeits it for those hours (convex/packages.ts).
+    const coverCents = s.packageCreditId ? await prepaidCoverCents(ctx, s) : 0;
+    const paid = cashPaid + coverCents;
     const fullyPaid = paid >= s.rateCents;
 
     // 0. Stale resolution - anything that ended more than a day ago and was
@@ -105,7 +128,14 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       s.endTime < now - 86_400_000 &&
       (s.status === "tentative" || s.status === "confirmed" || s.status === "in_progress")
     ) {
-      if (s.status === "in_progress" || paid > 0) {
+      // Paid from prepaid hours: hours come off only when staff complete the
+      // session, so the sweep neither completes it (that would give the
+      // session away) nor marks it a no-show. It asks staff, once.
+      if (coverCents > 0) {
+        await askStaffToClosePrepaid(ctx, s);
+        continue;
+      }
+      if (s.status === "in_progress" || cashPaid > 0) {
         await ctx.db.patch(s._id, { status: "completed", autoResolved: "auto_completed" });
       } else if (s.status === "confirmed") {
         await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
@@ -140,14 +170,17 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           .query("orgs")
           .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
           .first();
-        if (email && org?.slug) {
+        // Prepaid hours pay for part of the session: never ask for more
+        // than what they leave, and nothing when they cover it all.
+        const depositDue = Math.min(s.depositCents, s.rateCents - coverCents);
+        if (email && org?.slug && depositDue > 0) {
           const payUrl = `${appUrl()}/book/${org.slug}/checkout/${s._id}`;
           await notify(ctx, {
             orgId: s.orgId,
             channel: "email",
             recipient: email,
             subject: `Deposit due - ${s.title}`,
-            body: `Your session "${s.title}" is on the calendar. A ${money(Math.min(s.depositCents, s.rateCents))} deposit locks it in.\n\nPay securely online:\n${payUrl}`,
+            body: `Your session "${s.title}" is on the calendar. A ${money(depositDue)} deposit locks it in.\n\nPay securely online:\n${payUrl}`,
             kind: "booking.deposit_link",
             sessionId: s._id,
           });
@@ -382,7 +415,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           // Only mention money when some was paid: there may be no deposit.
           body:
             "The balance was not paid in full 2 hours before the session, so the booking was released." +
-            (paid > 0 ? ` The ${money(paid)} you paid is kept by the studio.` : ""),
+            (cashPaid > 0 ? ` The ${money(cashPaid)} you paid is kept by the studio.` : ""),
           kind: "booking.forfeited",
           sessionId: s._id,
         });
@@ -392,7 +425,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
         subject: `Booking forfeited - ${s.title}`,
         body:
           `"${s.title}" was released: the balance was not paid in full 2 hours before start.` +
-          (paid > 0 ? ` The ${money(paid)} paid is kept.` : " Nothing was paid."),
+          (cashPaid > 0 ? ` The ${money(cashPaid)} paid is kept.` : " Nothing was paid."),
         kind: "booking.forfeited",
         sessionId: s._id,
       });
@@ -408,6 +441,12 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       continue;
     }
     if ((s.status === "in_progress" || (s.status === "confirmed" && fullyPaid)) && now >= s.endTime) {
+      // Paid from prepaid hours: only staff completing it takes the hours off
+      // (never this job), so leave it open and ask staff to close it.
+      if (coverCents > 0) {
+        await askStaffToClosePrepaid(ctx, s);
+        continue;
+      }
       await ctx.db.patch(s._id, { status: "completed" });
       // Same balance-invoice fan-out as the manual completion path in
       // sessions.setStatus: bill only what is still owed (usually nothing -

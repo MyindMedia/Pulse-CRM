@@ -15,3 +15,19 @@ describe("nav sections", () => {
     expect(studio.slice(0, 2)).toEqual(["Dashboard", "Bookings"]);
   });
 });
+
+/* H6 round 2 (H207-12, H207-15): selling packages is on Growth (lib/pricing.ts
+   "packages"), but a Core studio that set packages up before the gate keeps
+   the page: only the sell paths check the plan (convex/packages.ts). This test
+   asserted the nav item and route were gated; that locked existing Core
+   studios out of their own products with no notice. */
+describe("packages plan gate", () => {
+  it("keeps the Packages page for every plan and leaves the plan check to selling", async () => {
+    const { featureForPath } = await import("./features");
+    const { effectiveDisabledFeatures } = await import("@convex/lib/entitlements");
+    expect(NAV.find((i) => i.href === "/packages")?.feature).toBeUndefined();
+    expect(featureForPath("/packages")).toBeNull();
+    expect(effectiveDisabledFeatures("core", [])).toContain("packages");
+    expect(effectiveDisabledFeatures("growth", [])).not.toContain("packages");
+  });
+});

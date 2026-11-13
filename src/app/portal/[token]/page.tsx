@@ -7,7 +7,7 @@ import { useQuery, useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
-import { Loader2, MessageSquare, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio } from "lucide-react";
+import { Loader2, MessageSquare, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio, Clock3 } from "lucide-react";
 import { PulseLoader } from "@/components/brand/pulse-loader";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -121,6 +121,20 @@ export default function ClientPortalPage() {
               empty="No sessions booked."
               items={data.upcomingSessions.map((s) => ({ key: s.title + s.startTime, primary: s.title, secondary: when(s.startTime) }))}
             />
+
+            {/* Prepaid hours the client bought and has left */}
+            {data.prepaidHours.length > 0 && (
+              <PortalList
+                icon={<Clock3 className="size-4 text-steel/70" />}
+                title="Your prepaid hours"
+                empty=""
+                items={data.prepaidHours.map((c, i) => ({
+                  key: `${c.name}-${i}`,
+                  primary: c.name,
+                  secondary: `${c.hoursRemaining} of ${c.hoursTotal} hours left`,
+                }))}
+              />
+            )}
 
             {/* Deliverables - approved mixes/masters/stems the artist can download */}
             {data.deliverables.length > 0 && (

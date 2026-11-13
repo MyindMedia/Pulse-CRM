@@ -4,7 +4,8 @@ import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight, currentActor } from "./lib/tenant";
+import { drawDownOnCompletion, returnHoursForSession, prepaidValueForSession, prepaidCoverCents } from "./packages";
 import { resolveViewer } from "./lib/access";
 import {
   assertNoBufferConflict,
@@ -112,7 +113,14 @@ export const get = query({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) return null;
     const log = await ctx.db.query("engineeringLogs").withIndex("by_session", (q) => q.eq("sessionId", id)).first();
-    return { ...redactMoney("sessions", await hydrate(ctx, s), await currentMoneySight(ctx)), engineeringLog: log };
+    const sight = await currentMoneySight(ctx);
+    return {
+      ...redactMoney("sessions", await hydrate(ctx, s), sight),
+      engineeringLog: log,
+      // What the prepaid block chosen for this session pays (counts as paid on
+      // the sheet's balance and Collect balance panel). Money-sighted only.
+      prepaidCoverCents: sight.money ? await prepaidCoverCents(ctx, s) : undefined,
+    };
   },
 });
 
@@ -708,8 +716,16 @@ export async function applyStatus(
     const id = s._id;
     // Snapshot BEFORE the patch: only a fresh transition out of an active state
     // into cancelled / no-show assesses the shield (so a re-set is idempotent).
-    const wasActive = s.status !== "cancelled" && s.status !== "no_show";
+    // A completed session is not "active" here: voiding one (completed ->
+    // cancelled, the way prepaid hours are put back) must not charge a late
+    // cancellation fee or offer its long-past slot to the waitlist.
+    const wasActive = s.status !== "cancelled" && s.status !== "no_show" && s.status !== "completed";
     await ctx.db.patch(id, { status });
+    // Prepaid hours: a completed session voided back to cancelled gets its
+    // hours put back on the client's block.
+    if (s.status === "completed" && status === "cancelled") {
+      await returnHoursForSession(ctx, s, { reason: "voided", byName: await currentActor(ctx) });
+    }
     // Status change cascades to the room: cancelling an active session
     // flips the room back to available; starting one flips it to in_use.
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
@@ -751,10 +767,16 @@ export async function applyStatus(
 
     // Session completed → fan out: invoice the balance + queue a recap insight.
     if (status === "completed") {
+      // Take the session's hours off the prepaid block chosen for it (once),
+      // then bill only what is left.
+      if (s.status !== "completed") s = await drawDownOnCompletion(ctx, s);
+      // Prepaid hours cut the rate; the session's full price still counts for
+      // the client's lifetime value and the engineer's percentage pay.
+      const fullRateCents = s.rateCents + (await prepaidValueForSession(ctx, s._id));
       const artist = await ctx.db.get(s.artistId);
       await ctx.db.patch(s.artistId, {
         sessionCount: (artist?.sessionCount ?? 0) + 1,
-        lifetimeValueCents: (artist?.lifetimeValueCents ?? 0) + s.rateCents,
+        lifetimeValueCents: (artist?.lifetimeValueCents ?? 0) + fullRateCents,
         lastContactAt: Date.now(),
         status: artist?.status === "lead" ? "active" : artist?.status,
       });
@@ -762,7 +784,7 @@ export async function applyStatus(
       // The engineer's cut, worked out now while the numbers are in front of
       // us rather than in someone's head at the end of the month. Queues only;
       // paying it out is still a decision a person makes.
-      await queuePayoutForSession(ctx, { ...s, status: "completed" });
+      await queuePayoutForSession(ctx, { ...s, rateCents: fullRateCents, status: "completed" });
       // Standing rules the owner promoted from an insight, fired on the real
       // event rather than discovered by polling for it.
       await fireRules(ctx, orgId, "session.completed", {
@@ -1098,7 +1120,7 @@ export const payLink = query({
       process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const slug = org?.slug ?? "";
     const url = slug ? `${base}/book/${slug}/checkout/${id}` : null;
-    const paid = s.amountPaidCents ?? 0;
+    const paid = (s.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, s));
     return {
       url,
       balanceCents: Math.max(0, s.rateCents - paid),
@@ -1130,8 +1152,10 @@ export const sendPayLinkSms = mutation({
     const base =
       process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const url = `${base}/book/${org?.slug ?? ""}/checkout/${id}`;
-    const paid = s.amountPaidCents ?? 0;
+    // Hours from a chosen prepaid block are paid, not owed.
+    const paid = (s.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, s));
     const balance = Math.max(0, s.rateCents - paid);
+    if (balance <= 0) throw new ConvexError("Nothing is owed on this session.");
     await notify(ctx, {
       orgId,
       channel: "sms",

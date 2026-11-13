@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Package, Plus, Pencil, Trash2, Clock3, Users } from "lucide-react";
+import { Package, Plus, Pencil, Trash2, Clock3, Users, HandCoins } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { money, shortDate } from "@/lib/format";
 import { ProductDialog, type PackageTarget } from "@/components/packages/product-dialog";
+import { SellDialog } from "@/components/packages/sell-dialog";
 import { EntityLink } from "@/components/shell/entity-link";
 
 export default function PackagesPage() {
@@ -20,8 +21,11 @@ export default function PackagesPage() {
   const credits = useQuery(api.packages.soldCredits, {});
   const update = useMutation(api.packages.update);
   const remove = useMutation(api.packages.remove);
+  // Selling blocks is on the Growth plan; managing existing ones is not.
+  const canSell = useQuery(api.packages.sellingAllowed) === true;
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [sellOpen, setSellOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<PackageTarget | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
 
@@ -65,10 +69,18 @@ export default function PackagesPage() {
         title="Packages"
         description="Prepaid hour blocks - sell studio time up front at a discount. Cash comes forward and the client is locked in; hours draw down on their future sessions."
         actions={
-          <Button onClick={openNew}>
-            <Plus className="size-4" />
-            New package
-          </Button>
+          <div className="flex gap-2">
+            {canSell && (
+              <Button variant="secondary" onClick={() => setSellOpen(true)}>
+                <HandCoins className="size-4" />
+                Sell to a client
+              </Button>
+            )}
+            <Button onClick={openNew}>
+              <Plus className="size-4" />
+              New package
+            </Button>
+          </div>
         }
       />
 
@@ -174,8 +186,8 @@ export default function PackagesPage() {
           </div>
         ) : credits.length === 0 ? (
           <p className="rounded-lg border border-graphite/50 bg-coal p-4 text-sm text-steel">
-            No packages sold yet. Once a client buys a block it shows here with
-            their remaining hours.
+            No packages sold yet. Use &quot;Sell to a client&quot; to record a payment or make a
+            pay link; the block shows here with the client&apos;s remaining hours.
           </p>
         ) : (
           <div className="space-y-2">
@@ -200,7 +212,9 @@ export default function PackagesPage() {
                       <span className="text-steel/40">·</span>
                       {money(c.priceCents)}
                       <span className="text-steel/40">·</span>
-                      bought {shortDate(c.purchasedAt)}
+                      {c.source === "manual"
+                        ? `recorded ${shortDate(c.purchasedAt)}${c.recordedByName ? ` by ${c.recordedByName}` : ""}`
+                        : `paid online ${shortDate(c.purchasedAt)}`}
                     </p>
                     <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-coal-3">
                       <div
@@ -226,6 +240,7 @@ export default function PackagesPage() {
       </section>
 
       <ProductDialog product={editing} open={dialogOpen} onOpenChange={setDialogOpen} />
+      <SellDialog open={sellOpen} onOpenChange={setSellOpen} />
     </div>
   );
 }

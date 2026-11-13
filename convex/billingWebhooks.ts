@@ -8,6 +8,8 @@ import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
 import { applyPackagePurchase } from "./packages";
+import { notifyTeam } from "./lib/notify";
+import { money } from "./lib/money";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
 import { applyOrgSubscription, toSubscriptionShape } from "./trialBilling";
@@ -109,6 +111,112 @@ async function applyAgencySubscription(ctx: MutationCtx, ag: Doc<"agencies">, st
   if (ag.status === "paused" && ag.billingPausedOrgIds?.length) await unlockAgencyStudios(ctx, ag);
 }
 
+/**
+ * A prepaid-hours pay link paid on a studio's connected account. Money that
+ * has arrived becomes hours (checkout completed and paid, or a delayed method
+ * settling later); money that cannot be turned into hours alerts the studio,
+ * never silently dropped. Idempotent: the event-id guard stops a replay, and
+ * applyPackagePurchase dedupes on the payment intent across event ids.
+ */
+async function handlePackageCheckout(
+  ctx: MutationCtx,
+  ev: { id: string; type: string; account?: string },
+  obj: Record<string, unknown>,
+  meta: Record<string, string>,
+): Promise<void> {
+  const orgId = meta.orgId;
+  if (!orgId || !await connectedAccountOwnsOrg(ctx, ev.account, orgId)) {
+    // Nothing here proves which studio this is, so nobody is alerted.
+    await markProcessed(ctx, ev.id, `${ev.type}.account_mismatch`);
+    return;
+  }
+  const reference = (obj.payment_intent as string) ?? (obj.id as string);
+  const amountCents = typeof obj.amount_total === "number" ? obj.amount_total : undefined;
+  const artistId = meta.artistId ? ctx.db.normalizeId("artists", meta.artistId) : null;
+  const artist = artistId ? await ctx.db.get(artistId) : null;
+  const who = artist && artist.orgId === orgId ? artist.name : "A client";
+  const amount = amountCents !== undefined ? money(amountCents) : "a payment";
+
+  if (ev.type === "checkout.session.async_payment_failed") {
+    await alertPackagePayment(ctx, orgId, {
+      subject: "Prepaid hours payment failed",
+      body: `${who}'s ${amount} bank payment for prepaid hours failed, so no hours were added. Payment reference ${reference}.`,
+      accent: "caution",
+    });
+    await markProcessed(ctx, ev.id, `${ev.type}.package`);
+    return;
+  }
+  // Stripe always sends payment_status on a completed checkout; an event
+  // without it is treated as paid, as before this change.
+  const paid =
+    ev.type === "checkout.session.async_payment_succeeded" ||
+    typeof obj.payment_status !== "string" ||
+    obj.payment_status === "paid";
+  if (!paid) {
+    // A delayed method: the money has not arrived yet. Hours are added when
+    // checkout.session.async_payment_succeeded comes in.
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "package.payment_pending",
+      summary: `${who} paid ${amount} for prepaid hours by bank - the hours are added when the payment clears`,
+      entityType: artist && artist.orgId === orgId ? "artist" : undefined,
+      entityId: artist && artist.orgId === orgId ? artist._id : undefined,
+      accent: "neutral",
+    });
+    await markProcessed(ctx, ev.id, `${ev.type}.package_pending`);
+    return;
+  }
+
+  const productId = meta.productId ? ctx.db.normalizeId("packageProducts", meta.productId) : null;
+  let creditId: Id<"packageCredits"> | null = null;
+  let reason = "the client or package in the payment could not be matched";
+  if (productId && artistId) {
+    try {
+      creditId = await applyPackagePurchase(ctx, {
+        orgId,
+        productId,
+        artistId,
+        stripeReference: reference,
+        source: "stripe",
+        hours: meta.hours ? Number(meta.hours) : undefined,
+        // What Stripe actually collected, else what the link offered.
+        priceCents: amountCents ?? (meta.priceCents ? Number(meta.priceCents) : undefined),
+        name: meta.productName,
+      });
+    } catch (err) {
+      reason = "creating the hours failed";
+      console.error("[webhook] package credit failed:", (err as Error).message);
+    }
+  }
+  if (!creditId) {
+    await alertPackagePayment(ctx, orgId, {
+      subject: "Prepaid hours payment needs attention",
+      body: `${who} paid ${amount} for prepaid hours but no hours were added: ${reason}. Check the payment (reference ${reference}) and record the hours or refund it.`,
+      accent: "critical",
+    });
+    await markProcessed(ctx, ev.id, `${ev.type}.package_unmatched`);
+    return;
+  }
+  await markProcessed(ctx, ev.id, ev.type);
+}
+
+/** Tell the studio about a prepaid-hours payment it must look at: the feed and
+ *  an email to the owner. Names the amount and Stripe's payment reference only
+ *  (no card details). */
+async function alertPackagePayment(
+  ctx: MutationCtx,
+  orgId: string,
+  a: { subject: string; body: string; accent: "caution" | "critical" },
+): Promise<void> {
+  await ctx.db.insert("activity", {
+    orgId,
+    kind: "package.payment_alert",
+    summary: a.body,
+    accent: a.accent,
+  });
+  await notifyTeam(ctx, { orgId, subject: a.subject, body: a.body, kind: "package.payment_alert" });
+}
+
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
   if (!stripeAccountId) return false;
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
@@ -147,6 +255,17 @@ export const handle = internalMutation({
       return { ok: true };
     }
 
+    // A pay-link payment by a delayed method (bank debit) arrives as
+    // checkout.session.completed with payment_status "unpaid", then later as
+    // one of these. Prepaid-hour packages are the only checkouts handled here.
+    if (e.type === "checkout.session.async_payment_succeeded" || e.type === "checkout.session.async_payment_failed") {
+      const meta = (obj.metadata as Record<string, string>) ?? {};
+      if (meta.kind === "package") {
+        await handlePackageCheckout(ctx, { id: e.id, type: e.type, account: event.account }, obj, meta);
+        return { ok: true };
+      }
+    }
+
     if (e.type === "checkout.session.completed") {
       const meta = (obj.metadata as Record<string, string>) ?? {};
 
@@ -177,25 +296,8 @@ export const handle = internalMutation({
       }
 
       // Prepaid hour-block package bought on a studio's connected account.
-      // Metadata carries kind/productId/artistId/orgId; create the credit. The
-      // event-id guard above makes this idempotent (a Stripe retry short-circuits
-      // at alreadyProcessed, so the credit is never double-created).
-      if (meta.kind === "package" && meta.productId && meta.artistId && meta.orgId) {
-        if (!await connectedAccountOwnsOrg(ctx, event.account, meta.orgId)) {
-          await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
-          return { ok: true };
-        }
-        try {
-          await applyPackagePurchase(ctx, {
-            orgId: meta.orgId,
-            productId: meta.productId as Id<"packageProducts">,
-            artistId: meta.artistId as Id<"artists">,
-            stripeReference: (obj.payment_intent as string) ?? (obj.id as string),
-          });
-        } catch (err) {
-          console.error("[webhook] package credit skipped:", (err as Error).message);
-        }
-        await markProcessed(ctx, event.id, e.type);
+      if (meta.kind === "package") {
+        await handlePackageCheckout(ctx, { id: e.id, type: e.type, account: event.account }, obj, meta);
         return { ok: true };
       }
 

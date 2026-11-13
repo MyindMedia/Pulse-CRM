@@ -81,6 +81,11 @@ async function gatherContext(ctx: { db: QueryCtx["db"] }, orgId: string, artistI
     .withIndex("by_artist", (q) => q.eq("artistId", artistId as never))
     .collect();
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  // Prepaid hours the client bought and has left. Hours only - no prices.
+  const credits = await ctx.db
+    .query("packageCredits")
+    .withIndex("by_org_artist", (q) => q.eq("orgId", orgId).eq("artistId", artistId as never))
+    .collect();
 
   // Approved deliverables for this artist's own songs only. Scoped by walking
   // the artist's org+artist song set, then re-checking each deliverable's org
@@ -138,6 +143,10 @@ async function gatherContext(ctx: { db: QueryCtx["db"] }, orgId: string, artistI
       .filter((i) => i.status !== "void")
       .map((i) => ({ id: i._id, number: i.number, amountCents: i.amountCents, status: i.status, payable: invoicePayable(i.status) })),
     deliverables,
+    prepaidHours: credits
+      .filter((c) => c.status === "active" && c.hoursRemaining > 0)
+      .sort((a, b) => a.purchasedAt - b.purchasedAt)
+      .map((c) => ({ name: c.name, hoursTotal: c.hoursTotal, hoursRemaining: c.hoursRemaining })),
   };
 }
 
@@ -220,6 +229,9 @@ function fallbackAnswer(c: NonNullable<Awaited<ReturnType<typeof gatherContext>>
     `You have ${c.songs.length} song${c.songs.length === 1 ? "" : "s"} in progress with ${c.studioName}.`,
     next ? `Your next session is "${next.title}" on ${fmtDate(next.startTime)}.` : "You have no upcoming sessions booked.",
     unpaid.length > 0 ? `You have ${unpaid.length} open invoice${unpaid.length === 1 ? "" : "s"} totaling $${(owed / 100).toFixed(2)}.` : "Your invoices are all settled.",
+    ...(c.prepaidHours.length > 0
+      ? [`You have ${Math.round(c.prepaidHours.reduce((sum, p) => sum + p.hoursRemaining, 0) * 100) / 100} prepaid hours left.`]
+      : []),
     "For anything else, send the studio a message in the Messages box on this page.",
   ];
   return parts.join(" ");

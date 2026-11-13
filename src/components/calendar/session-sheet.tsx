@@ -333,9 +333,12 @@ export function SessionSheet({
                       <Row label="Paid / balance">
                         <span className="inline-flex flex-wrap items-center justify-end gap-2 font-meta">
                           <span className="text-steel">{money(detail.amountPaidCents ?? 0)} paid</span>
-                          <Badge tone={detail.rateCents - (detail.amountPaidCents ?? 0) > 0 ? "caution" : "positive"}>
-                            {detail.rateCents - (detail.amountPaidCents ?? 0) > 0
-                              ? `${money(detail.rateCents - (detail.amountPaidCents ?? 0))} due`
+                          {(detail.prepaidCoverCents ?? 0) > 0 && (
+                            <span className="text-steel">{money(detail.prepaidCoverCents ?? 0)} prepaid hours</span>
+                          )}
+                          <Badge tone={sessionBalanceCents(detail) > 0 ? "caution" : "positive"}>
+                            {sessionBalanceCents(detail) > 0
+                              ? `${money(sessionBalanceCents(detail))} due`
                               : "Paid in full"}
                           </Badge>
                         </span>
@@ -391,22 +394,18 @@ export function SessionSheet({
 
                   <SessionInvoicesPanel sessionId={detail._id} />
 
-                  {/* Apply prepaid package hours - draw down a client's active credit */}
-                  {detail.status !== "cancelled" && (
-                    <ApplyPackagePanel
-                      sessionId={detail._id}
-                      artistId={detail.artistId}
-                      rateCents={detail.rateCents}
-                    />
-                  )}
+                  {/* Prepaid hours - pay this session from a client's block */}
+                  <ApplyPackagePanel
+                    sessionId={detail._id}
+                    artistId={detail.artistId}
+                    rateCents={detail.rateCents}
+                    status={detail.status}
+                  />
 
                   {/* Collect balance on the spot - pay link + QR / copy / text */}
                   <CollectBalancePanel
                     sessionId={detail._id}
-                    balanceCents={Math.max(
-                      0,
-                      detail.rateCents - (detail.amountPaidCents ?? 0),
-                    )}
+                    balanceCents={sessionBalanceCents(detail)}
                   />
 
                   <SessionHistoryPanel sessionId={detail._id} />
@@ -517,6 +516,12 @@ export function SessionSheet({
  * "Text the link" that reuses the studio's SMS seam. Mobile-friendly so staff
  * can settle up at the desk.
  */
+/** What the client still owes on a session: price, less cash paid, less what
+ *  the prepaid block chosen for it pays (worked out on the server). */
+function sessionBalanceCents(d: { rateCents?: number; amountPaidCents?: number; prepaidCoverCents?: number }): number {
+  return Math.max(0, (d.rateCents ?? 0) - (d.amountPaidCents ?? 0) - (d.prepaidCoverCents ?? 0));
+}
+
 function CollectBalancePanel({
   sessionId,
   balanceCents,
@@ -614,30 +619,42 @@ function CollectBalancePanel({
 }
 
 /**
- * Apply prepaid package hours to this session. Shows the client's active credits
- * (hours remaining + per-hour value); the operator picks a credit and applies N
- * hours, which reduces the session's charged rate and draws the balance down.
- * Studio-initiated - the public booking flow is untouched.
+ * Prepaid hours on this session. Staff choose the client's block to pay for
+ * the session; the session's hours come off it when the session is completed
+ * (never before), once. Hours can also be applied by hand. Every draw is
+ * listed, and the finance role can put the hours back if the session is
+ * refunded (voiding a completed session puts them back on its own).
  */
 function ApplyPackagePanel({
   sessionId,
   artistId,
   rateCents,
+  status,
 }: {
   sessionId: Id<"sessions">;
   artistId: Id<"artists">;
   rateCents: number;
+  status: string;
 }) {
+  const { can } = useCapabilities();
   const credits = useQuery(api.packages.creditsForArtist, { artistId });
+  const view = useQuery(api.packages.forSession, { sessionId });
   const redeem = useMutation(api.packages.redeem);
+  const choose = useMutation(api.packages.chooseForSession);
+  const giveBack = useMutation(api.packages.returnHours);
   const [creditId, setCreditId] = useState("");
   const [hours, setHours] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // Nothing to show until the client has an active credit with hours left.
-  if (!credits || credits.length === 0) return null;
+  const open = status !== "completed" && status !== "cancelled" && status !== "no_show";
+  const hasCredits = !!credits && credits.length > 0;
+  const draws = view?.draws ?? [];
+  const applied = draws.filter((d) => d.status === "applied");
+  // Nothing to show: no block to use and no history on this session.
+  if (!view || (!hasCredits && draws.length === 0 && !view.chosen)) return null;
+  if (!open && draws.length === 0) return null;
 
-  const selected = credits.find((c) => c._id === creditId) ?? null;
+  const selected = credits?.find((c) => c._id === creditId) ?? null;
 
   async function apply() {
     if (!selected) {
@@ -668,51 +685,123 @@ function ApplyPackagePanel({
     }
   }
 
+  async function payWith(id: Id<"packageCredits"> | null) {
+    setBusy(true);
+    try {
+      await choose({ sessionId, creditId: id });
+      toast.success(id ? "Hours come off this block when the session is completed." : "This session is no longer paid from prepaid hours.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not change the prepaid block");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function putBack() {
+    setBusy(true);
+    try {
+      const res = await giveBack({ sessionId });
+      toast.success(res.hoursReturned > 0 ? `${res.hoursReturned}h put back on the client's prepaid hours.` : "Nothing to put back.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not put the hours back");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-3 rounded-md border border-gold/25 bg-gold/[0.04] p-3">
       <div className="flex items-center justify-between gap-3">
         <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
           <PackageCheck className="size-3.5 text-gold" />
-          Apply package hours
+          Prepaid hours
         </p>
         <span className="font-meta text-xs text-steel">Rate {money(rateCents)}</span>
       </div>
 
-      <Select value={creditId} onValueChange={setCreditId}>
-        <SelectTrigger>
-          <SelectValue placeholder="Choose a prepaid block" />
-        </SelectTrigger>
-        <SelectContent>
-          {credits.map((c) => (
-            <SelectItem key={c._id} value={c._id}>
-              {c.name} · {c.hoursRemaining}h left{c.perHourCents !== null ? ` · ${money(c.perHourCents)}/hr` : ""}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {open && view.chosen && (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-steel">
+          <span>
+            Paid from <span className="font-medium text-bone">{view.chosen.name}</span> ({view.chosen.hoursRemaining}h left).
+            Hours come off when the session is completed.
+          </span>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void payWith(null)}>
+            Stop
+          </Button>
+        </div>
+      )}
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-        <Field label="Hours to apply" className="flex-1">
-          <Input
-            type="number"
-            min={0}
-            step="0.5"
-            inputMode="decimal"
-            value={hours}
-            onChange={(e) => setHours(e.target.value)}
-            placeholder={selected ? String(selected.hoursRemaining) : "0"}
-          />
-        </Field>
-        <Button
-          size="sm"
-          variant="primary"
-          disabled={busy || !selected}
-          onClick={() => void apply()}
-        >
-          <PackageCheck className="size-3.5" />
-          Apply
+      {open && hasCredits && (
+        <>
+          <Select value={creditId} onValueChange={setCreditId}>
+            <SelectTrigger>
+              <SelectValue placeholder="Choose a prepaid block" />
+            </SelectTrigger>
+            <SelectContent>
+              {credits.map((c) => (
+                <SelectItem key={c._id} value={c._id}>
+                  {c.name} · {c.hoursRemaining}h left
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || !selected || view.chosen?._id === selected._id}
+            onClick={() => selected && void payWith(selected._id)}
+          >
+            <PackageCheck className="size-3.5" />
+            Pay this session from this block
+          </Button>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <Field label="Or apply hours now" className="flex-1">
+              <Input
+                type="number"
+                min={0}
+                step="0.5"
+                inputMode="decimal"
+                value={hours}
+                onChange={(e) => setHours(e.target.value)}
+                placeholder={selected ? String(selected.hoursRemaining) : "0"}
+              />
+            </Field>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={busy || !selected}
+              onClick={() => void apply()}
+            >
+              <PackageCheck className="size-3.5" />
+              Apply
+            </Button>
+          </div>
+        </>
+      )}
+
+      {draws.length > 0 && (
+        <ul className="space-y-1 text-xs text-steel">
+          {draws.map((d) => (
+            <li key={d._id} className="flex justify-between gap-2">
+              <span>
+                {d.hours}h from {d.creditName}
+                {d.valueCents !== null ? ` (${money(d.valueCents)})` : ""}
+              </span>
+              <span className={d.status === "returned" ? "text-steel/60" : "text-bone"}>
+                {d.status === "returned" ? `put back${d.returnReason ? `, ${d.returnReason}` : ""}` : "taken off"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {applied.length > 0 && can("invoices.send") && (
+        <Button size="sm" variant="ghost" disabled={busy} onClick={() => void putBack()}>
+          Refund: put the hours back
         </Button>
-      </div>
+      )}
     </div>
   );
 }
