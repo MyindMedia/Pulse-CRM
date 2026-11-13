@@ -276,9 +276,34 @@ export const redeem = mutation({
       throw new ConvexError("That package belongs to a different client.");
     }
 
-    const hoursApplied = Math.min(hours, credit.hoursRemaining);
-    const perHour = credit.hoursTotal > 0 ? credit.priceCents / credit.hoursTotal : 0;
-    const valueCents = Math.min(session.rateCents, Math.round(perHour * hoursApplied));
+    // Same rule as the completion draw: one prepaid hour pays one hour of the
+    // session at the session's own price, never more hours than the session
+    // has left to pay for, and never for money already paid or invoiced.
+    const rows = (
+      await ctx.db
+        .query("packageDrawdowns")
+        .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
+        .collect()
+    ).filter((r) => r.orgId === orgId && r.status === "applied");
+    const sessionHours = Math.max(0, session.endTime - session.startTime) / 3_600_000;
+    const appliedHours = rows.reduce((sum, r) => sum + r.hours, 0);
+    const fullRate = session.rateCents + rows.reduce((sum, r) => sum + r.valueCents, 0);
+    const perHour = sessionHours > 0 ? fullRate / sessionHours : 0;
+    let invoicedCents = 0;
+    for (const inv of await ctx.db
+      .query("invoices")
+      .withIndex("by_artist", (q) => q.eq("artistId", session.artistId))
+      .collect()) {
+      if (inv.sessionId === sessionId && inv.orgId === orgId && inv.status !== "void") invoicedCents += inv.amountCents;
+    }
+    const owed = Math.max(0, session.rateCents - cashPaidCents(session) - invoicedCents);
+    const owedHours = perHour > 0 ? owed / perHour : 0;
+    const exact = Math.min(hours, credit.hoursRemaining, Math.max(0, sessionHours - appliedHours), owedHours);
+    const hoursApplied = roundHours(exact);
+    if (hoursApplied <= 0) {
+      throw new ConvexError("Nothing is left to pay on this session.");
+    }
+    const valueCents = exact >= owedHours - 1e-9 ? owed : Math.min(owed, Math.round(perHour * exact));
 
     const hoursRemaining = Math.max(0, credit.hoursRemaining - hoursApplied);
     await ctx.db.patch(creditId, {

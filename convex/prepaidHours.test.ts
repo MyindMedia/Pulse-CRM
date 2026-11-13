@@ -519,7 +519,22 @@ describe("H6 drawing hours down on completion", () => {
   it("U-12 redeeming the new credit by hand takes hours off it", async () => {
     const sessionId = await session(t, "org_a", artistId, { rateCents: 30000 });
     const res = await owner.mutation(api.packages.redeem, { sessionId, creditId, hours: 2 });
-    expect(res).toMatchObject({ hoursApplied: 2, hoursRemaining: 8, valueCents: 20000 });
+    // Round 2: valued at the session's price (was 20000 at the block's $100/h).
+    expect(res).toMatchObject({ hoursApplied: 2, hoursRemaining: 8, valueCents: 30000, rateCents: 0 });
+  });
+
+  it("round 2: applying by hand never takes hours for money already paid or past the session's length", async () => {
+    // $300 for 2h with $240 paid: only $60 = 0.4h may come off.
+    const paid = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2, amountPaidCents: 24000 });
+    const r1 = await owner.mutation(api.packages.redeem, { sessionId: paid, creditId, hours: 5 });
+    expect(r1).toMatchObject({ hoursApplied: 0.4, valueCents: 6000, rateCents: 24000 });
+    // A fully paid session: nothing to apply.
+    await expect(owner.mutation(api.packages.redeem, { sessionId: paid, creditId, hours: 1 })).rejects.toThrow(/Nothing is left/);
+    // Asking for 5h on a 2h unpaid session takes 2h.
+    const unpaid = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    const r2 = await owner.mutation(api.packages.redeem, { sessionId: unpaid, creditId, hours: 5 });
+    expect(r2.hoursApplied).toBe(2);
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(7.6);
   });
 });
 

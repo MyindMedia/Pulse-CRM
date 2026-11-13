@@ -161,13 +161,17 @@ describe("packages - redeem against a session", () => {
     const res = await owner.mutation(api.packages.redeem, {
       sessionId, creditId: credit._id as Id<"packageCredits">, hours: 2,
     });
-    expect(res.hoursApplied).toBe(2);
-    expect(res.valueCents).toBe(20000); // 2h * $100/hr
-    expect(res.rateCents).toBe(10000); // 30000 - 20000
-    expect(res.hoursRemaining).toBe(8);
+    // H6 round 2 owner decision: one prepaid hour pays one session hour at
+    // the session's price, and never more hours than the session lasts. This
+    // asserted 2h valued at the block's $100/hr on a 1-hour session (the
+    // client lost 2h for 1h of studio time and still owed $100).
+    expect(res.hoursApplied).toBe(1);
+    expect(res.valueCents).toBe(30000); // the whole 1h session
+    expect(res.rateCents).toBe(0);
+    expect(res.hoursRemaining).toBe(9);
 
     const session = await t.run(async (ctx) => ctx.db.get(sessionId)) as { rateCents: number };
-    expect(session.rateCents).toBe(10000);
+    expect(session.rateCents).toBe(0);
   });
 
   it("cannot overdraw: applies only remaining hours, marks depleted, never negative rate", async () => {
@@ -182,13 +186,15 @@ describe("packages - redeem against a session", () => {
     const res = await owner.mutation(api.packages.redeem, {
       sessionId, creditId: credit._id as Id<"packageCredits">, hours: 10,
     });
-    expect(res.hoursApplied).toBe(2); // capped at remaining
-    expect(res.hoursRemaining).toBe(0);
+    // H6 round 2: capped at the 1-hour session as well as the credit (this
+    // asserted 2h taken for a 1h session). The rate still never goes negative.
+    expect(res.hoursApplied).toBe(1);
+    expect(res.hoursRemaining).toBe(1);
     expect(res.rateCents).toBe(0); // floored at 0, not negative
 
-    // Credit is now depleted and no longer offered.
-    expect(await owner.query(api.packages.creditsForArtist, { artistId })).toHaveLength(0);
-    // A second redeem attempt fails - no hours left.
+    // The unused hour stays on the credit.
+    expect(await owner.query(api.packages.creditsForArtist, { artistId })).toHaveLength(1);
+    // A second redeem attempt fails - nothing left to pay.
     await expect(owner.mutation(api.packages.redeem, {
       sessionId, creditId: credit._id as Id<"packageCredits">, hours: 1,
     })).rejects.toThrow();
