@@ -9,6 +9,18 @@ export function money(cents: number, opts?: { compact?: boolean }) {
   }).format(dollars);
 }
 
+/** Currency with cents always shown: "$180.00". For amounts a client is asked
+ *  to pay, so the panel, the email and the download page print the same text. */
+export function moneyExact(cents: number) {
+  const dollars = Number.isFinite(cents) ? cents / 100 : 0;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(dollars);
+}
+
 export function compactNumber(n: number) {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 }
