@@ -2016,12 +2016,20 @@ export default defineSchema({
     // The receipt record and bank line this expense is reconciled with.
     receiptDocId: v.optional(v.id("receipts")),
     bankTransactionId: v.optional(v.id("bankTransactions")),
+    // Payroll rows only: the pay period they cover ("2026-11-01_2026-12-01"),
+    // so the same teammate's period is never posted twice.
+    payrollPeriod: v.optional(v.string()),
+    // The exact window that post covered, so a later post over any part of
+    // the same time (a month over a pay period) is caught, not only the same key.
+    payrollStart: v.optional(v.number()),
+    payrollEnd: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
     .index("by_org_category_date", ["orgId", "category", "date"])
     .index("by_org_member", ["orgId", "memberId"])
-    .index("by_bank_transaction", ["bankTransactionId"]),
+    .index("by_bank_transaction", ["bankTransactionId"])
+    .index("by_org_payroll_period", ["orgId", "payrollPeriod"]),
 
   // ── Banking (Plaid) - openspec/changes/add-bank-sync-receipts ─────────────
   // One Plaid Item per institution login. The access token is sealed with
@@ -3149,7 +3157,9 @@ export default defineSchema({
     // SMS timeclock checks. Overtime: at 8h the member is texted; YES marks
     // the OT approved, NO caps the entry at 8h, silence flags it for payroll
     // review. Interns: at 4h they must request permission via EXTEND, which a
-    // manager APPROVEs or DENYs by text; timeout caps the entry at 4h.
+    // manager APPROVEs or DENYs by text; with no answer the entry is closed
+    // when the approval window ran out (never at a time the intern was told
+    // to keep working). A denial leaves the entry open until they clock out.
     otPromptSentAt: v.optional(v.number()),
     otStatus: v.optional(
       v.union(v.literal("confirmed"), v.literal("declined"), v.literal("unconfirmed")),
@@ -3164,6 +3174,15 @@ export default defineSchema({
       ),
     ),
     autoClosedReason: v.optional(v.string()), // e.g. "ot_declined" | "intern_timeout"
+    // When a manager denied the intern's request, and when the one follow-up
+    // (intern and managers texted again) went out because they were still on.
+    internDeniedAt: v.optional(v.number()),
+    internDeniedFollowUpAt: v.optional(v.number()),
+    // A manager removed this entry. It is kept (pay history is never lost)
+    // but counts for nothing: no hours, no pay, no open clock.
+    voidedAt: v.optional(v.number()),
+    voidedBy: v.optional(v.string()),
+    voidReason: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])

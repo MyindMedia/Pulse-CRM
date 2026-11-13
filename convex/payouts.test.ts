@@ -27,12 +27,12 @@ describe("payout math (pure)", () => {
     expect(r.explanation).toBe("3 points at $50.00 each");
   });
 
-  it("hourly uses clocked hours, not session length", () => {
-    const r = payoutForSession({
+  it("U-04 never pays an hourly teammate per session: payroll already pays their clocked hours", () => {
+    // Used to return an "hourly" payout for the clocked hours inside the
+    // session, which payroll then paid a second time (truth-payroll-double-count).
+    expect(payoutForSession({
       payType: "hourly", payRateCents: 4_000, hours: 3.5, sessionRateCents: 50_000,
-    })!;
-    expect(r.amountCents).toBe(14_000);
-    expect(r.explanation).toBe("3.5 hours at $40.00/hr");
+    })).toBeNull();
   });
 
   it("never pays a session cut on top of a salary", () => {
@@ -156,6 +156,85 @@ describe("queueing", () => {
     const { items } = await asOwner.query(api.payouts.list, {});
     expect(items[0].amountCents).toBe(20_000);
     expect(items[0].commissionPctSnapshot).toBe(40);
+  });
+});
+
+describe("hourly staff are paid once (truth-payroll-double-count)", () => {
+  it("U-06 an hourly engineer's labour lands in the P&L once: payroll, not a session payout", async () => {
+    const t = convexTest(schema);
+    const ids = await studio(t);
+    await t.run((ctx) => ctx.db.patch(ids.eng, { payType: "hourly", payRateCents: 4_000, commissionPct: undefined }));
+    const sessionId = await makeSession(t, ids);
+    const s = (await t.run((ctx) => ctx.db.get(sessionId)))!;
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId: "org1", memberId: ids.eng, clockInAt: s.startTime, clockOutAt: s.endTime, status: "completed",
+        rateCentsSnapshot: 4_000, source: "self",
+      }),
+    );
+    const asOwner = t.withIdentity({ subject: OWNER, orgId: "org1" });
+    await asOwner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    const { items } = await asOwner.query(api.payouts.list, {});
+    expect(items).toHaveLength(0); // no per-session payout for hourly staff
+
+    const res = await asOwner.mutation(api.payroll.postToExpenses, { start: s.startTime - HOUR, end: s.endTime });
+    expect(res.created).toBe(1);
+    const expenses = await t.run((ctx) => ctx.db.query("expenses").collect());
+    expect(expenses).toHaveLength(1);
+    expect(expenses[0]).toMatchObject({ category: "payroll", amountCents: 16_000, memberId: ids.eng });
+  });
+
+  it("U-05 commission and points engineers still get their session payout", async () => {
+    const t = convexTest(schema);
+    const ids = await studio(t);
+    await t.run((ctx) => ctx.db.patch(ids.eng, { payType: "points", pointsPerSession: 2, commissionPct: undefined }));
+    const sessionId = await makeSession(t, ids);
+    const asOwner = t.withIdentity({ subject: OWNER, orgId: "org1" });
+    await asOwner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    const { items } = await asOwner.query(api.payouts.list, {});
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({ basis: "points", amountCents: 10_000 });
+  });
+});
+
+describe("hourly payouts queued before payroll took over (H208-01)", () => {
+  async function hourlyRow(t: ReturnType<typeof convexTest>, status: "queued" | "approved") {
+    const ids = await studio(t);
+    await t.run((ctx) => ctx.db.patch(ids.eng, { payType: "hourly", payRateCents: 4_000, commissionPct: undefined }));
+    const id = await t.run((ctx) =>
+      ctx.db.insert("payouts", {
+        orgId: "org1", memberId: ids.eng, basis: "hourly", amountCents: 16_000,
+        explanation: "4 hours at $40.00/hr", status, createdAt: Date.now(),
+      } as never),
+    );
+    return { id: id as Id<"payouts">, asOwner: t.withIdentity({ subject: OWNER, orgId: "org1" }) };
+  }
+
+  it("a queued hourly payout cannot be approved: payroll pays those hours", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "queued");
+    await expect(asOwner.mutation(api.payouts.approve, { id })).rejects.toMatchObject({
+      data: { code: "PAYOUT_STATE", message: expect.stringMatching(/Payroll pays these hours/) },
+    });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.status).toBe("queued");
+  });
+
+  it("an approved hourly payout cannot be marked paid, and nothing reaches the P&L", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "approved");
+    await expect(asOwner.mutation(api.payouts.markPaid, { id })).rejects.toMatchObject({
+      data: { code: "PAYOUT_STATE" },
+    });
+    expect(await t.run((ctx) => ctx.db.query("expenses").collect())).toHaveLength(0);
+    expect((await t.run((ctx) => ctx.db.get(id)))!.status).toBe("approved");
+  });
+
+  it("it can still be voided, which clears it from what is owed", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "approved");
+    await asOwner.mutation(api.payouts.voidPayout, { id, reason: "Payroll pays these hours" });
+    const { totals } = await asOwner.query(api.payouts.list, {});
+    expect(totals.owedCents).toBe(0);
   });
 });
 

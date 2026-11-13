@@ -125,17 +125,35 @@ export const INTERN_PROMPT =
   "Pulse: {studio} - you have hit 4 hours. Interns need approval to continue. " +
   "Reply EXTEND to request permission, or clock out now.[[ Open: {link}]]";
 
+/* The intern is never told to keep working while they wait: time a studio
+   tells someone to work is time it has to pay for. */
 export const INTERN_EXTEND_ACK =
-  "Pulse: Request sent - stay clocked in while a manager reviews. We will text you the decision.";
+  "Pulse: Request sent. Please clock out now. If a manager approves, we will text you and you can clock back in.";
+
+/** EXTEND when no owner or manager has a cell on file: nobody can approve by text. */
+export const INTERN_EXTEND_NO_MANAGER =
+  "Pulse: No manager can be reached by text. Please clock out now and ask a manager in person.";
 
 export const INTERN_APPROVED =
   "Pulse: Approved - you are cleared to keep working at {studio}. Remember to clock out.";
 
+/** Approval that arrives after the intern already clocked out, as they were asked to. */
+export const INTERN_APPROVED_RETURN =
+  "Pulse: Approved - you can clock back in at {studio} and keep working. Remember to clock out.";
+
 export const INTERN_DENIED =
   "Pulse: Not approved - please wrap up and clock out now at {studio}.";
 
+/** Denial that arrives after the intern already clocked out. */
+export const INTERN_DENIED_DONE =
+  "Pulse: Not approved - thanks for clocking out at {studio}.";
+
+/** A manager said no, and a reply window later the intern is still clocked in. */
+export const INTERN_DENIED_STILL_ON =
+  "Pulse: You are still clocked in at {studio} after a manager said no. Please clock out now.";
+
 export const INTERN_TIMEOUT =
-  "Pulse: No approval came through, so your time at {studio} was capped at 4 hours and you are clocked out.";
+  "Pulse: No approval came through, so you are clocked out at {studio} as of {time}.";
 
 export const MGR_INTERN_APPROVAL =
   "Pulse: {studio} - intern {name} has hit 4 hours and requests permission to " +

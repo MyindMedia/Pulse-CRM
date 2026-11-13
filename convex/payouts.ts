@@ -20,30 +20,6 @@ import { payoutForSession, payoutTotals } from "./lib/payoutMath";
    the building is always somebody's decision.
    ============================================================ */
 
-/** Hours clocked against one session, from the time clock. */
-async function clockedHours(
-  ctx: MutationCtx,
-  orgId: string,
-  memberId: Id<"members">,
-  session: Doc<"sessions">,
-): Promise<number> {
-  const entries = await ctx.db
-    .query("timeEntries")
-    .withIndex("by_org_member", (q) => q.eq("orgId", orgId).eq("memberId", memberId))
-    .collect();
-  let ms = 0;
-  for (const e of entries) {
-    const out = e.clockOutAt;
-    if (!out) continue;
-    // Overlap between the punch and the session window, so a shift spanning
-    // two sessions is not billed twice to the same one.
-    const from = Math.max(e.clockInAt, session.startTime);
-    const to = Math.min(out, session.endTime);
-    if (to > from) ms += to - from;
-  }
-  return ms / 3_600_000;
-}
-
 /**
  * Queue the engineer's cut for a completed session.
  *
@@ -79,9 +55,6 @@ export async function queuePayoutForSession(
     pointsPerSession: member.pointsPerSession,
     payRateCents: member.payRateCents,
     sessionRateCents: session.rateCents,
-    hours: member.payType === "hourly"
-      ? await clockedHours(ctx, session.orgId, memberId, session)
-      : undefined,
     pointValueCents: org?.pointValueCents,
   });
   // No basis configured is not the same as owing nothing. Queue nothing and
@@ -180,6 +153,17 @@ async function mineOrThrow(ctx: MutationCtx, id: Id<"payouts">, orgId: string) {
   return p;
 }
 
+/** Payroll pays every clocked hour, so an hourly-basis payout queued before
+ *  that change would pay the same hours twice. It can only be voided. */
+function refuseHourly(p: { basis: string }) {
+  if (p.basis === "hourly") {
+    throw new ConvexError({
+      code: "PAYOUT_STATE",
+      message: "Payroll pays these hours. Void this payout instead.",
+    });
+  }
+}
+
 /** Approve a queued payout. Approving is not paying. */
 export const approve = mutation({
   args: { id: v.id("payouts") },
@@ -190,6 +174,7 @@ export const approve = mutation({
     if (p.status !== "queued") {
       throw new ConvexError({ code: "PAYOUT_STATE", message: `That payout is already ${p.status}.` });
     }
+    refuseHourly(p);
     await ctx.db.patch(id, {
       status: "approved",
       approvedAt: Date.now(),
@@ -211,6 +196,7 @@ export const markPaid = mutation({
         message: "Approve the payout before marking it paid.",
       });
     }
+    refuseHourly(p);
     const member = await ctx.db.get(p.memberId);
     // Post it into the P&L the same way payroll does, so labor cost is one
     // number wherever you read it from.

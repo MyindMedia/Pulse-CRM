@@ -31,3 +31,15 @@ describe("timesheet math", () => {
     expect(fmtTicker(2 * HOUR + 14 * 60_000 + 9_000)).toBe("2:14:09");
   });
 });
+
+describe("clockedMs and removed entries (H208-05)", () => {
+  it("a voided entry, running or not, adds nothing", () => {
+    const now = 10 * 3_600_000;
+    const entries = [
+      { clockInAt: 0, clockOutAt: 3_600_000 },
+      { clockInAt: 2 * 3_600_000, clockOutAt: 4 * 3_600_000, voidedAt: 5 },
+      { clockInAt: 5 * 3_600_000, voidedAt: 6 },
+    ];
+    expect(clockedMs(entries, 0, now, now)).toBe(3_600_000);
+  });
+});

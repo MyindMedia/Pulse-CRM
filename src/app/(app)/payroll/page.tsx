@@ -23,6 +23,7 @@ import {
 import { money } from "@/lib/format";
 import { SetPayDialog, type PayTarget } from "@/components/payroll/set-pay-dialog";
 import { PayoutsPanel } from "@/components/payroll/payouts-panel";
+import { TimesheetPanel } from "@/components/payroll/timesheet-panel";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { payPeriodFor, defaultAnchorDate, type PaySchedule } from "@/lib/pay-period";
 
@@ -69,6 +70,10 @@ export default function PayrollPage() {
   const postToExpenses = useMutation(api.payroll.postToExpenses);
 
   const loading = data === undefined;
+  // Only a finished pay period or month can be posted: hours are still being
+  // worked in the current one, and a year or all time overlaps every period.
+  // The server refuses any window that has not ended as well.
+  const postable = range === "lastPeriod" || range === "last";
   const periodLabel =
     range === "period" || range === "lastPeriod"
       ? payPeriodFor(schedule, anchorDate, new Date(), range === "lastPeriod" ? -1 : 0).label
@@ -101,8 +106,32 @@ export default function PayrollPage() {
     setPosting(true);
     try {
       const res = await postToExpenses({ start, end });
-      if (res.created === 0) toast.info("Nothing to post for this period.");
-      else toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.`);
+      const names = (xs: { name: string }[]) => xs.map((x) => x.name).join(", ");
+      const notes: string[] = [];
+      if (res.skipped > 0) {
+        notes.push(`${res.skipped} ${res.skipped === 1 ? "teammate was" : "teammates were"} already posted for this period with nothing new.`);
+      }
+      if (res.blocked.length > 0) {
+        notes.push(`Not posted yet: ${names(res.blocked)} (a clock is still open or needs a clock-out time; fix it in the timesheet below, then post again).`);
+      }
+      if (res.overlapping.length > 0) {
+        notes.push(`Not posted: ${names(res.overlapping)} (already posted for a period that overlaps this one).`);
+      }
+      if (res.overPosted.length > 0) {
+        notes.push(`Already posted more than is now owed: ${res.overPosted.map((o) => `${o.name} (${money(o.overCents)})`).join(", ")}. Fix that expense by hand.`);
+      }
+      const tail = notes.length > 0 ? ` ${notes.join(" ")}` : "";
+      const rows = res.created + res.adjusted;
+      if (rows === 0) {
+        if (res.blocked.length + res.overlapping.length + res.overPosted.length > 0) toast.warning(`Nothing posted.${tail}`);
+        else toast.info(res.skipped > 0 ? `This period is already posted.${tail}` : "Nothing to post for this period.");
+      } else {
+        const parts = [
+          res.created > 0 ? `${res.created} payroll ${res.created === 1 ? "entry" : "entries"}` : null,
+          res.adjusted > 0 ? `${res.adjusted} ${res.adjusted === 1 ? "correction" : "corrections"} for hours added since the last post` : null,
+        ].filter(Boolean);
+        toast.success(`Posted ${parts.join(" and ")} (${money(res.totalCents)}) to Expenses.${tail}`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not post to expenses.");
     } finally {
@@ -117,7 +146,11 @@ export default function PayrollPage() {
         title="Payroll"
         description="Staff hours from the time clock, multiplied by each teammate's rate. Post a period's labor cost straight into your P&L."
         actions={
-          <Button onClick={doPost} disabled={posting || !data || data.rows.length === 0}>
+          <Button
+            onClick={doPost}
+            disabled={posting || !postable || !data || data.rows.length === 0}
+            title={postable ? undefined : "Pick Last pay period or Last month to post a finished period."}
+          >
             <ArrowRightLeft className="size-4" />
             {posting ? "Posting…" : "Post to expenses"}
           </Button>
@@ -187,6 +220,7 @@ export default function PayrollPage() {
                   </EntityLink>
                   <span className="ml-2 text-xs capitalize text-steel/70">{r.role.replace(/_/g, " ")}</span>
                   {r.openCount > 0 && <span className="ml-2 rounded-full border border-gold/40 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-gold">on the clock</span>}
+                  {r.needsClockOutCount > 0 && <span className="ml-2 rounded-full border border-gold/40 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-gold">needs a clock-out time</span>}
                 </TD>
                 <TD className="font-meta text-steel">{payLabel(r.payType, r.payRateCents)}</TD>
                 <TD className="text-right font-meta text-steel">{r.hours.toFixed(1)}h</TD>
@@ -201,6 +235,19 @@ export default function PayrollPage() {
           )}
         </TBody>
       </Table>
+
+      {data && data.needsClockOutCount > 0 && (
+        <p role="status" className="text-xs text-gold">
+          {data.needsClockOutCount === 1 ? "1 entry is" : `${data.needsClockOutCount} entries are`} still open after 12 hours and left out of these totals until a clock-out time is set.
+        </p>
+      )}
+
+      <TimesheetPanel
+        start={start}
+        end={end}
+        canEdit={can("invoices.send")}
+        members={(data?.rows ?? []).filter((r) => !r.isYou).map((r) => ({ memberId: r.memberId, name: r.name }))}
+      />
 
       <SetPayDialog target={payTarget} open={payOpen} onOpenChange={(o) => { setPayOpen(o); if (!o) setPayTarget(undefined); }} />
     </div>

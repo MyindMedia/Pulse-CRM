@@ -2,12 +2,13 @@
    semantics: an entry belongs to the window its clock-IN falls in, and a
    still-open entry accrues up to `now`. */
 
-export type EntryLite = { clockInAt: number; clockOutAt?: number | null };
+export type EntryLite = { clockInAt: number; clockOutAt?: number | null; voidedAt?: number | null };
 
 /** Total clocked ms for entries whose clock-in falls in [start, end). */
 export function clockedMs(entries: EntryLite[], start: number, end: number, now: number): number {
   let total = 0;
   for (const e of entries) {
+    if (e.voidedAt) continue; // removed by a manager: no hours
     if (e.clockInAt < start || e.clockInAt >= end) continue;
     total += Math.max(0, (e.clockOutAt ?? now) - e.clockInAt);
   }
