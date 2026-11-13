@@ -3,6 +3,8 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { refundIdempotencyKey, REFUND_ATTEMPTS, STUCK_AFTER_MS } from "./strayPayments";
+import * as stray from "./strayPayments";
 
 /* Round 2 of pull request #206 (bookings and payments): the review findings
    H206-01 to H206-06.
@@ -364,5 +366,196 @@ describe("same class (invoice side): an invoice is marked paid only when Stripe 
     expect((await t.run((ctx) => ctx.db.get(id)))?.status).toBe("paid");
     const [row] = await strays(t);
     expect(row).toMatchObject({ reason: "unmatched", status: "needs_review", amountCents: 5_000 });
+  });
+});
+
+describe("H206-04: a refund call that errors is retried, and a stuck refund is never silent", () => {
+  it("Stripe errors twice then answers: refunded once, every attempt uses the same idempotency key", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [new Error("socket hang up"), new Error("socket hang up"), { id: "re_ok", status: "succeeded" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(3);
+    expect(new Set(fake.refundCalls.map((c) => c.opts.idempotencyKey))).toEqual(new Set([refundIdempotencyKey("evt_r2_1")]));
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ status: "refunded", refundId: "re_ok" });
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+  });
+
+  it("Stripe never answers: marked failed after the retries, and the team is told to check Stripe before refunding by hand", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [new Error("ECONNRESET")];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(REFUND_ATTEMPTS);
+    const [row] = await strays(t);
+    expect(row.status).toBe("refund_failed");
+    const team = (await notes(t, "payment.refund_failed")).find((n) => n.recipient !== "nova@r2.test");
+    expect(team?.body).toContain("if a refund already shows there, nothing else is needed");
+  });
+
+  it("a Stripe refusal (status failed) is not retried and says refund by hand", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_f", status: "failed" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(1);
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ status: "refund_failed", refundId: "re_f" });
+    const team = (await notes(t, "payment.refund_failed")).find((n) => n.recipient !== "nova@r2.test");
+    expect(team?.body).toContain("Refund it by hand");
+  });
+
+  it("a row left refund_pending by a dead action is refunded by the sweep with the same key", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    fake.replies = [{ id: "re_sw", status: "succeeded" }];
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect(fake.refundCalls).toHaveLength(1);
+    expect(fake.refundCalls[0].opts.idempotencyKey).toBe(refundIdempotencyKey("evt_r2_1"));
+    expect((await strays(t))[0]).toMatchObject({ status: "refunded", refundId: "re_sw" });
+  });
+
+  it("the sweep leaves a fresh row alone", async () => {
+    const t = convexTest(schema);
+    await pendingStray(t);
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect(fake.refundCalls).toHaveLength(0);
+    expect((await strays(t))[0].status).toBe("refund_pending");
+  });
+
+  it("the sweep cannot reach Stripe: the team is told once, the row is not marked failed, the client gets nothing yet", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    fake.replies = [new Error("ETIMEDOUT")];
+    await t.action(internal.strayPayments.sweepStuck, {});
+    await t.action(internal.strayPayments.sweepStuck, {});
+    const [row] = await strays(t);
+    expect(row.status).toBe("refund_pending");
+    expect(row.staleAlertedAt).toBeDefined();
+    const stuck = await notes(t, "payment.refund_stuck");
+    expect(stuck.length).toBeGreaterThan(0);
+    expect(stuck.every((n) => n.recipient !== "nova@r2.test")).toBe(true);
+    const perRecipient = new Set(stuck.map((n) => `${n.channel}:${n.recipient}`));
+    expect(perRecipient.size).toBe(stuck.length); // one alert per team member, not one per sweep
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+  });
+});
+
+describe("H206-05/06: a pending refund is not reported as refunded until Stripe says so", () => {
+  it("a 'pending' refund keeps the row refund_pending with the refund id; the team hears it is in progress, the client hears nothing yet", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ status: "refund_pending", refundId: "re_pending" });
+    expect(row.resolvedAt).toBeUndefined();
+    const prog = await notes(t, "payment.refund_in_progress");
+    expect(prog.length).toBeGreaterThan(0);
+    expect(prog.every((n) => n.recipient !== "nova@r2.test")).toBe(true);
+    expect(await notes(t, "payment.late_refunded")).toHaveLength(0);
+    // Running the action again does not start a second refund.
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(1);
+  });
+
+  it("'requires_action' is treated the same as pending", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_ra", status: "requires_action" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect((await strays(t))[0]).toMatchObject({ status: "refund_pending", refundId: "re_ra" });
+    expect(await notes(t, "payment.late_refunded")).toHaveLength(0);
+  });
+
+  it("refund.updated succeeded finishes the row and only then tells the client", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId) });
+    expect((await strays(t))[0]).toMatchObject({ status: "refunded", refundId: "re_pending" });
+    const client = (await notes(t, "payment.late_refunded")).find((n) => n.recipient === "nova@r2.test");
+    expect(client?.body).toContain("refunded the $100 in full");
+    // A replay does nothing more.
+    const again = await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId) });
+    expect(again).toEqual({ duplicate: true });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "evt_refund_2" }) });
+    expect((await notes(t, "payment.late_refunded")).filter((n) => n.recipient === "nova@r2.test")).toHaveLength(1);
+  });
+
+  it("refund.failed after pending: the row is refund_failed and the team is told to refund by hand", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: refundEvent(strayId, { type: "refund.failed", status: "failed" }),
+    });
+    expect((await strays(t))[0]).toMatchObject({ status: "refund_failed", refundId: "re_pending" });
+    const failed = await notes(t, "payment.refund_failed");
+    expect(failed.some((n) => n.recipient !== "nova@r2.test" && n.subject.startsWith("Refund failed - refund by hand"))).toBe(true);
+    expect(await notes(t, "payment.late_refunded")).toHaveLength(0);
+  });
+
+  it("a refund event from another connected account, for another refund, or another payment is ignored", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "e1", account: "acct_x" }) });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "e2", refundId: "re_other" }) });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "e3", pi: "pi_other" }) });
+    await t.mutation(internal.billingWebhooks.handle, { event: { ...refundEvent(strayId, { id: "e4" }), account: undefined } });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent("not-an-id", { id: "e5" }) });
+    expect((await strays(t))[0].status).toBe("refund_pending");
+    expect(await marks(t)).toEqual(expect.arrayContaining([
+      "refund.updated.ignored", "refund.updated.ignored", "refund.updated.ignored", "refund.updated.ignored", "refund.updated.ignored",
+    ]));
+  });
+
+  it("charge.refund.updated (the older event name) is handled the same way", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { type: "charge.refund.updated" }) });
+    expect((await strays(t))[0].status).toBe("refunded");
+  });
+
+  it("with no refund webhook, the sweep asks Stripe about a pending refund and finishes it", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    fake.retrieve.re_pending = "succeeded";
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect(fake.retrieveCalls).toEqual([{ id: "re_pending", opts: { stripeAccount: ACCT } }]);
+    expect(fake.refundCalls).toHaveLength(1); // no new refund created
+    expect((await strays(t))[0].status).toBe("refunded");
+  });
+
+  it("a refund still pending at the sweep is reported to the team once", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [{ id: "re_pending", status: "pending" }];
+    await t.action(internal.strayPayments.refund, { strayId });
+    await t.run((ctx) => ctx.db.patch(strayId, { createdAt: Date.now() - STUCK_AFTER_MS - 60_000 }));
+    await t.action(internal.strayPayments.sweepStuck, {});
+    const first = (await notes(t, "payment.refund_stuck")).length;
+    await t.action(internal.strayPayments.sweepStuck, {});
+    expect(first).toBeGreaterThan(0);
+    expect((await notes(t, "payment.refund_stuck")).length).toBe(first);
+    expect((await strays(t))[0].status).toBe("refund_pending");
+  });
+
+  it("the new stray-payment functions are internal only", () => {
+    for (const fn of [stray._applyOutcome, stray._stuck, stray.sweepStuck, stray._reportStuck]) {
+      expect((fn as unknown as { isInternal?: boolean }).isInternal).toBe(true);
+    }
   });
 });

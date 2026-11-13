@@ -7,7 +7,7 @@ import { tierForPriceId } from "./lib/stripe";
 import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
-import { recordStrayPayment } from "./strayPayments";
+import { recordStrayPayment, applyRefundUpdate } from "./strayPayments";
 import { notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { applyPackagePurchase } from "./packages";
@@ -185,6 +185,18 @@ export const handle = internalMutation({
         stripePayoutId: obj.id,
       });
       await markProcessed(ctx, event.id, e.type);
+      return { ok: true };
+    }
+
+    // A refund Pulse started for a stray payment changed state at Stripe
+    // (an asynchronous refund settled or failed). Only acts on a refund whose
+    // metadata names a strayPayments row on this same connected account.
+    if (
+      (e.type === "refund.updated" || e.type === "refund.failed" || e.type === "charge.refund.updated") &&
+      obj.object === "refund"
+    ) {
+      const applied = await applyRefundUpdate(ctx, { account: event.account, refund: obj });
+      await markProcessed(ctx, event.id, applied ? e.type : `${e.type}.ignored`);
       return { ok: true };
     }
 

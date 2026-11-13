@@ -1720,10 +1720,16 @@ export default defineSchema({
     error: v.optional(v.string()),
     createdAt: v.number(),
     resolvedAt: v.optional(v.number()),
+    // A refund Stripe accepted but has not settled ("pending"): when the team
+    // was told it is in progress.
+    teamToldPendingAt: v.optional(v.number()),
+    // When the sweep told the team a refund could not be confirmed (once).
+    staleAlertedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_event", ["eventId"])
-    .index("by_payment_intent", ["paymentIntent"]),
+    .index("by_payment_intent", ["paymentIntent"])
+    .index("by_status_created", ["status", "createdAt"]),
 
   // ── Notifications - confirmation / reminder messages. The notify() seam
   //    logs them here; real email/SMS delivery drops in behind it later. ──
