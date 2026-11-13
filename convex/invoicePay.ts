@@ -9,6 +9,7 @@ import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { recordRecoveryOnPaid } from "./lib/recoveryOnPaid";
 import { settleDeliveryForInvoice } from "./sessionDelivery";
+import { onlineCardPayments } from "./lib/checkout";
 
 /* ============================================================
    Public invoice payment. No auth - a client opens the pay link
@@ -41,7 +42,7 @@ export const get = query({
       accentColor: org?.accentColor ?? "#fdb913",
       logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
       // Whether online card payment is available (studio connected Stripe).
-      payable: Boolean(process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled),
+      payable: onlineCardPayments(org),
     };
   },
 });

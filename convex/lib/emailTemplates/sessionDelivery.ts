@@ -53,6 +53,13 @@ function cleanName(firstName: string): string {
   return (firstName ?? "").trim();
 }
 
+/** "<title> session", or the title alone when it already ends with the word
+ *  session ("Writing session", not "Writing session session"). */
+export function sessionWords(title: string): string {
+  const t = (title ?? "").trim();
+  return /\bsession$/i.test(t) ? t : `${t} session`;
+}
+
 function heading(text: string): string {
   return `<h1 style="margin:0 0 14px 0;font-family:${FONT};font-size:22px;line-height:1.25;font-weight:700;color:${TEXT};">${esc(text)}</h1>`;
 }
@@ -104,7 +111,7 @@ export function filesReadyEmail(a: {
   const subject = `Your files from ${a.title} are ready`;
   const head = name ? `Your files are ready, ${name}` : "Your files are ready";
   const paidNow = typeof a.paidCents === "number" && a.paidCents > 0;
-  const lead = `Everything from your ${a.title} session on ${a.sessionDate} is ready to download.`;
+  const lead = `Everything from your ${sessionWords(a.title)} on ${a.sessionDate} is ready to download.`;
   const body = paidNow ? `${lead} Payment received: ${moneyExact(a.paidCents!)}. Thank you.` : lead;
   // The message log copy: staff without money sight read it, so no amount.
   const logBody = paidNow ? `${lead} Payment received. Thank you.` : lead;
@@ -114,28 +121,38 @@ export function filesReadyEmail(a: {
   return { subject, text, html };
 }
 
-/** "Pay and unlock" when the files are ready and a balance is still owed. */
+/** "Pay and unlock" when the files are ready and a balance is still owed.
+ *  `payOnline`: the delivery page has a Pay button for exactly this balance
+ *  (sessionDelivery.payTargetFor). Without one the email has no button and
+ *  says the studio will send a way to pay. `balanceCents` null: the booking's
+ *  prices are hidden, so no amount anywhere. */
 export function payToUnlockEmail(a: {
   firstName: string;
   title: string;
   sessionDate: string;
   files: DeliveryFile[];
   url: string;
-  balanceCents: number;
+  balanceCents: number | null;
+  payOnline: boolean;
+  studioName: string;
   /** The studio's accent (hex) for the button. */
   accent?: string;
 }): Rendered {
   const name = cleanName(a.firstName);
-  const amount = moneyExact(a.balanceCents);
+  const amount = a.balanceCents === null ? null : moneyExact(a.balanceCents);
   const subject = "Your files are ready. One step left";
   const head = name ? `Your files are finished, ${name}` : "Your files are finished";
-  const opening = `Your ${a.title} session from ${a.sessionDate} is finished and waiting.`;
+  const opening = `Your ${sessionWords(a.title)} from ${a.sessionDate} is finished and waiting.`;
+  const studio = (a.studioName ?? "").trim() || "The studio";
+  const how = a.payOnline ? "" : ` ${studio} will send you a way to pay it.`;
   const closing = "Once it is paid, your download link arrives right away.";
-  const body = `${opening} There is a ${amount} balance on this booking. ${closing}`;
+  const balance = amount ? `There is a ${amount} balance on this booking.` : "There is a balance on this booking.";
+  const body = `${opening} ${balance}${how} ${closing}`;
   // The message log copy: staff without money sight read it, so no amount.
-  const logBody = `${opening} There is a balance on this booking. ${closing}`;
+  const logBody = `${opening} There is a balance on this booking.${how} ${closing}`;
   const fine = "Already paid? Reply to this email and the studio will sort it out.";
-  const html = heading(head) + para(body) + fileTable(a.files) + button(`Pay ${amount} and unlock`, a.url, a.accent) + small(fine);
+  const cta = a.payOnline ? button(amount ? `Pay ${amount} and unlock` : "Pay and unlock", a.url, a.accent) : "";
+  const html = heading(head) + para(body) + fileTable(a.files) + cta + small(fine);
   const text = `${head}\n\n${logBody}\n\n${fileLines(a.files)}\n\n${fine}`;
   return { subject, text, html };
 }

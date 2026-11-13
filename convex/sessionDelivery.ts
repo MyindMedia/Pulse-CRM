@@ -10,6 +10,7 @@ import { appUrl } from "./lib/links";
 import { orgTz } from "./lib/tz";
 import { publicFileUrl, signedDownloadUrl } from "./lib/media";
 import { filesReadyEmail, payToUnlockEmail } from "./lib/emailTemplates/sessionDelivery";
+import { checkoutBalanceCents, checkoutChargeCents, checkoutKindsOffered, checkoutPaymentMode, onlineCardPayments } from "./lib/checkout";
 
 /* ============================================================
    Session file delivery: the booking's Final files, handed to the client
@@ -117,6 +118,11 @@ async function orgRow(ctx: Ctx, orgId: string): Promise<Doc<"orgs"> | null> {
    booking's sessionId and this booking's studio counts, by its amountCents; a
    draft, sent, viewed, overdue or void invoice counts for nothing.
 
+   Booking payments are credited the way createCompletionInvoice credits them
+   (sessions.ts): the larger of `amountPaidCents` and, for a row whose deposit
+   is recorded only by the old `depositPaid` flag, `depositCents`. Larger, not
+   the sum: a ledgered deposit sets both.
+
    "Nothing owed" must never be true while money is owed, so every doubtful
    number errs toward owed: a rate that is not a finite, non-negative number is
    owed in full forever (never releases), and a paid amount that is not a finite
@@ -131,31 +137,33 @@ function positiveCents(n: number | undefined): number {
   return typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-/** Cents still owed, given what the booking's paid invoices add up to.
- *  Infinity when the rate itself is broken. Pure. */
-export function owedFrom(session: Pick<Doc<"sessions">, "rateCents" | "amountPaidCents">, paidByInvoiceCents: number): number {
-  const rate = session.rateCents;
-  if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0) return Number.POSITIVE_INFINITY;
-  return Math.max(0, rate - positiveCents(session.amountPaidCents) - positiveCents(paidByInvoiceCents));
+type OwedFields = Pick<Doc<"sessions">, "rateCents" | "amountPaidCents" | "depositPaid" | "depositCents">;
+
+/** Booking payments credited against the rate: max(amountPaidCents, the
+ *  deposit when `depositPaid`), the createCompletionInvoice rule. */
+export function bookingPaidCents(session: Pick<OwedFields, "amountPaidCents" | "depositPaid" | "depositCents">): number {
+  return Math.max(positiveCents(session.amountPaidCents), session.depositPaid === true ? positiveCents(session.depositCents) : 0);
 }
 
-type Ledger = { owed: number; openInvoiceId: Id<"invoices"> | null };
+/** Cents still owed, given what the booking's paid invoices add up to.
+ *  Infinity when the rate itself is broken. Pure. */
+export function owedFrom(session: OwedFields, paidByInvoiceCents: number): number {
+  const rate = session.rateCents;
+  if (typeof rate !== "number" || !Number.isFinite(rate) || rate < 0) return Number.POSITIVE_INFINITY;
+  return Math.max(0, rate - bookingPaidCents(session) - positiveCents(paidByInvoiceCents));
+}
 
-/** What the booking still owes and its open (sent, viewed or overdue) invoice,
- *  newest first, if any. */
+type Ledger = { owed: number; invoices: Array<Doc<"invoices">> };
+
+/** What the booking still owes, and its invoices (this booking, this studio). */
 async function bookingLedger(ctx: Ctx, session: Doc<"sessions">): Promise<Ledger> {
-  const invoices = await ctx.db
+  const rows = await ctx.db
     .query("invoices")
     .withIndex("by_session", (q) => q.eq("sessionId", session._id))
     .take(MAX_INVOICES);
-  let paidByInvoice = 0;
-  let open: Doc<"invoices"> | null = null;
-  for (const inv of invoices) {
-    if (inv.orgId !== session.orgId || inv.sessionId !== session._id) continue;
-    if (inv.status === "paid") paidByInvoice += positiveCents(inv.amountCents);
-    else if (OPEN_INVOICE.has(inv.status) && (!open || inv._creationTime > open._creationTime)) open = inv;
-  }
-  return { owed: owedFrom(session, paidByInvoice), openInvoiceId: open?._id ?? null };
+  const invoices = rows.filter((inv) => inv.orgId === session.orgId && inv.sessionId === session._id);
+  const paidByInvoice = invoices.filter((inv) => inv.status === "paid").reduce((sum, inv) => sum + positiveCents(inv.amountCents), 0);
+  return { owed: owedFrom(session, paidByInvoice), invoices };
 }
 
 /** max(0, rate - booking payments - paid invoices on this booking), in cents.
@@ -169,11 +177,124 @@ function shownCents(owed: number): number | null {
   return Number.isFinite(owed) ? owed : null;
 }
 
+/* ── Where the Pay button goes ──────────────────────────────────
+   The rule: the delivery page and the pay email offer an online Pay button
+   only when the amount that target will charge is exactly what is owed (the
+   amount the client is shown). Otherwise there is no button and the client is
+   told the studio will send a way to pay. Pulse keeps two payment records and
+   each pay page computes its own amount, so a button is offered only where the
+   two agree, never by guessing which one is right.
+
+     invoice   exactly one invoice on the booking is sent, viewed or overdue,
+               and its stored amountCents (what invoicePay charges) is owed
+     checkout  the booking has no invoice but void ones, prices are not hidden,
+               and every amount the checkout page offers this booking (one
+               amount: a choice between a deposit and the full amount is not
+               certain) is owed, computed by the checkout's own functions
+               (lib/checkout.ts, the ones booking.payViaStripe charges with)
+     none      nothing_owed; invoice_not_sent (one draft invoice would be the
+               target once sent); prices_hidden; amount_mismatch (anything
+               else, including a studio that cannot take cards online, since
+               both pay pages then charge nothing)
+   Both targets also need the studio's online card payments on: without them
+   neither pay page can charge anything. */
+
+export type PayTarget =
+  | { kind: "invoice"; url: string; cents: number }
+  | { kind: "checkout"; url: string; cents: number }
+  | { kind: "none"; reason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" };
+
+export type PayTargetInput = {
+  session: Pick<Doc<"sessions">, "_id" | "rateCents" | "amountPaidCents" | "depositCents" | "depositPaid" | "pricingHidden">;
+  /** This booking's invoices in this studio. */
+  invoices: Array<Pick<Doc<"invoices">, "_id" | "status" | "amountCents">>;
+  /** owedFrom(session, paid invoices). */
+  owed: number;
+  /** The checkout page's payment mode for the booking (checkoutPaymentMode). */
+  paymentMode: "deposit" | "full";
+  /** onlineCardPayments(org). */
+  cardsOn: boolean;
+  orgSlug: string | null;
+  /** The app's base URL, no trailing slash. */
+  base: string;
+};
+
+/** The decision, from facts already read. Pure. */
+export function decidePayTarget(x: PayTargetInput): PayTarget {
+  const { session, owed } = x;
+  if (owed === 0) return { kind: "none", reason: "nothing_owed" };
+  // A broken rate (Infinity) or anything odd: no amount is certain.
+  if (!Number.isFinite(owed) || owed < 0 || !Number.isInteger(owed)) return { kind: "none", reason: "amount_mismatch" };
+
+  const live = x.invoices.filter((inv) => inv.status !== "void");
+  const open = live.filter((inv) => OPEN_INVOICE.has(inv.status));
+  const drafts = live.filter((inv) => inv.status === "draft");
+
+  // The open invoice: the client pays its stored amount (invoicePay).
+  if (x.cardsOn && open.length === 1 && open[0].amountCents === owed) {
+    return { kind: "invoice", url: `${x.base}/pay/invoice/${open[0]._id}`, cents: open[0].amountCents };
+  }
+
+  // The booking checkout: only with no invoice in play at all, prices shown,
+  // and one certain amount on offer.
+  if (x.cardsOn && live.length === 0 && session.pricingHidden !== true && x.orgSlug) {
+    const kinds = checkoutKindsOffered(session, x.paymentMode);
+    const balanceCents = checkoutBalanceCents(session);
+    const amounts = new Set(kinds.map((k) => checkoutChargeCents({ depositCents: session.depositCents, balanceCents }, k)));
+    if (amounts.size === 1) {
+      const [cents] = [...amounts];
+      if (cents === owed) return { kind: "checkout", url: `${x.base}/book/${x.orgSlug}/checkout/${session._id}`, cents };
+    }
+  }
+
+  // Sending the one draft would make it the target.
+  if (x.cardsOn && open.length === 0 && drafts.length === 1 && drafts[0].amountCents === owed) {
+    return { kind: "none", reason: "invoice_not_sent" };
+  }
+  if (session.pricingHidden === true) return { kind: "none", reason: "prices_hidden" };
+  return { kind: "none", reason: "amount_mismatch" };
+}
+
+type PayFacts = { owed: number; target: PayTarget };
+
+async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | null): Promise<PayFacts> {
+  const [ledger, room] = await Promise.all([bookingLedger(ctx, session), session.roomId ? ctx.db.get(session.roomId) : null]);
+  const target = decidePayTarget({
+    session,
+    invoices: ledger.invoices,
+    owed: ledger.owed,
+    paymentMode: checkoutPaymentMode(room && room.orgId === session.orgId ? room : null),
+    cardsOn: !!org && org.orgId === session.orgId && onlineCardPayments(org),
+    orgSlug: org?.slug ?? null,
+    base: appUrl().replace(/\/$/, ""),
+  });
+  return { owed: ledger.owed, target };
+}
+
+/** Where the client can pay this booking online for exactly what is owed, or
+ *  why there is no such place. */
+export async function payTargetFor(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | null): Promise<PayTarget> {
+  return (await payFacts(ctx, session, org)).target;
+}
+
 const PRICE_BROKEN = "This booking's price needs fixing first.";
 const CANCELLED = "This booking was cancelled.";
 
-function firstName(name: string | undefined): string {
-  return (name ?? "").trim().split(/\s+/)[0] ?? "";
+/** Client types that are a person, greeted by first name. A band, a label
+ *  and "other" are greeted by their whole name. */
+const PERSON_TYPES = new Set<Doc<"artists">["type"]>(["artist", "producer", "songwriter"]);
+const ARTICLES = new Set(["the", "a", "an"]);
+
+/** The name to greet a client by: a person's first word ("Jordan Ellis" ->
+ *  "Jordan"); the whole name for a band, label or other client, for a name that
+ *  starts with an article ("The Midnight Tape") and for a one-word name; "" for
+ *  none. The card, both emails and the page all use it. */
+export function greetingName(artist: Pick<Doc<"artists">, "name" | "type"> | null | undefined): string {
+  const name = (artist?.name ?? "").trim().replace(/\s+/g, " ");
+  if (!name) return "";
+  const words = name.split(" ");
+  if (words.length === 1 || !PERSON_TYPES.has(artist!.type) || ARTICLES.has(words[0].toLowerCase())) return name;
+  return words[0];
 }
 
 /** "November 10" in the studio's zone. */
@@ -198,18 +319,20 @@ type Facts = {
   files: FinalFile[];
   /** Cents still owed (owedOnBooking): booking payments and paid invoices. */
   owed: number;
+  /** Where the client can pay exactly `owed` online, if anywhere. */
+  target: PayTarget;
 };
 
 async function facts(ctx: MutationCtx, delivery: Delivery): Promise<Facts | null> {
   const session = await ctx.db.get(delivery.sessionId);
   if (!session || session.orgId !== delivery.orgId) return null;
-  const [org, artist, files, owed] = await Promise.all([
-    orgRow(ctx, delivery.orgId),
+  const org = await orgRow(ctx, delivery.orgId);
+  const [artist, files, pay] = await Promise.all([
     ctx.db.get(session.artistId),
     finalFiles(ctx, delivery.orgId, delivery.sessionId),
-    owedOnBooking(ctx, session),
+    payFacts(ctx, session, org),
   ]);
-  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files, owed };
+  return { session, org, artist: artist && artist.orgId === delivery.orgId ? artist : null, files, owed: pay.owed, target: pay.target };
 }
 
 type Email = Parameters<typeof notify>[1];
@@ -232,8 +355,9 @@ function emailFor(
   const email = f.artist?.email?.trim();
   if (!email || f.files.length === 0) return null;
   const tz = orgTz(f.org);
+  const hidden = f.session.pricingHidden === true;
   const common = {
-    firstName: firstName(f.artist?.name),
+    firstName: greetingName(f.artist),
     title: f.session.title,
     sessionDate: sessionDay(f.session.startTime, tz),
     files: f.files.map((x) => ({ name: x.asset.name, size: x.version.size })),
@@ -242,10 +366,18 @@ function emailFor(
   };
   // Never a pay email for an amount nobody can pay ("$Infinity").
   if (kind === "pay" && shownCents(f.owed) === null) throw new ConvexError(PRICE_BROKEN);
+  // A booking with hidden prices never shows the client an amount, not even
+  // what they just paid. Without a pay target the pay email has no button and
+  // says the studio will send a way to pay (payTargetFor).
   const m =
     kind === "ready"
-      ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents })
-      : payToUnlockEmail({ ...common, balanceCents: f.owed });
+      ? filesReadyEmail({ ...common, expiresOn: longDate(delivery.expiresAt, tz), paidCents: hidden ? undefined : paidCents })
+      : payToUnlockEmail({
+          ...common,
+          balanceCents: hidden ? null : f.owed,
+          payOnline: f.target.kind !== "none",
+          studioName: f.org?.name?.trim() || "The studio",
+        });
   return {
     orgId: delivery.orgId,
     channel: "email",
@@ -382,13 +514,15 @@ export const status = query({
     const access = await staffSessionOrNull(ctx, sessionId);
     if (!access) return null;
     const { orgId, session, viewer } = access;
-    const [delivery, files, artist, sight, balance] = await Promise.all([
+    const org = await orgRow(ctx, orgId);
+    const [delivery, files, artist, sight, pay] = await Promise.all([
       deliveryFor(ctx, sessionId),
       finalFiles(ctx, orgId, sessionId),
       ctx.db.get(session.artistId),
       currentMoneySight(ctx),
-      owedOnBooking(ctx, session),
+      payFacts(ctx, session, org),
     ]);
+    const balance = pay.owed;
     const d = delivery && delivery.orgId === orgId ? delivery : null;
     const clientEmail = (artist && artist.orgId === orgId ? artist.email?.trim() : undefined) || null;
     const state = d?.status ?? "none";
@@ -397,7 +531,7 @@ export const status = query({
     return {
       state,
       finalCount: files.length,
-      clientFirstName: firstName(artist?.orgId === orgId ? artist.name : undefined),
+      clientFirstName: greetingName(artist?.orgId === orgId ? artist : null),
       clientEmail,
       balanceDue: balance > 0,
       balanceCents: sight.money ? shownCents(balance) : null,
@@ -413,6 +547,10 @@ export const status = query({
       canRelease: manage && state === "awaiting_payment" && !cancelled,
       canTurnOff: manage && (state === "awaiting_payment" || state === "released"),
       cancelled,
+      // Where the client can pay online for exactly what is owed, so the card
+      // can tell the team what to do when there is nowhere (payTargetFor).
+      onlinePay: pay.target.kind,
+      onlinePayReason: pay.target.kind === "none" ? pay.target.reason : null,
     };
   },
 });
@@ -438,8 +576,10 @@ export const markReady = mutation({
 
     // Every read and check first; the row and the email are written last.
     const now = Date.now();
-    const [org, owed] = await Promise.all([orgRow(ctx, orgId), owedOnBooking(ctx, session)]);
-    const f: Facts = { session, org, artist, files, owed };
+    const org = await orgRow(ctx, orgId);
+    const pay = await payFacts(ctx, session, org);
+    const owed = pay.owed;
+    const f: Facts = { session, org, artist, files, owed, target: pay.target };
     const base = {
       orgId,
       sessionId,
@@ -611,22 +751,16 @@ export const page = query({
     const files = await finalFiles(ctx, delivery.orgId, delivery.sessionId);
     if (files.length === 0) return null;
     const locked = delivery.status !== "released";
-    const [org, artist, room, ledger] = await Promise.all([
-      orgRow(ctx, delivery.orgId),
+    const org = await orgRow(ctx, delivery.orgId);
+    const [artist, room, pay] = await Promise.all([
       ctx.db.get(session.artistId),
       session.roomId ? ctx.db.get(session.roomId) : null,
-      locked ? bookingLedger(ctx, session) : null,
+      locked ? payFacts(ctx, session, org) : null,
     ]);
-    const base = appUrl().replace(/\/$/, "");
-    // Locked: the open invoice when the studio sent one (paying it is what
-    // unlocks), otherwise the booking's own checkout.
-    const payUrl = !ledger
-      ? null
-      : ledger.openInvoiceId
-        ? `${base}/pay/invoice/${ledger.openInvoiceId}`
-        : org?.slug
-          ? `${base}/book/${org.slug}/checkout/${session._id}`
-          : null;
+    // Locked: a Pay button only where the amount it charges is what is owed
+    // (payTargetFor); the amount itself never for a booking with hidden prices.
+    const payUrl = pay && pay.target.kind !== "none" ? pay.target.url : null;
+    const balanceCents = pay && session.pricingHidden !== true ? shownCents(pay.owed) : null;
     const accent = org?.accentColor?.trim();
     // Dates are formatted here, in the studio's zone, the same zone the email
     // uses, so the page and the email never disagree about the day.
@@ -645,7 +779,7 @@ export const page = query({
         dateLabel: longDate(session.startTime, tz),
         roomName: room && room.orgId === delivery.orgId ? room.name : null,
       },
-      clientFirstName: firstName(artist && artist.orgId === delivery.orgId ? artist.name : undefined),
+      clientFirstName: greetingName(artist && artist.orgId === delivery.orgId ? artist : null),
       state: locked ? ("locked" as const) : ("unlocked" as const),
       files: files.map((f) => ({
         versionId: f.version._id,
@@ -654,7 +788,7 @@ export const page = query({
         mimeType: f.version.mimeType,
       })),
       totalBytes: files.reduce((sum, f) => sum + f.version.size, 0),
-      balanceCents: ledger ? shownCents(ledger.owed) : null,
+      balanceCents,
       payUrl,
       expiresAt: delivery.expiresAt,
       expiresLabel: shortDate(delivery.expiresAt, tz),

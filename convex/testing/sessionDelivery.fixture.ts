@@ -36,6 +36,18 @@ export function r2Env(): void {
   vi.stubEnv("TWILIO_AUTH_TOKEN", "");
 }
 
+/** Studio A takes cards online: the platform Stripe key is set and the studio
+ *  has a connected account that can charge. Both pay pages (the booking
+ *  checkout and the invoice page) need this before they can charge anything,
+ *  so the delivery page offers a Pay button only with it (payTargetFor). */
+export async function cardsOn(t: TestConvex, orgId = "studio_a"): Promise<void> {
+  vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_fixture");
+  await t.run(async (ctx) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    await ctx.db.patch(org!._id, { stripeAccountId: `acct_${orgId}`, stripeChargesEnabled: true });
+  });
+}
+
 const artistBase = {
   type: "artist" as const,
   genres: [],

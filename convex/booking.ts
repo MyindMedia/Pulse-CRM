@@ -37,6 +37,13 @@ import { resolveCode, recordRedemption } from "./promos";
 import { offPeakRoomCents, bestOfOffPeakAndPromo } from "./lib/offPeak";
 import { DEALS_CONSENT_VERSION } from "./lib/deals";
 import { orgTz } from "./lib/tz";
+import {
+  checkoutBalanceCents,
+  checkoutChargeCents,
+  checkoutPaymentMode,
+  onlineCardPayments,
+  roomPaymentMode,
+} from "./lib/checkout";
 
 /* Staff roles a client can request to run their session, on the public page. */
 const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
@@ -77,10 +84,7 @@ const defaults = (room: Doc<"rooms">) => ({
   minimumHours: room.minimumHours ?? 2,
   depositPct: room.depositPct ?? 30,
   hourlyRateCents: room.hourlyRateCents ?? 0,
-  // Undefined means deposit: every room that predates the switch was sold
-  // that way, and a silent flip to paid-in-full is a studio's pricing changed
-  // without them touching it.
-  paymentMode: room.paymentMode ?? ("deposit" as const),
+  paymentMode: roomPaymentMode(room),
 });
 
 /* ── Booking link without prices (orgs.bookingFeatures.hidePricing) ──
@@ -709,17 +713,15 @@ export const booking = query({
       addOns: session.addOns ?? [],
       serviceAddOns: session.serviceAddOns ?? [],
       // The checkout page must not offer a deposit the studio does not accept.
-      paymentMode: room ? defaults(room).paymentMode : ("deposit" as const),
+      paymentMode: checkoutPaymentMode(room),
       payments: payments.sort((a, b) => a._creationTime - b._creationTime),
       paidCents: paid,
-      balanceCents: Math.max(0, session.rateCents - paid),
+      balanceCents: checkoutBalanceCents(session),
       fullyPaid: paid >= session.rateCents,
       // True when this studio collects real card payments on its own
       // connected Stripe account - the checkout page then routes through
       // hosted Stripe Checkout and never shows the simulated card form.
-      stripeCheckout: Boolean(
-        process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled,
-      ),
+      stripeCheckout: onlineCardPayments(org),
     };
   },
 });
@@ -1337,12 +1339,11 @@ export const _chargeContext = internalQuery({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
       .first();
-    const paid = session.amountPaidCents ?? 0;
     return {
       title: session.title,
       slug: org?.slug ?? "",
       depositCents: session.depositCents,
-      balanceCents: Math.max(0, session.rateCents - paid),
+      balanceCents: checkoutBalanceCents(session),
       stripeAccountId: org?.stripeAccountId ?? null,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       configured: Boolean(process.env.STRIPE_SECRET_KEY),
@@ -1366,7 +1367,7 @@ export const payViaStripe = action({
     // to the simulated path.
     if (!c.configured || !c.stripeAccountId || !c.chargesEnabled) return { url: null };
 
-    const amount = kind === "deposit" ? Math.min(c.depositCents, c.balanceCents) : c.balanceCents;
+    const amount = checkoutChargeCents(c, kind);
     if (amount <= 0) return { url: null };
 
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";

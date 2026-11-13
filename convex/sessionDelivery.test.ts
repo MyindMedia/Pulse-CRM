@@ -3,7 +3,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { settlePayment } from "./payments";
 import { onBalanceSettled, settleDeliveryQuietly, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
-import { r2Env, setupStudios, uploadSessionFile, clientEmails, APP_URL, R2_KEY_PREFIX } from "./testing/sessionDelivery.fixture";
+import { r2Env, setupStudios, uploadSessionFile, clientEmails, cardsOn, APP_URL, R2_KEY_PREFIX } from "./testing/sessionDelivery.fixture";
 
 /* Session file delivery. Test names start with the eval id they prove
    (specs/features/session-file-delivery/eval.md) or the plan's Review Focus
@@ -127,6 +127,8 @@ describe("session delivery: staff side and the payment trigger", () => {
   });
 
   it("G-02 Ready first, then paid: one pay to unlock email, then one files ready email when the payment settles", async () => {
+    // The studio takes cards online, so the pay email has its button (R3-01).
+    await cardsOn(s.t);
     await finalFile(s);
     expect(await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).toEqual({ state: "awaiting_payment" });
     let mails = await deliveryEmails(s, s.A.sessionId);
@@ -539,6 +541,7 @@ describe("session delivery: public page and downloads", () => {
   });
 
   it("page: a waiting delivery is locked with the balance and the booking's checkout", async () => {
+    await cardsOn(s.t);
     const { token } = await waiting(s);
     const p = await s.t.query(api.sessionDelivery.page, { token });
     expect(p).toMatchObject({
@@ -617,8 +620,9 @@ describe("session delivery: public page and downloads", () => {
       for (const k of keys) expect(json).not.toContain(k);
       expect(json).not.toContain(token);
     }
-    // Locked too.
+    // Locked too, with a Pay button (the studio takes cards online).
     s = await setupStudios();
+    await cardsOn(s.t);
     const w = await waiting(s);
     const json = JSON.stringify(await s.t.query(api.sessionDelivery.page, { token: w.token }));
     expect(json).toContain("/checkout/"); // the pay link is the only URL, and it is the app's own
@@ -1079,20 +1083,30 @@ describe("session delivery: paid invoices count, every trigger guarded (F2-01, F
     expect((await deliveryEmails(s, s.A.sessionId)).map((m) => m.kind)).toEqual(["delivery.pay"]);
   });
 
-  it("G-19 the locked page's Pay button goes to the open invoice when one exists, otherwise to checkout", async () => {
+  it("G-19 the locked page's Pay button goes to the open invoice when one exists, to checkout only with no invoice, and nowhere while a draft waits (Addendum 3)", async () => {
+    await cardsOn(s.t);
     const { token } = await waiting(s);
     const checkout = `${APP_URL}/book/studio-a/checkout/${s.A.sessionId}`;
-    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
-    await invoice(s.A.sessionId, "draft", 18000);
+    const onPage = async () => {
+      const p = await s.t.query(api.sessionDelivery.page, { token });
+      const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+      expect(p!.balanceCents).toBe(18000);
+      return { url: p!.payUrl, pay: st!.onlinePay, reason: st!.onlinePayReason };
+    };
+    expect(await onPage()).toEqual({ url: checkout, pay: "checkout", reason: null });
     await invoice(s.A.sessionId, "void", 18000);
     await invoice(s.A.otherSessionId, "sent", 20000); // another booking's open invoice
-    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
+    expect(await onPage()).toEqual({ url: checkout, pay: "checkout", reason: null });
+    // A draft is in play: the checkout no longer settles the booking's money
+    // on its own, and the draft cannot be paid until it is sent.
+    await invoice(s.A.sessionId, "draft", 18000);
+    expect(await onPage()).toEqual({ url: null, pay: "none", reason: "invoice_not_sent" });
     for (const status of ["sent", "viewed", "overdue"] as const) {
       const open = await invoice(s.A.sessionId, status, 18000);
-      expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(`${APP_URL}/pay/invoice/${open}`);
+      expect(await onPage()).toEqual({ url: `${APP_URL}/pay/invoice/${open}`, pay: "invoice", reason: null });
       await s.t.run(async (ctx) => { await ctx.db.patch(open, { status: "void" }); });
     }
-    expect((await s.t.query(api.sessionDelivery.page, { token }))!.payUrl).toBe(checkout);
+    expect(await onPage()).toEqual({ url: null, pay: "none", reason: "invoice_not_sent" });
   });
 
   it("G-20 a non-finite or negative rate never releases", async () => {

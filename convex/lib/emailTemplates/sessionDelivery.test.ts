@@ -13,7 +13,7 @@ const url = "https://app.example.test/delivery/abc123";
 const ready = (over: Partial<Parameters<typeof filesReadyEmail>[0]> = {}) =>
   filesReadyEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, expiresOn: "December 13, 2026", accent: "#3b63e6", ...over });
 const pay = (over: Partial<Parameters<typeof payToUnlockEmail>[0]> = {}) =>
-  payToUnlockEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, balanceCents: 18000, accent: "#3b63e6", ...over });
+  payToUnlockEmail({ firstName: "Jordan", title: "Vocal tracking", sessionDate: "Tue, Nov 10", files, url, balanceCents: 18000, payOnline: true, studioName: "Studio A", accent: "#3b63e6", ...over });
 
 /** Where a string sits in the html, failing loudly when it is missing. */
 function at(html: string, needle: string): number {
