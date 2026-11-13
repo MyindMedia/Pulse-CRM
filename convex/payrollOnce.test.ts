@@ -670,3 +670,50 @@ describe("the same hours are never entered twice (H208-06)", () => {
     });
   });
 });
+
+describe("an agency owner with hours in the studio cannot change their own (H208-R2-01, H208-R2-04)", () => {
+  async function agencyOwnerWithHours(t: T, orgId = "org_p") {
+    return await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", { agencyId: "ag", name: "AG", slug: "ag", plan: "max", status: "active", ownerClerkUserId: "u_ag", ownerEmail: "o@x.com" } as never);
+      await ctx.db.insert("agencyMembers", { agencyId: "ag", clerkUserId: "u_ag", email: "o@x.com", name: "Ada", role: "owner", status: "active", invitedAt: 0 });
+      const org = (await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!;
+      await ctx.db.patch(org._id, { agencyId: "ag" } as never);
+      await ctx.db.insert("agencyWorkspaceSelections", { agencyId: "ag", clerkUserId: "u_ag", orgId, updatedAt: 0 });
+      const adaId = await ctx.db.insert("members", {
+        orgId, name: "Ada", role: "engineer", skills: [], clerkUserId: "u_ag", payType: "hourly", payRateCents: 9_000,
+      } as never);
+      const adaEntry = await ctx.db.insert("timeEntries", {
+        orgId, memberId: adaId, clockInAt: START + 3 * DAY, clockOutAt: START + 3 * DAY + 2 * HOUR, status: "completed",
+        rateCentsSnapshot: 9_000, source: "self",
+      });
+      return { adaId, adaEntry };
+    });
+  }
+  const agency = (t: T) => t.withIdentity({ subject: "u_ag", name: "Ada", orgId: "ag", orgType: "agency" });
+
+  it("refuses adding to, adjusting or removing their own hours, and still lets them fix a teammate's", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    const { adaId, adaEntry } = await agencyOwnerWithHours(t);
+    const ada = agency(t);
+    await expect(ada.mutation(api.payroll.adjustEntry, { entryId: adaEntry, clockOutAt: START + 3 * DAY + 7 * HOUR }))
+      .rejects.toThrow(/your own hours/);
+    await expect(ada.mutation(api.payroll.addManualEntry, {
+      memberId: adaId, clockInAt: START + 5 * DAY, clockOutAt: START + 5 * DAY + 5 * HOUR,
+    })).rejects.toThrow(/your own hours/);
+    await expect(ada.mutation(api.payroll.removeEntry, { entryId: adaEntry })).rejects.toThrow(/your own hours/);
+    expect((await t.run((ctx) => ctx.db.get(adaEntry)))!.clockOutAt).toBe(START + 3 * DAY + 2 * HOUR);
+    await ada.mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 5 * HOUR });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))!.clockOutAt).toBe(START + DAY + 5 * HOUR);
+  });
+
+  it("marks their own row and entries on the timesheet", async () => {
+    const t = newT();
+    await studio(t);
+    const { adaId, adaEntry } = await agencyOwnerWithHours(t);
+    const list = await agency(t).query(api.payroll.listEntries, { start: START, end: END });
+    expect(list.filter((e) => e.mine).map((e) => e._id)).toEqual([adaEntry]);
+    const sum = await agency(t).query(api.payroll.summary, { start: START, end: END });
+    expect(sum.rows.filter((r) => r.isYou).map((r) => r.memberId)).toEqual([adaId]);
+  });
+});

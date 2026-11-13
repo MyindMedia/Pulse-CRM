@@ -69,7 +69,7 @@ export const summary = query({
   handler: async (ctx, { start, end }) => {
     const viewer = await requireCapability(ctx, "insights.read");
     const orgId = viewer.orgId ?? DEMO_ORG;
-    const selfId = viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null;
+    const selfId = await ownMemberId(ctx, viewer, orgId);
     const now = Date.now();
     const members = await ctx.db
       .query("members")
@@ -133,7 +133,7 @@ export const listEntries = query({
   handler: async (ctx, { start, end, memberId }) => {
     const viewer = await requireCapability(ctx, "insights.read");
     const orgId = viewer.orgId ?? DEMO_ORG;
-    const selfId = viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null;
+    const selfId = await ownMemberId(ctx, viewer, orgId);
     const now = Date.now();
     let rows = await ctx.db
       .query("timeEntries")
@@ -158,15 +158,33 @@ export const listEntries = query({
   },
 });
 
+/** The caller's own team row in this studio, whatever kind of viewer they
+ *  are. An agency owner or admin who also has hours in the sub-account is
+ *  found by their sign-in, so "nobody corrects their own hours" holds for
+ *  them too (H208-R2-01, H208-R2-04). */
+async function ownMemberId(
+  ctx: QueryCtx,
+  viewer: Awaited<ReturnType<typeof requireCapability>>,
+  orgId: string,
+): Promise<string | null> {
+  const clerkUserId = "clerkUserId" in viewer ? viewer.clerkUserId : undefined;
+  if (clerkUserId) {
+    const row = await ctx.db
+      .query("members")
+      .withIndex("by_org_clerk", (q) => q.eq("orgId", orgId).eq("clerkUserId", clerkUserId))
+      .first();
+    if (row) return row._id as unknown as string;
+  }
+  return viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null;
+}
+
 /** Timesheet corrections change wages: the same permission as posting
  *  payroll (a manager the owner has kept away from money does not hold it),
  *  and never on your own hours, whatever your role. */
 async function payrollEditor(ctx: MutationCtx): Promise<{ orgId: string; selfId: string | null }> {
   const viewer = await requireCapability(ctx, "invoices.send");
-  return {
-    orgId: viewer.orgId ?? DEMO_ORG,
-    selfId: viewer.kind === "studio_member" ? (viewer.memberId as unknown as string) : null,
-  };
+  const orgId = viewer.orgId ?? DEMO_ORG;
+  return { orgId, selfId: await ownMemberId(ctx, viewer, orgId) };
 }
 
 function refuseOwnHours(selfId: string | null, memberId: string) {
