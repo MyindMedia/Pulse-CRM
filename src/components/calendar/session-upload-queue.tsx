@@ -152,7 +152,8 @@ export function UploadQueueList({
             sub = `Uploaded · ${formatBytes(item.size)}`;
             break;
           case "canceled":
-            sub = "Canceled";
+            // A plain cancel, or the reason it stopped (signed out, R3-07).
+            sub = item.error ?? "Canceled";
             break;
           default:
             sub = item.error ?? "Upload failed.";
@@ -190,7 +191,11 @@ export function UploadQueueList({
               <p
                 className={cn(
                   "font-meta text-[0.75rem]",
-                  failed ? "text-[color:var(--bad-text)] [overflow-wrap:anywhere]" : "truncate text-steel",
+                  failed
+                    ? "text-[color:var(--bad-text)] [overflow-wrap:anywhere]"
+                    : item.error
+                      ? "text-steel [overflow-wrap:anywhere]"
+                      : "truncate text-steel",
                 )}
               >
                 {sub}

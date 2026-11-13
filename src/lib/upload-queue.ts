@@ -28,7 +28,7 @@ export type QueueAction =
   | { type: "done"; id: string }
   | { type: "fail"; id: string; error: string }
   | { type: "commit"; id: string }
-  | { type: "cancel"; id: string }
+  | { type: "cancel"; id: string; reason?: string }
   | { type: "refuse"; item: { id: string; name: string; size: number }; error: string }
   | { type: "remove"; id: string };
 
@@ -60,7 +60,9 @@ export function queueReducer(state: QueueItem[], action: QueueAction): QueueItem
       return patch(state, action.id, (i) => (i.status === "uploading" ? { ...i, committed: true } : i));
     case "cancel":
       return patch(state, action.id, (i) =>
-        (i.status === "queued" || i.status === "uploading") && !i.committed ? { ...i, status: "canceled" } : i,
+        (i.status === "queued" || i.status === "uploading") && !i.committed
+          ? { ...i, status: "canceled", error: action.reason }
+          : i,
       );
     case "refuse":
       return [

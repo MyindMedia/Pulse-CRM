@@ -15,11 +15,19 @@ import { MAX_PARALLEL, queueReducer, type QueueAction, type QueueItem } from "./
      running, whether or not a panel is open.
    - A finished row clears after DONE_LINGER_MS; failed and canceled rows stay
      until dismissed.
+   - Each file remembers who added it: the signed-in user and the studio
+     (R3-07). When either changes (sign out, another user, a studio switch),
+     that person's queued files are canceled and running ones are aborted, so
+     nothing uploads under somebody else's session. A file past its point of
+     no return is left to finish (the server checks the caller anyway).
    - One short announcement per booking (for a role="status" node) says what
      just happened: started, uploaded, failed, canceled, plus whatever the
      section's other controls pass to say(). */
 
 export const DONE_LINGER_MS = 4000;
+/** R3-07: the row line when the person who added a file is gone. */
+export const SIGNED_OUT_QUEUED = "Signed out before this upload started.";
+export const SIGNED_OUT_RUNNING = "Signed out before this upload finished.";
 const PROGRESS_EVERY_MS = 120;
 /** Events this close together are read out as one announcement. */
 const ANNOUNCE_JOIN_MS = 1500;
@@ -48,6 +56,11 @@ type UnloadTarget = {
   removeEventListener: (type: "beforeunload", fn: (e: Event) => void) => void;
 };
 
+/** Who is signed in, and in which studio. A null user is a real value (demo
+ *  mode has no signed-in user); a caller that does not know yet (still
+ *  loading) does not call setIdentity at all. */
+export type UploadIdentity = { userId: string | null; orgId: string | null };
+
 export type UploadManagerOptions = {
   now?: () => number;
   newId?: () => string;
@@ -64,6 +77,18 @@ function abortError(): DOMException {
   return new DOMException("Upload canceled.", "AbortError");
 }
 
+type Work = {
+  sessionId: string;
+  task: UploadTask;
+  controller?: AbortController;
+  /** identityKey of whoever added it; null when nobody was known yet. */
+  owner: string | null;
+};
+
+function identityKey(id: UploadIdentity): string {
+  return JSON.stringify([id.userId, id.orgId]);
+}
+
 export function createUploadManager(opts: UploadManagerOptions = {}) {
   const now = opts.now ?? (() => Date.now());
   const newId = opts.newId ?? (() => crypto.randomUUID());
@@ -74,10 +99,12 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
   /** Which booking a row is on, for every row that still exists. */
   const sessionOf = new Map<string, string>();
   /** Work not yet finished, in the order it was added (Map keeps it). */
-  const work = new Map<string, { sessionId: string; task: UploadTask; controller?: AbortController }>();
+  const work = new Map<string, Work>();
   const announcements = new Map<string, { text: string; at: number }>();
   const listeners = new Set<() => void>();
   let guarded = false;
+  /** The current identityKey, or null until the first setIdentity. */
+  let identity: string | null = null;
 
   const warn = (e: Event) => {
     e.preventDefault();
@@ -139,7 +166,7 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
     }
   }
 
-  function start(id: string, w: { sessionId: string; task: UploadTask; controller?: AbortController }) {
+  function start(id: string, w: Work) {
     const { sessionId, task } = w;
     const controller = new AbortController();
     w.controller = controller;
@@ -228,7 +255,7 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
       const items = tasks.map((task) => {
         const id = newId();
         sessionOf.set(id, sessionId);
-        work.set(id, { sessionId, task });
+        work.set(id, { sessionId, task, owner: identity });
         return { id, name: task.name || "upload", size: task.size };
       });
       apply(sessionId, { type: "add", items });
@@ -255,6 +282,36 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
       announce(sessionId, `Canceled ${current.name}.`);
       if (w?.controller) w.controller.abort();
       else work.delete(id); // never started: nothing to stop
+      pump();
+      emit();
+    },
+
+    /** The signed-in user and studio, from the app's auth hooks. Files added
+     *  by anyone else stop here (R3-07). */
+    setIdentity(next: UploadIdentity) {
+      const key = identityKey(next);
+      if (key === identity) return;
+      identity = key;
+      let changed = false;
+      for (const [id, w] of [...work]) {
+        if (w.owner === null) {
+          w.owner = key; // added before anyone was known: it is this person's
+          continue;
+        }
+        if (w.owner === key) continue;
+        const current = row(id);
+        if (!current || current.committed) continue;
+        if (current.status === "queued") {
+          apply(w.sessionId, { type: "cancel", id, reason: SIGNED_OUT_QUEUED });
+          work.delete(id);
+        } else if (current.status === "uploading") {
+          apply(w.sessionId, { type: "cancel", id, reason: SIGNED_OUT_RUNNING });
+          w.controller?.abort();
+        } else continue;
+        announce(w.sessionId, `Canceled ${current.name}.`);
+        changed = true;
+      }
+      if (!changed) return;
       pump();
       emit();
     },

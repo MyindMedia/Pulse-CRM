@@ -11,6 +11,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock, BillingLockGate } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
+import { UploadIdentitySync } from "@/components/shell/upload-identity-sync";
 import { ActiveOrgSync } from "@/components/shell/active-org-sync";
 import { TimezoneSync } from "@/components/shell/timezone-sync";
 import { AuthGate } from "@/components/shell/auth-gate";
@@ -65,6 +66,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <ShellErrorBoundary>
     <BootSnapshotProvider>
+    {/* Outside AuthGate: it must see the sign-out that unmounts the shell. */}
+    <UploadIdentitySync />
     <AuthGate>
     <AgencyHomeRedirect>
     <BillingLockGate>

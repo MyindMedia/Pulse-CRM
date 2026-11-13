@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DONE_LINGER_MS, createUploadManager, isFolderDrop, type UploadContext, type UploadTask } from "./upload-manager";
+import {
+  DONE_LINGER_MS,
+  SIGNED_OUT_QUEUED,
+  SIGNED_OUT_RUNNING,
+  createUploadManager,
+  isFolderDrop,
+  type UploadContext,
+  type UploadTask,
+} from "./upload-manager";
 
 /* The session upload store (F2-20, F2-24). Jobs here are fakes the test
    resolves by hand, so every step of a run is visible. */
@@ -273,6 +281,110 @@ describe("upload manager: the Files section's status line (V3-01)", () => {
     m.say("s1", "Final: a.wav");
     m.say("s1", "   ");
     expect(m.announcement("s1")).toBe("Final: a.wav");
+  });
+});
+
+describe("upload manager: who added each file (R3-07)", () => {
+  const ME = { userId: "user_a", orgId: "studio_a" };
+
+  it("uses the addendum's copy", () => {
+    expect(SIGNED_OUT_QUEUED).toBe("Signed out before this upload started.");
+  });
+
+  it("the same identity again changes nothing", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    m.setIdentity(ME);
+    const [a, b, c] = [fakeTask("a"), fakeTask("b"), fakeTask("c")];
+    m.add("s1", [a.task, b.task, c.task]);
+    await flush();
+    m.setIdentity({ ...ME });
+    expect(m.rows("s1").map((r) => r.status)).toEqual(["uploading", "uploading", "queued"]);
+    expect(a.ctx!.signal.aborted).toBe(false);
+  });
+
+  it("another user: queued rows are canceled with the reason, running ones are aborted, nothing more starts", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    m.setIdentity(ME);
+    const [a, b, c] = [fakeTask("a"), fakeTask("b"), fakeTask("c")];
+    m.add("s1", [a.task, b.task]);
+    m.add("s2", [c.task]);
+    await flush();
+    m.setIdentity({ userId: "user_b", orgId: "studio_a" });
+    expect(a.ctx!.signal.aborted).toBe(true);
+    expect(b.ctx!.signal.aborted).toBe(true);
+    expect(m.rows("s1").map((r) => [r.status, r.error])).toEqual([
+      ["canceled", SIGNED_OUT_RUNNING],
+      ["canceled", SIGNED_OUT_RUNNING],
+    ]);
+    expect(m.rows("s2").map((r) => [r.status, r.error])).toEqual([["canceled", SIGNED_OUT_QUEUED]]);
+    a.gate.reject(new DOMException("Upload canceled.", "AbortError"));
+    b.gate.reject(new DOMException("Upload canceled.", "AbortError"));
+    await flush();
+    expect(c.calls).toEqual([]);
+    expect(m.busy()).toBe(false);
+    expect(m.rows("s1").map((r) => r.status)).toEqual(["canceled", "canceled"]);
+  });
+
+  it("signing out (no user) and switching studio both count as a change", async () => {
+    for (const next of [{ userId: null, orgId: null }, { userId: "user_a", orgId: "studio_b" }]) {
+      const m = createUploadManager({ newId, unloadTarget: null });
+      m.setIdentity(ME);
+      const [a, b, c] = [fakeTask("a"), fakeTask("b"), fakeTask("c")];
+      m.add("s1", [a.task, b.task, c.task]);
+      await flush();
+      m.setIdentity(next);
+      expect(m.rows("s1").map((r) => r.error)).toEqual([SIGNED_OUT_RUNNING, SIGNED_OUT_RUNNING, SIGNED_OUT_QUEUED]);
+    }
+  });
+
+  it("a row past the point of no return is left to finish", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    m.setIdentity(ME);
+    const a = fakeTask("a");
+    m.add("s1", [a.task]);
+    await flush();
+    a.ctx!.commit();
+    m.setIdentity({ userId: null, orgId: null });
+    expect(a.ctx!.signal.aborted).toBe(false);
+    a.gate.resolve();
+    await flush();
+    expect(m.rows("s1")[0].status).toBe("done");
+  });
+
+  it("files added before the identity was known take the first one, and are not canceled by it", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    const a = fakeTask("a");
+    m.add("s1", [a.task]);
+    await flush();
+    m.setIdentity(ME);
+    expect(m.rows("s1")[0].status).toBe("uploading");
+    m.setIdentity({ userId: "user_b", orgId: "studio_a" });
+    expect(m.rows("s1")[0]).toMatchObject({ status: "canceled", error: SIGNED_OUT_RUNNING });
+  });
+
+  it("demo mode (no signed-in user) is a stable identity, not a change", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    const DEMO = { userId: null, orgId: "demo" };
+    m.setIdentity(DEMO);
+    const [a, b, c] = [fakeTask("a"), fakeTask("b"), fakeTask("c")];
+    m.add("s1", [a.task, b.task, c.task]);
+    await flush();
+    m.setIdentity({ userId: null, orgId: "demo" });
+    m.setIdentity(DEMO);
+    expect(m.rows("s1").map((r) => r.status)).toEqual(["uploading", "uploading", "queued"]);
+  });
+
+  it("files added after the change upload as the new user", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    m.setIdentity(ME);
+    m.setIdentity({ userId: "user_b", orgId: "studio_a" });
+    const a = fakeTask("a");
+    m.add("s1", [a.task]);
+    await flush();
+    expect(m.rows("s1")[0].status).toBe("uploading");
+    a.gate.resolve();
+    await flush();
+    expect(m.rows("s1")[0].status).toBe("done");
   });
 });
 
