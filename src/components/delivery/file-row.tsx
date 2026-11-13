@@ -13,6 +13,7 @@ import {
   Play,
 } from "lucide-react";
 import { fileKind, formatBytes, isPlayable, typeLabel, type FileKind } from "./format";
+import { CONTROLS_STACKS_ONE, CONTROLS_STACKS_TWO, NAME_STACKS_ONE, NAME_STACKS_TWO } from "./row-layout";
 import { Waveform } from "./waveform";
 
 export type DeliveryFile = { versionId: string; name: string; size: number; mimeType: string };
@@ -30,17 +31,6 @@ const KIND_ICON: Record<FileKind, React.ComponentType<{ className?: string; stro
    :focus-visible outline; rounded-full keeps it round. */
 const ROUND =
   "grid size-11 flex-none place-items-center rounded-full border border-hairline bg-coal-2 text-bone hover:border-bone aria-busy:cursor-wait motion-safe:transition-colors";
-
-/* V3-03: the name never gets squeezed by the controls. The row is a size
-   container; when it is too narrow for the icon, a 12rem name and the
-   controls side by side, the name takes the whole first line and the icon
-   and controls share the line under it (the icon is decorative, so moving it
-   changes nothing for assistive tech or tab order). The widths are in rem, so
-   they track the reader's text size:
-     icon 2.25 + gap 0.75 + name 12 + (gap 0.75 + control 2.75) per control
-     = 18.5rem with one control, 22rem with two. */
-const NAME_STACKS_ONE = "@max-[18.5rem]:order-first @max-[18.5rem]:basis-full";
-const NAME_STACKS_TWO = "@max-[22rem]:order-first @max-[22rem]:basis-full";
 
 export function FileRow({
   file,
@@ -70,6 +60,10 @@ export function FileRow({
   const Icon = KIND_ICON[kind];
   const audio = isPlayable(file.mimeType);
   // Two round controls (Play and Download) or one (Download, or the lock).
+  // When the row is too narrow for the icon, an 8rem name and the controls, the
+  // name takes the first line and the icon and controls share the second
+  // (thresholds and reasoning in row-layout.ts, V3-03 and V4-03). The icon is
+  // decorative, so moving it changes nothing for assistive tech or tab order.
   const twoControls = audio && !locked;
   return (
     <li className="@container grid gap-2.5 px-3.5 py-3">
@@ -83,7 +77,7 @@ export function FileRow({
             {typeLabel(file.name, file.mimeType)} · {formatBytes(file.size)}
           </p>
         </div>
-        <div className="ml-auto flex flex-none items-center gap-3">
+        <div className={`ml-auto flex flex-none items-center gap-3 ${twoControls ? CONTROLS_STACKS_TWO : CONTROLS_STACKS_ONE}`}>
           {locked ? (
             <span role="img" aria-label="Locked" className={`${ROUND} text-steel`}>
               <Lock className="size-4" strokeWidth={1.75} aria-hidden />
