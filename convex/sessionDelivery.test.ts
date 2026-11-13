@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { settlePayment } from "./payments";
-import { onBalanceSettled, settleDeliveryQuietly, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
+import { onBalanceSettled, settleDeliveryQuietly, greetingName, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
 import { r2Env, setupStudios, uploadSessionFile, clientEmails, cardsOn, APP_URL, R2_KEY_PREFIX } from "./testing/sessionDelivery.fixture";
 
 /* Session file delivery. Test names start with the eval id they prove
@@ -1275,6 +1275,66 @@ describe("session delivery: erasure reads grants through bounded indexes (V3-04)
     }));
     expect(after.mine.filter((g) => g!.revoked !== true)).toEqual([]);
     expect(after.others.filter((g) => g!.revoked === true)).toEqual([]);
+  });
+});
+
+describe("session delivery: who the client is greeted as (V3-02) and the title (V3-06)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("V3-02 greetingName: a person by first name, a band, label or other client by the whole name", () => {
+    const g = (name: string, type: Doc<"artists">["type"]) => greetingName({ name, type });
+    expect(g("Jordan Ellis", "artist")).toBe("Jordan");
+    expect(g("  Jordan   Ellis ", "producer")).toBe("Jordan");
+    expect(g("Sam Rivera", "songwriter")).toBe("Sam");
+    expect(g("The Midnight Tape", "band")).toBe("The Midnight Tape");
+    expect(g("The Midnight Tape", "artist")).toBe("The Midnight Tape");
+    expect(g("A Tribe Of Two", "artist")).toBe("A Tribe Of Two");
+    expect(g("An Echo", "artist")).toBe("An Echo");
+    expect(g("Crosstown Records", "label")).toBe("Crosstown Records");
+    expect(g("Crosstown Records", "other")).toBe("Crosstown Records");
+    expect(g("Midnight Tape", "band")).toBe("Midnight Tape");
+    expect(g("Prince", "artist")).toBe("Prince");
+    expect(g("", "artist")).toBe("");
+    expect(g("   ", "band")).toBe("");
+    expect(greetingName(null)).toBe("");
+  });
+
+  it("V3-02 a band is greeted by its whole name on the card, in both emails and on the page", async () => {
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "The Midnight Tape", type: "band" }); });
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ clientFirstName: "The Midnight Tape" });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect((await s.t.query(api.sessionDelivery.page, { token: row.token }))!.clientFirstName).toBe("The Midnight Tape");
+    await settle(s, s.A.sessionId, "balance");
+    const mails = await deliveryEmails(s, s.A.sessionId);
+    expect(mails.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
+    expect(mails[0].html).toContain("Your files are finished, The Midnight Tape</h1>");
+    expect(mails[1].html).toContain("Your files are ready, The Midnight Tape</h1>");
+    for (const m of mails) expect(m.body).not.toMatch(/, The\n/);
+  });
+
+  it("V3-02 a label is greeted as itself; a person still by first name", async () => {
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "Crosstown Records", type: "label" }); });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ clientFirstName: "Crosstown Records" });
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.artistId, { name: "Jordan Ellis", type: "artist" }); });
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ clientFirstName: "Jordan" });
+  });
+
+  it("V3-06 a booking titled Writing session: the emails say it once, and the log copy has a blank line after the heading", async () => {
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { title: "Writing session" }); });
+    await finalFile(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    await settle(s, s.A.sessionId, "balance");
+    const mails = await deliveryEmails(s, s.A.sessionId);
+    expect(mails).toHaveLength(2);
+    for (const m of mails) {
+      expect(m.html!.toLowerCase()).not.toContain("session session");
+      expect(m.body.toLowerCase()).not.toContain("session session");
+      expect(m.body).toMatch(/^Your files are (finished|ready), Jordan\n\nYour Writing session|^Your files are (finished|ready), Jordan\n\nEverything from your Writing session on/);
+    }
   });
 });
 

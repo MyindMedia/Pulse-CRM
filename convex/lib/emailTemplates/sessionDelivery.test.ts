@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { filesReadyEmail, payToUnlockEmail, formatBytes, type DeliveryFile } from "./sessionDelivery";
+import { filesReadyEmail, payToUnlockEmail, formatBytes, sessionWords, type DeliveryFile } from "./sessionDelivery";
 import { readableEmailInk, studioEmailHtml, emailButtonHtml } from "./layout";
 import { contrastRatio } from "../themeSpec";
 
@@ -156,6 +156,49 @@ describe("session delivery emails", () => {
     }
     // A hostile link is escaped inside the href.
     expect(ready({ url: 'https://x.test/"><script>' }).html).not.toContain("<script>");
+  });
+
+  it("V3-06 a title that already ends with session is not followed by a second session", () => {
+    expect(sessionWords("Writing session")).toBe("Writing session");
+    expect(sessionWords("Velvet Hours - writing SESSION")).toBe("Velvet Hours - writing SESSION");
+    expect(sessionWords("Vocal tracking")).toBe("Vocal tracking session");
+    expect(sessionWords("Sessions demo")).toBe("Sessions demo session");
+    for (const title of ["Writing session", "Velvet Hours - writing Session"]) {
+      for (const m of [ready({ title }), pay({ title }), pay({ title, payOnline: false })]) {
+        expect(m.html.toLowerCase()).not.toContain("session session");
+        expect(m.text.toLowerCase()).not.toContain("session session");
+      }
+    }
+    expect(ready({ title: "Writing session" }).text).toContain("Everything from your Writing session on Tue, Nov 10 is ready to download.");
+    expect(pay({ title: "Writing session" }).text).toContain("Your Writing session from Tue, Nov 10 is finished and waiting.");
+  });
+
+  it("V3-06 the message log copy has a blank line between the heading and the body", () => {
+    for (const m of [ready(), pay(), pay({ payOnline: false }), pay({ balanceCents: null })]) {
+      const [head, blank, body] = m.text.split("\n");
+      expect(head).toMatch(/^Your files are (ready|finished), Jordan$/);
+      expect(blank).toBe("");
+      expect(body.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("R3-02 the pay email without an online target: no button, and the studio will send a way to pay", () => {
+    const m = pay({ payOnline: false, studioName: "Night Owl Studio" });
+    expect(m.html).toContain(
+      "Your Vocal tracking session from Tue, Nov 10 is finished and waiting. There is a $180.00 balance on this booking. Night Owl Studio will send you a way to pay it. Once it is paid, your download link arrives right away.",
+    );
+    expect(m.html).not.toContain("<a ");
+    expect(m.text).toContain("There is a balance on this booking. Night Owl Studio will send you a way to pay it.");
+    expect(m.text).not.toContain("$");
+    // Hidden prices: no amount at all, button or not.
+    for (const payOnline of [true, false]) {
+      const h = pay({ balanceCents: null, payOnline });
+      expect(h.html).toContain("There is a balance on this booking.");
+      expect(h.html).not.toMatch(/\$\s?\d/);
+      expect(h.html.includes(">Pay and unlock</a>")).toBe(payOnline);
+    }
+    // A hostile studio name is escaped.
+    expect(pay({ payOnline: false, studioName: "<b>X</b>" }).html).toContain("&lt;b&gt;X&lt;/b&gt; will send you a way to pay it.");
   });
 
   it("formatBytes: decimal units, three significant figures", () => {
