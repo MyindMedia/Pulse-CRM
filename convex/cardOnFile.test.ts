@@ -24,7 +24,11 @@ const fake: {
   /** Customer ids that do not exist on any account (stale / other mode). */
   missingCustomers: Set<string>;
   retrieved: { id: string; opts: Record<string, unknown> }[];
-} = { pi: [], piMode: "succeed", checkout: [], setupIntents: [], customers: 0, detached: [], missingCustomers: new Set(), retrieved: [] };
+  /** PaymentIntents paymentIntents.list returns. */
+  intents: { id: string; status: string; metadata: Record<string, string> }[];
+  listed: { params: Record<string, unknown>; opts: Record<string, unknown> }[];
+  listFails: boolean;
+} = { pi: [], piMode: "succeed", checkout: [], setupIntents: [], customers: 0, detached: [], missingCustomers: new Set(), retrieved: [], intents: [], listed: [], listFails: false };
 
 vi.mock("./lib/stripe", async (orig) => {
   const real = await orig<typeof import("./lib/stripe")>();
@@ -78,6 +82,11 @@ vi.mock("./lib/stripe", async (orig) => {
           if (fake.piMode === "network") throw new Error("socket hang up");
           if (fake.piMode === "requires_action") return { id: `pi_${n}`, status: "requires_action" };
           return { id: `pi_${n}`, status: "succeeded" };
+        },
+        list: async (params: Record<string, unknown>, opts: Record<string, unknown>) => {
+          fake.listed.push({ params, opts });
+          if (fake.listFails) throw new Error("socket hang up");
+          return { data: fake.intents };
         },
       },
     }),
@@ -208,6 +217,9 @@ beforeEach(() => {
   fake.detached = [];
   fake.missingCustomers = new Set();
   fake.retrieved = [];
+  fake.intents = [];
+  fake.listed = [];
+  fake.listFails = false;
   fake.piMode = "succeed";
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -1121,5 +1133,75 @@ describe("H205-05 / H205-06: a Stripe customer from another connection is never 
       artistId: a, orgId: ORG_A, name: "Nova", email: null, stripeCustomerId: "cus_A", stripeCustomerAccountId: null, stripeAccountId: "acct_A",
     })).rejects.toThrow(/socket hang up/);
     spy.mockRestore();
+  });
+});
+
+describe("H205-08 / H205-09: a charge whose action died is checked and never left 'charging'", () => {
+  /** Claim the charge (as chargeFee does) and then "die" before any outcome. */
+  async function claimThenDie(t: T) {
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run(async (ctx) => {
+      const row = await ctx.db.get(inv._id);
+      await ctx.db.patch(inv._id, { autoCharge: { ...row!.autoCharge!, at: row!.autoCharge!.at - 16 * 60_000 } });
+    });
+    const plan = await t.mutation(internal.cardOnFile._claimFeeCharge, { invoiceId: inv._id });
+    expect(plan).not.toBeNull();
+    expect((await invoicesA(t))[0].autoCharge?.status).toBe("charging");
+    const [check] = await scheduled(t, "reconcileFeeCharge");
+    expect(check).toBeDefined();
+    return { ids, inv, args: check.args[0] as { invoiceId: Id<"invoices">; stripeAccountId: string; stripeCustomerId: string; claimedAt: number } };
+  }
+
+  it("the claim schedules a check; with no charge in Stripe the fee falls back to the invoice and staff are told", async () => {
+    const t = newT();
+    const { inv, args } = await claimThenDie(t);
+    expect(args).toMatchObject({ stripeAccountId: "acct_A", stripeCustomerId: "cus_A" });
+    await t.action(internal.cardOnFile.reconcileFeeCharge, args);
+    expect(fake.listed[0].opts).toEqual({ stripeAccount: "acct_A" });
+    expect(fake.pi).toHaveLength(0); // never creates a charge
+    const [after] = await invoicesA(t);
+    expect(after).toMatchObject({ status: "draft", autoCharge: { status: "failed" } });
+    const insights = await t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
+    expect(insights.some((i) => i.title.includes(`Send invoice ${inv.number}`))).toBe(true);
+    expect(await emails(t, "invoice.auto_charge_failed")).toHaveLength(1);
+  });
+
+  it("a charge Stripe did make is settled, once; another invoice's charge is ignored", async () => {
+    const t = newT();
+    const { inv, args } = await claimThenDie(t);
+    fake.intents = [
+      { id: "pi_other", status: "succeeded", metadata: { kind: "no_show_fee", invoiceId: "some_other_invoice" } },
+      { id: "pi_ok", status: "succeeded", metadata: { kind: "no_show_fee", invoiceId: inv._id } },
+    ];
+    await t.action(internal.cardOnFile.reconcileFeeCharge, args);
+    await t.action(internal.cardOnFile.reconcileFeeCharge, args);
+    expect((await invoicesA(t))[0]).toMatchObject({ status: "paid", autoCharge: { status: "succeeded", reference: "pi_ok" } });
+    expect(await recoveryA(t)).toHaveLength(1);
+  });
+
+  it("a Stripe lookup that fails still surfaces the fee to staff", async () => {
+    const t = newT();
+    const { args } = await claimThenDie(t);
+    fake.listFails = true;
+    await t.action(internal.cardOnFile.reconcileFeeCharge, args);
+    expect((await invoicesA(t))[0].autoCharge).toMatchObject({ status: "failed", message: expect.stringMatching(/check Stripe/) });
+  });
+
+  it("does nothing once the action recorded an outcome", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    const [check] = await scheduled(t, "reconcileFeeCharge");
+    await t.action(internal.cardOnFile.reconcileFeeCharge, check.args[0] as never);
+    expect(fake.listed).toHaveLength(0);
+    expect((await invoicesA(t))[0].status).toBe("paid");
   });
 });

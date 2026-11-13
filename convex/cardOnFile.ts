@@ -327,6 +327,9 @@ export const _markFeePaid = internalMutation({
   },
 });
 
+/** How long after a claim Pulse checks a charge that never reported back. */
+export const FEE_CHARGE_CHECK_DELAY_MS = 15 * 60_000;
+
 type ChargePlan = {
   invoiceId: Id<"invoices">;
   amountCents: number;
@@ -392,7 +395,17 @@ export const _claimFeeCharge = internalMutation({
       now: inv.autoCharge.at,
     });
     if (!decision.charge) return await skip(decision.reason);
-    await ctx.db.patch(invoiceId, { autoCharge: { status: "charging", at: Date.now() } });
+    const claimedAt = Date.now();
+    await ctx.db.patch(invoiceId, { autoCharge: { status: "charging", at: claimedAt } });
+    // If the action dies after this point (timeout, restart), nothing else
+    // would ever leave "charging". A later check asks Stripe what happened
+    // and settles or falls back; it does nothing once an outcome is recorded.
+    await ctx.scheduler.runAfter(FEE_CHARGE_CHECK_DELAY_MS, internal.cardOnFile.reconcileFeeCharge, {
+      invoiceId,
+      stripeAccountId: org!.stripeAccountId!,
+      stripeCustomerId: artist.stripeCustomerId!,
+      claimedAt,
+    });
     return {
       invoiceId,
       amountCents: inv.amountCents,
@@ -588,6 +601,74 @@ export const chargeFee = internalAction({
         invoiceId,
         outcome: needsClient ? "needs_client" : "failed",
         message,
+      });
+    }
+  },
+});
+
+/** Internal - the claim time of a fee charge still "charging", or null. */
+export const _chargingSince = internalQuery({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, { invoiceId }): Promise<number | null> => {
+    const inv = await ctx.db.get(invoiceId);
+    return inv?.autoCharge?.status === "charging" ? inv.autoCharge.at : null;
+  },
+});
+
+/**
+ * A fee charge whose action never recorded an outcome (killed after the
+ * claim). Ask Stripe for the PaymentIntent Pulse made for this invoice (on the
+ * client's customer, on the studio's account, since the claim): settle it if
+ * it succeeded, otherwise record the failure so the invoice is surfaced to
+ * staff (feeFallback). Never creates a charge. A no-op once an outcome exists.
+ */
+export const reconcileFeeCharge = internalAction({
+  args: {
+    invoiceId: v.id("invoices"),
+    stripeAccountId: v.string(),
+    stripeCustomerId: v.string(),
+    claimedAt: v.number(),
+  },
+  handler: async (ctx, { invoiceId, stripeAccountId, stripeCustomerId, claimedAt }) => {
+    const since = await ctx.runQuery(internal.cardOnFile._chargingSince, { invoiceId });
+    if (since === null) return;
+    let found: { id: string; status: string } | null = null;
+    try {
+      if (!process.env.STRIPE_SECRET_KEY) throw new Error("Stripe not configured");
+      const list = await stripeClient().paymentIntents.list(
+        { customer: stripeCustomerId, created: { gte: Math.floor(Math.min(since, claimedAt) / 1000) - 300 }, limit: 100 },
+        { stripeAccount: stripeAccountId },
+      );
+      const pi = (list.data as { id: string; status: string; metadata?: Record<string, string> }[]).find(
+        (p) => p.metadata?.kind === "no_show_fee" && p.metadata?.invoiceId === invoiceId,
+      );
+      found = pi ? { id: pi.id, status: pi.status } : null;
+    } catch (err) {
+      console.error("cardOnFile.reconcileFeeCharge: Stripe lookup failed:", err instanceof Error ? err.message : String(err));
+      await ctx.runMutation(internal.cardOnFile._feeChargeOutcome, {
+        invoiceId,
+        outcome: "failed",
+        message: "Pulse could not confirm the charge with Stripe; check Stripe before sending the invoice",
+      });
+      return;
+    }
+    if (!found) {
+      await ctx.runMutation(internal.cardOnFile._feeChargeOutcome, {
+        invoiceId,
+        outcome: "failed",
+        message: "the charge did not complete",
+      });
+    } else if (found.status === "succeeded") {
+      await ctx.runMutation(internal.cardOnFile._feeChargeOutcome, { invoiceId, outcome: "succeeded", reference: found.id });
+    } else {
+      await ctx.runMutation(internal.cardOnFile._feeChargeOutcome, {
+        invoiceId,
+        outcome: found.status === "requires_action" ? "needs_client" : "failed",
+        reference: found.id,
+        message:
+          found.status === "requires_action"
+            ? "the bank wants the client to confirm"
+            : `Stripe reported ${found.status}; check the charge in Stripe before sending the invoice`,
       });
     }
   },
