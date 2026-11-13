@@ -10,6 +10,7 @@ import { createCompletionInvoice } from "./sessions";
 import { normalizePhone } from "./lib/phone";
 import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
 import { dropPreChecklistFor } from "./checklists";
+import { stampBookedContactOnCompletion } from "./lib/agentAutoSend";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -107,6 +108,10 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     ) {
       if (s.status === "in_progress" || paid > 0) {
         await ctx.db.patch(s._id, { status: "completed", autoResolved: "auto_completed" });
+        // Only a session that actually started counts as a completed booking
+        // for the assistant's contact-on-file rule; paid-but-never-started
+        // is archived as completed but proves nothing about the contact.
+        if (s.status === "in_progress") await stampBookedContactOnCompletion(ctx, s);
       } else if (s.status === "confirmed") {
         await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
       } else {
@@ -409,6 +414,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
     if ((s.status === "in_progress" || (s.status === "confirmed" && fullyPaid)) && now >= s.endTime) {
       await ctx.db.patch(s._id, { status: "completed" });
+      await stampBookedContactOnCompletion(ctx, s);
       // Same balance-invoice fan-out as the manual completion path in
       // sessions.setStatus: bill only what is still owed (usually nothing -
       // public bookings reach here fully paid), never double-invoice.

@@ -1,4 +1,5 @@
 import type { QueryCtx, MutationCtx } from "../_generated/server";
+import type { Id } from "../_generated/dataModel";
 import { orgHasFeature } from "./entitlements";
 import { normalizePhone } from "./phone";
 import { isSmsOptedOut } from "./smsOptOut";
@@ -19,8 +20,10 @@ import { isSmsOptedOut } from "./smsOptOut";
      5. it names one of the reminder kinds below;
      6. the recipient is an existing client of THIS studio (not a lead)
         whose exact address or number was on file BEFORE the conversation
-        the assistant read began (the run's message window). A contact
-        typed into a public form, or changed since, waits for a person;
+        the assistant read began (the run's message window). "On file"
+        means staff entered it, or the client completed a booking made
+        with it. A contact typed into a public form never counts by
+        itself, however old it is, and one changed since waits too;
      7. for a text, the number has not replied STOP.
 
    Anything else waits in the approval inbox. Every check fails closed.
@@ -36,7 +39,10 @@ export type AutoReminderKind = (typeof AUTO_REMINDER_KINDS)[number];
 export const CLIENT_SCAN_LIMIT = 3000;
 
 /** When each address or number went on file. Stored on the client row
- *  (artists.contactOnFile) by every path that writes a contact. A stamp only
+ *  (artists.contactOnFile) by the staff paths that write a contact, and by
+ *  the completion of a booking made with it (stampCompletedBooking). Public
+ *  forms (QR check-in, booking page, membership sign-up) never stamp: they
+ *  write an empty object, which also keeps the row out of the legacy report. A stamp only
  *  counts while it still names the address on the row, so a write path that
  *  forgot to stamp fails closed (the contact looks new), never open. */
 export type ContactOnFile = { email?: string; emailAt?: number; phone?: string; phoneAt?: number };
@@ -54,6 +60,38 @@ export function stampContact(
   const p = next.phone ? normalizePhone(next.phone) : null;
   if (p) { out.phone = p; out.phoneAt = prev?.phone === p && prev.phoneAt !== undefined ? prev.phoneAt : now; }
   return out;
+}
+
+/** After a booking made with `booked` completes: the row's current email
+ *  and phone that equal the booked ones go on file now, unless already on
+ *  file (an older stamp is kept). Anything else on the row is left exactly as
+ *  it was stamped, or unstamped. */
+export function stampCompletedBooking(
+  row: { email?: string; phone?: string; contactOnFile?: ContactOnFile },
+  booked: { email?: string; phone?: string },
+  now: number,
+): ContactOnFile | null {
+  const cur = contactSince(row);
+  const out: ContactOnFile = { ...(row.contactOnFile ?? {}) };
+  let changed = false;
+  const bEmail = normalizeEmail(booked.email);
+  if (cur.email && cur.email === bEmail && cur.emailAt === null) { out.email = cur.email; out.emailAt = now; changed = true; }
+  const bPhone = booked.phone ? normalizePhone(booked.phone) : null;
+  if (cur.phone && cur.phone === bPhone && cur.phoneAt === null) { out.phone = cur.phone; out.phoneAt = now; changed = true; }
+  return changed ? out : null;
+}
+
+/** Called by every path that completes a session (sessions.applyStatus,
+ *  automation.tick). Only a public booking carries `bookedContact`. */
+export async function stampBookedContactOnCompletion(
+  ctx: MutationCtx,
+  s: { artistId: Id<"artists">; bookedContact?: { email?: string; phone?: string } },
+) {
+  if (!s.bookedContact) return;
+  const a = await ctx.db.get(s.artistId);
+  if (!a || a.erasedAt || a.catalogOnly) return;
+  const next = stampCompletedBooking(a, s.bookedContact, Date.now());
+  if (next) await ctx.db.patch(a._id, { contactOnFile: next });
 }
 
 /** Since when each current contact of this row has been on file, or null when

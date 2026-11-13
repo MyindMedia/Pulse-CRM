@@ -371,6 +371,150 @@ describe("assistant auto-send", () => {
     expect(again.unproven).toEqual([]);
   });
 
+  /* Round 3 (H210-R2-01, H210-R2-02): a contact counts as on file only if
+     staff entered it or the client completed a booking made with it. */
+  const DAY = 24 * 3600_000;
+  type TS = Awaited<ReturnType<typeof setup>>["t"];
+  async function addNoPhoneClient(t: TS) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("artists", { orgId: A, name: "Echo", type: "artist", email: "echo@example.com", contactOnFile: stampContact(undefined, { email: "echo@example.com" }, 1), genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+  }
+  const echo = (t: TS) => t.run(async (ctx) => (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", A)).collect()).find((a) => a.name === "Echo")!);
+  const roomA = (t: TS) => t.run((ctx) => ctx.db.insert("rooms", { orgId: A, name: "Room A", status: "available", bookable: true, hourlyRateCents: 10000, minimumHours: 1, depositPct: 30 }));
+
+  it("H210-R2-02: a phone typed into the public check-in for a client with no phone is never on file, even 8 days later", async () => {
+    const { t } = await setup();
+    await addNoPhoneClient(t);
+    await t.mutation(api.visitors.register, { slug: "a", termsAccepted: true, name: "Echo", email: "echo@example.com", phone: "+14045558888" });
+    const row = await echo(t);
+    expect(row.phone).toBe("+14045558888");
+    expect(row.contactOnFile).toEqual({ email: "echo@example.com", emailAt: 1 });
+    vi.advanceTimersByTime(8 * DAY);
+    const rows = await finalize(t, [
+      reminder({ actionType: "send_sms", payload: { to: "+14045558888" } }),
+      reminder({ payload: { to: "echo@example.com" } }),
+    ]);
+    expect(rows.map((r) => r.status)).toEqual(["pending", "executed"]);
+    expect(smsSpy).not.toHaveBeenCalled();
+  });
+
+  it("H210-R2-01: a phone typed into the public booking form for a client with no phone is never on file, even 8 days later", async () => {
+    const { t } = await setup();
+    await addNoPhoneClient(t);
+    const room = await roomA(t);
+    await t.mutation(api.booking.createBooking, { roomId: room, clientName: "Echo", clientEmail: "echo@example.com", clientPhone: "+14045558888", startTime: Date.now() + 30 * DAY, durationHours: 2 });
+    const row = await echo(t);
+    expect(row.phone).toBe("+14045558888");
+    expect(row.contactOnFile).toEqual({ email: "echo@example.com", emailAt: 1 });
+    vi.advanceTimersByTime(8 * DAY);
+    const [r] = await finalize(t, [reminder({ actionType: "send_sms", payload: { to: "+14045558888" } })]);
+    expect(r.status).toBe("pending");
+    // (The booking's own deposit-hold text to the booker is not the assistant.)
+    expect(smsSpy.mock.calls.some((c: unknown[]) => (c[0] as { body: string }).body === "See you tomorrow")).toBe(false);
+  });
+
+  it("H210-R2-02: a public check-in never stamps an unstamped legacy row, and a filled one leaves the legacy report", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("artists", { orgId: A, name: "Old", type: "artist", email: "old@example.com", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      await ctx.db.insert("artists", { orgId: A, name: "OldPhone", type: "artist", email: "oldphone@example.com", phone: "+14045557777", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+    // Nothing filled: still unstamped and still in the owner's report.
+    await t.mutation(api.visitors.register, { slug: "a", termsAccepted: true, name: "OldPhone", email: "oldphone@example.com", phone: "+14045550000" });
+    // A phone filled from the form: marked as not from staff, so the report never stamps it.
+    await t.mutation(api.visitors.register, { slug: "a", termsAccepted: true, name: "Old", email: "old@example.com", phone: "+14045556666" });
+    const rows = await t.run(async (ctx) => (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", A)).collect()));
+    expect(rows.find((a) => a.name === "OldPhone")!.contactOnFile).toBeUndefined();
+    expect(rows.find((a) => a.name === "Old")!.contactOnFile).toEqual({});
+    const report = await t.mutation(internal.clientContacts.stampLegacyContacts, { orgId: A, apply: true });
+    expect(report.unproven.map((u) => u.email)).toEqual(["oldphone@example.com"]);
+    vi.advanceTimersByTime(8 * DAY);
+    const r = await finalize(t, [
+      reminder({ actionType: "send_sms", payload: { to: "+14045556666" } }),
+      reminder({ payload: { to: "old@example.com" } }),
+    ]);
+    expect(r.map((x) => x.status)).toEqual(["pending", "pending"]);
+  });
+
+  it("H210-R2-01: a new client from the public booking form is on file only once that booking is completed", async () => {
+    const { t, owner } = await setup();
+    const room = await roomA(t);
+    const { sessionId } = (await t.mutation(api.booking.createBooking, { roomId: room, clientName: "Fern", clientEmail: "Fern@Example.com", clientPhone: "(404) 555-4444", startTime: Date.now() + DAY, durationHours: 2 })) as { sessionId: Id<"sessions"> };
+    const fern = () => t.run(async (ctx) => (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", A)).collect()).find((a) => a.name === "Fern")!);
+    expect((await fern()).contactOnFile).toEqual({});
+    // The public checkout page never returns the contact the booking was made with.
+    const page = (await t.query(api.booking.booking, { sessionId })) as Record<string, unknown> | null;
+    expect(page).not.toBeNull();
+    expect(page!.bookedContact).toBeUndefined();
+    expect(await t.run(async (ctx) => (await ctx.db.get(sessionId))!.bookedContact)).toEqual({ email: "fern@example.com", phone: "+14045554444" });
+    // Made active by staff without a completed booking: still not on file.
+    await t.run(async (ctx) => { const f = (await ctx.db.query("artists").collect()).find((a) => a.name === "Fern")!; await ctx.db.patch(f._id, { status: "active" }); });
+    vi.advanceTimersByTime(8 * DAY);
+    let r = await finalize(t, [reminder({ payload: { to: "fern@example.com" } })]);
+    expect(r[0].status).toBe("pending");
+    await t.run(async (ctx) => { for (const x of await ctx.db.query("agentApprovals").collect()) await ctx.db.delete(x._id); });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    const stamped = (await fern()).contactOnFile!;
+    expect(stamped.email).toBe("fern@example.com");
+    expect(stamped.phone).toBe("+14045554444");
+    // Completing again (or a second completion path) keeps the first stamp.
+    const at = stamped.emailAt;
+    vi.advanceTimersByTime(DAY);
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await fern()).contactOnFile!.emailAt).toBe(at);
+    // On file from the completion, so only after a full message window.
+    r = await finalize(t, [reminder({ payload: { to: "fern@example.com" } })]);
+    expect(r[0].status).toBe("pending");
+    vi.advanceTimersByTime(8 * DAY);
+    await t.run(async (ctx) => { for (const x of await ctx.db.query("agentApprovals").collect()) await ctx.db.delete(x._id); });
+    r = await finalize(t, [reminder({ payload: { to: "fern@example.com" } }), reminder({ actionType: "send_sms", payload: { to: "+14045554444" } })]);
+    expect(r.map((x) => x.status)).toEqual(["executed", "executed"]);
+  });
+
+  it("H210-R2-01: completing a booking made with another phone never stamps the client's own number or the typed one", async () => {
+    const { t, owner } = await setup();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("artists", { orgId: A, name: "Gil", type: "artist", email: "gil@example.com", phone: "+14045553333", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+    const room = await roomA(t);
+    const { sessionId } = (await t.mutation(api.booking.createBooking, { roomId: room, clientName: "Gil", clientEmail: "gil@example.com", clientPhone: "+14045552222", startTime: Date.now() + DAY, durationHours: 2 })) as { sessionId: Id<"sessions"> };
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    const gil = await t.run(async (ctx) => (await ctx.db.query("artists").collect()).find((a) => a.name === "Gil")!);
+    expect(gil.phone).toBe("+14045553333");
+    // The email the booking was made with goes on file; the phone does not.
+    expect(gil.contactOnFile?.email).toBe("gil@example.com");
+    expect(gil.contactOnFile?.phone).toBeUndefined();
+  });
+
+  it("H210-R2-01: the automatic completion stamps a booking that ran, never one that was paid but never started", async () => {
+    const { t } = await setup();
+    const ids = await t.run(async (ctx) => {
+      const mk = (name: string, email: string) => ctx.db.insert("artists", { orgId: A, name, type: "artist", email, contactOnFile: {}, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      const ran = await mk("Ran", "ran@example.com");
+      const never = await mk("Never", "never@example.com");
+      const base = { orgId: A, serviceType: "recording" as const, rateCents: 10000, depositCents: 10000, depositPaid: true, intakeCompleted: false, source: "public_booking" };
+      // Ran: in progress and ended an hour ago (normal completion).
+      await ctx.db.insert("sessions", { ...base, title: "Ran", artistId: ran, startTime: Date.now() - 3 * 3600_000, endTime: Date.now() - 3600_000, status: "in_progress", amountPaidCents: 10000, bookedContact: { email: "ran@example.com" } });
+      // Never started: confirmed, paid, ended two days ago (stale auto-complete).
+      await ctx.db.insert("sessions", { ...base, title: "Never", artistId: never, startTime: Date.now() - 50 * 3600_000, endTime: Date.now() - 48 * 3600_000, status: "confirmed", amountPaidCents: 5000, bookedContact: { email: "never@example.com" } });
+      return { ran, never };
+    });
+    await t.mutation(internal.automation.tick, {});
+    const [ran, never] = await t.run(async (ctx) => [await ctx.db.get(ids.ran), await ctx.db.get(ids.never)]);
+    expect(ran!.contactOnFile?.email).toBe("ran@example.com");
+    expect(never!.contactOnFile).toEqual({});
+    const statuses = await t.run(async (ctx) => (await ctx.db.query("sessions").collect()).map((x) => [x.title, x.status]));
+    expect(Object.fromEntries(statuses)).toEqual({ Ran: "completed", Never: "completed" });
+  });
+
+  it("H210-R2-01: the public membership sign-up never puts an email on file", async () => {
+    const { t } = await setup();
+    const id = await t.mutation(internal.memberships._findOrCreateArtistForSub, { orgId: A, name: "Hal", email: "hal@example.com" });
+    const hal = await t.run((ctx) => ctx.db.get(id));
+    expect(hal?.contactOnFile).toEqual({});
+  });
+
   it("U-13: stored auto_low reads and behaves as suggest; it can no longer be saved", async () => {
     expect(effectiveAutonomy("auto_low")).toBe("suggest");
     expect(effectiveAutonomy(undefined)).toBe("suggest");

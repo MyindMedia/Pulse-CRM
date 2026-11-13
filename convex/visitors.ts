@@ -1,5 +1,4 @@
 import { query, MutationCtx } from "./_generated/server";
-import { stampContact } from "./lib/agentAutoSend";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -189,10 +188,14 @@ async function recordVisit(
     artistId = existing._id;
     // Fill a missing phone only: a public check-in must never replace the
     // number a client already has on file (anyone can type any email here).
+    // A check-in never puts a contact on file for the assistant
+    // (lib/agentAutoSend.ts): the stamp is left as it was. An empty stamp
+    // object keeps a filled legacy row out of the legacy-contact report.
     const nextPhone = existing.phone ?? phone;
+    const filled = nextPhone !== existing.phone;
     await ctx.db.patch(existing._id, {
       phone: nextPhone,
-      contactOnFile: stampContact(existing.contactOnFile, { email: existing.email, phone: nextPhone }, Date.now()),
+      ...(filled && !existing.contactOnFile ? { contactOnFile: {} } : {}),
       lastContactAt: Date.now(),
       source: existing.source ?? "visitor_qr",
       ...(existing.tags.includes("Visitor") ? {} : { tags: [...existing.tags, "Visitor"] }),
@@ -204,7 +207,9 @@ async function recordVisit(
       type: "other",
       email,
       phone,
-      contactOnFile: stampContact(undefined, { email, phone }, Date.now()),
+      // Typed into a form (QR or keyed by the front desk from what the guest
+      // says): never on file for the assistant by itself.
+      contactOnFile: {},
       genres: [],
       tags: ["Visitor"],
       status: "lead",

@@ -1633,6 +1633,10 @@ export default defineSchema({
     // auto-archived rows ("expired_hold" | "auto_completed" | "auto_no_show")
     // from staff-set statuses.
     autoResolved: v.optional(v.string()),
+    // The email and phone a public booking was made with (normalized). When
+    // the session completes, the client's matching contact goes on file for
+    // the assistant (lib/agentAutoSend.ts stampBookedContactOnCompletion).
+    bookedContact: v.optional(v.object({ email: v.optional(v.string()), phone: v.optional(v.string()) })),
     // Comped / discounted session cost tracking. `compType` marks the session;
     // `listValueCents` is what it would normally bill (so foregone revenue =
     // listValue - rateCents); `compReason` is why. Absent = a normal booking.

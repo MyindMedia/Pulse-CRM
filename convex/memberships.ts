@@ -1,5 +1,4 @@
 import { action, query, internalQuery } from "./_generated/server";
-import { stampContact } from "./lib/agentAutoSend";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
@@ -489,7 +488,8 @@ export const _findOrCreateArtistForSub = internalMutation({
       name: name.trim() || email,
       type: "artist",
       email: normalizeEmail(email),
-      contactOnFile: stampContact(undefined, { email }, Date.now()),
+      // Typed into the public sign-up: never on file for the assistant by itself.
+      contactOnFile: {},
       genres: [],
       tags: [],
       status: "lead",

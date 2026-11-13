@@ -1,5 +1,5 @@
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
-import { stampContact } from "./lib/agentAutoSend";
+import { stampContact, stampBookedContactOnCompletion } from "./lib/agentAutoSend";
 import { mutation } from "./functions";
 import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
@@ -760,6 +760,9 @@ export async function applyStatus(
         lastContactAt: Date.now(),
         status: artist?.status === "lead" ? "active" : artist?.status,
       });
+      // A completed booking puts the contact it was made with on file for
+      // the assistant (lib/agentAutoSend.ts).
+      await stampBookedContactOnCompletion(ctx, s);
       const invoiceId = await createCompletionInvoice(ctx, s);
       // The engineer's cut, worked out now while the numbers are in front of
       // us rather than in someone's head at the end of the month. Queues only;
