@@ -72,6 +72,7 @@ const isPublicRoute = createRouteMatcher([
   "/pay/(.*)", // public invoice payment link - no login
   "/invite(.*)", // beta invite account-creation screen - no auth required
   "/files/(.*)", // expiring media-library guest link - token-authed, no login
+  "/delivery/(.*)", // client's final session files link - token-authed, no login (the slash keeps any /delivery* app route private)
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
   "/royalty/(.*)", // contributor royalty statement link - token-authed, no login (the slash keeps /royalties private)
