@@ -1065,3 +1065,63 @@ describe("session delivery: paid invoices count, every trigger guarded (F2-01, F
     expect((await deliveryEmails(s, s.A.otherSessionId)).map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);
   });
 });
+
+/* ── F2-02: erasing a client turns their links off ─────────────── */
+
+describe("session delivery: erasure (F2-02)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("A-16 erasing a client turns their link off and the old link answers like an unknown one", async () => {
+    const r = await released(s);
+    // A second booking of the same client, waiting for payment.
+    await finalFile(s, s.A.otherSessionId);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId });
+    const [waitingRow] = await deliveryRow(s, s.A.otherSessionId);
+    const unknown = await s.t.query(api.sessionDelivery.page, { token: "e".repeat(64) });
+
+    await s.as(s.A.owner).mutation(api.dataRights.eraseArtist, { artistId: s.A.artistId });
+
+    for (const [sessionId, oldToken] of [[s.A.sessionId, r.token], [s.A.otherSessionId, waitingRow.token]] as const) {
+      const [row] = await deliveryRow(s, sessionId);
+      expect(row.status).toBe("off");
+      expect(row.offAt).toBeGreaterThan(0);
+      expect(row.token).not.toBe(oldToken);
+      expect(row.token).toMatch(/^[0-9a-f]{64}$/);
+      expect(row.sentTo).toBe("[erased]");
+      expect(await s.t.query(api.sessionDelivery.page, { token: oldToken })).toEqual(unknown);
+      expect(await s.t.query(api.sessionDelivery.page, { token: row.token })).toEqual(unknown);
+      expect(await s.t.mutation(api.sessionDelivery.refresh, { token: oldToken })).toBeNull();
+      expect(await s.t.mutation(api.sessionDelivery.opened, { token: oldToken })).toBeNull();
+      expect(await s.as(s.A.owner).query(api.sessionDelivery.link, { sessionId })).toBeNull();
+    }
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token: r.token, versionId: r.a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    // A payment afterwards releases nothing.
+    await settle(s, s.A.otherSessionId, "full");
+    expect((await deliveryRow(s, s.A.otherSessionId))[0].status).toBe("off");
+  });
+
+  it("F2-02 erasure also revokes the client's portal links (the same class: a live credential left behind)", async () => {
+    const grants = await s.t.run(async (ctx) => {
+      const base = { orgId: "studio_a", capabilities: ["songs.read"], expiresAt: Date.now() + 86_400_000, invitedBy: "u_owner", useCount: 0 };
+      return {
+        portal: await ctx.db.insert("collaboratorGrants", { ...base, email: "jordan.ellis@example.com", name: "Jordan Ellis", scope: "artist_portal", entityId: s.A.artistId, token: "portal-token" }),
+        byEmail: await ctx.db.insert("collaboratorGrants", { ...base, email: "Jordan.Ellis@example.com", name: "Jordan Ellis", scope: "session", entityId: s.A.sessionId, token: "session-token" }),
+        someoneElse: await ctx.db.insert("collaboratorGrants", { ...base, email: "producer@example.com", name: "Pat Producer", scope: "session", entityId: s.A.sessionId, token: "other-token" }),
+        otherStudio: await ctx.db.insert("collaboratorGrants", { ...base, orgId: "studio_b", email: "jordan.ellis@example.com", name: "Jordan Ellis", scope: "session", entityId: s.B.sessionId, token: "b-token" }),
+      };
+    });
+    await s.as(s.A.owner).mutation(api.dataRights.eraseArtist, { artistId: s.A.artistId });
+    const after = await s.t.run(async (ctx) => ({
+      portal: await ctx.db.get(grants.portal),
+      byEmail: await ctx.db.get(grants.byEmail),
+      someoneElse: await ctx.db.get(grants.someoneElse),
+      otherStudio: await ctx.db.get(grants.otherStudio),
+    }));
+    expect(after.portal!.revoked).toBe(true);
+    expect(after.byEmail!.revoked).toBe(true);
+    expect(after.someoneElse!.revoked).toBeUndefined();
+    expect(after.otherStudio!.revoked).toBeUndefined();
+  });
+});

@@ -88,6 +88,13 @@ export async function finalFiles(ctx: Ctx, orgId: string, sessionId: Id<"session
   return out;
 }
 
+/** Kill a delivery's link for good: off, and the token replaced by a fresh
+ *  random one nobody holds, so the old link answers like an unknown one even
+ *  if the row is later turned back on. Used when a client's data is erased. */
+export async function retireDeliveryLink(ctx: MutationCtx, delivery: Delivery, patch?: Partial<Pick<Delivery, "sentTo">>): Promise<void> {
+  await ctx.db.patch(delivery._id, { ...patch, status: "off", offAt: Date.now(), token: newToken() });
+}
+
 async function deliveryFor(ctx: Ctx, sessionId: Id<"sessions">): Promise<Delivery | null> {
   return await ctx.db
     .query("sessionDeliveries")

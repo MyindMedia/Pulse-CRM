@@ -22,6 +22,7 @@ import { mutation } from "./functions";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { redactText, piiTerms } from "./lib/redact";
 import { normalizePhone } from "./lib/phone";
+import { retireDeliveryLink } from "./sessionDelivery";
 
 /** EXPORT: everything the studio holds about one client. Gated by
  *  `artists.read` (the PII-read capability). Org-scoped. */
@@ -115,12 +116,30 @@ export const eraseArtist = mutation({
         notes: redactText(s.notes, terms),
       });
       scrubbed++;
-      // The session's file delivery keeps the address it was sent to.
+      // The session's file delivery: its link is a live credential the client
+      // holds, so it is turned off and its token replaced (the old link then
+      // answers like an unknown one); the address it was sent to is scrubbed.
       const delivery = await ctx.db.query("sessionDeliveries").withIndex("by_session", (q) => q.eq("sessionId", s._id)).first();
-      if (delivery && delivery.orgId === orgId && delivery.sentTo) {
-        await ctx.db.patch(delivery._id, { sentTo: "[erased]" });
+      if (delivery && delivery.orgId === orgId) {
+        await retireDeliveryLink(ctx, delivery, delivery.sentTo ? { sentTo: "[erased]" } : undefined);
         scrubbed++;
       }
+    }
+
+    // 2b. Every other link the client holds at this studio: their portal
+    //     (entityId = the client) and any grant addressed to their email.
+    const grants = [
+      ...(await ctx.db.query("collaboratorGrants").withIndex("by_entity", (q) => q.eq("entityId", artistId)).collect()),
+      ...(oldEmail ? await ctx.db.query("collaboratorGrants").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect() : []),
+    ];
+    const revoked = new Set<string>();
+    for (const g of grants) {
+      if (g.orgId !== orgId || g.revoked || revoked.has(g._id)) continue;
+      const theirs = g.entityId === artistId || (!!oldEmail && g.email?.trim().toLowerCase() === oldEmail);
+      if (!theirs) continue;
+      await ctx.db.patch(g._id, { revoked: true });
+      revoked.add(g._id);
+      scrubbed++;
     }
 
     // 3. Redact the client message history (their communications).
