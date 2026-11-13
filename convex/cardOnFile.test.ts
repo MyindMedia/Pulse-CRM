@@ -1463,3 +1463,31 @@ describe("H205-R2-03 / R2-06: a payment made after the no-show is credited befor
   });
 });
 
+
+describe("H205-R2-04 / R2-07: undo then re-mark the no-show", () => {
+  it("re-marking after an undo schedules a fresh charge on a fresh invoice, and the deposit is counted once", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session, { depositPaid: true, amountPaidCents: 6_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "confirmed" });
+    const [first] = await invoicesA(t);
+    expect(first).toMatchObject({ status: "void", autoCharge: { status: "skipped" } });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const invs = await invoicesA(t);
+    expect(invs).toHaveLength(2);
+    const second = invs.find((i) => i._id !== first._id)!;
+    expect(second).toMatchObject({ status: "draft", amountCents: 4_000, autoCharge: { status: "pending" } });
+    expect((await sessionRow(t, ids.session))?.noShowFeeInvoiceId).toBe(second._id);
+    // No "invoice to follow" email while the charge is scheduled.
+    expect(await emails(t, "session.no_show_fee")).toHaveLength(0);
+    await runCharge(t, first._id);
+    await runCharge(t, second._id);
+    expect(fake.pi).toHaveLength(1);
+    expect(fake.pi[0].params).toMatchObject({ amount: 4_000, metadata: { invoiceId: second._id } });
+    const deposits = (await recoveryA(t)).filter((r) => r.kind === "deposit_forfeited");
+    expect(deposits).toHaveLength(1);
+  });
+});
+

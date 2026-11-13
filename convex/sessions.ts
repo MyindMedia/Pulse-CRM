@@ -593,6 +593,9 @@ async function assessNoShowShield(
   // a no-show is not charged again.
   const paidCents = await paidTowardSessionAll(ctx, s);
   const additionalCents = feeStillOwedCents(fee, paidCents);
+  // The deposit is forfeited once per booking: a no-show that was undone and
+  // marked again does not count it as recovered a second time.
+  const depositAlreadyForfeited = s.depositForfeited === true;
 
   await ctx.db.patch(s._id, {
     cancellationFeeCents: fee,
@@ -605,7 +608,7 @@ async function assessNoShowShield(
   const reason = status === "no_show" ? "no-show" : "late cancellation";
 
   // The kept deposit is recovered money the moment it is forfeited.
-  if (depositForfeitCents > 0) {
+  if (depositForfeitCents > 0 && !depositAlreadyForfeited) {
     await ctx.runMutation(internal.recovery.record, {
       orgId: s.orgId,
       kind: "deposit_forfeited",
@@ -695,21 +698,28 @@ async function assessNoShowShield(
  * Staff moved a booking off no-show. A fee charge still waiting is cancelled
  * (the 15-minute window exists for exactly this). A charge already made, or
  * in flight, cannot be taken back here: staff are told to check it and refund
- * in Stripe. The draft fee invoice itself is left as it always was, with a
- * note to void it if the fee no longer applies.
+ * in Stripe. A draft fee invoice whose charge was cancelled is voided; one
+ * with no charge scheduled (switch off) is left as it always was.
  */
 async function undoNoShowCharge(ctx: MutationCtx, s: Doc<"sessions">): Promise<void> {
   if (!s.noShowFeeInvoiceId) return;
   const inv = await ctx.db.get(s.noShowFeeInvoiceId);
   if (!inv || inv.orgId !== s.orgId || inv.sessionId !== s._id || !inv.autoCharge) return;
   if (inv.autoCharge.status === "pending") {
+    // The fee no longer applies, so its draft invoice is voided with the
+    // charge. If staff mark the no-show again, a fresh fee invoice is made
+    // and a fresh charge scheduled (assessNoShowShield).
+    const voidIt = inv.status === "draft";
     await ctx.db.patch(inv._id, {
+      ...(voidIt ? { status: "void" as const } : {}),
       autoCharge: { status: "skipped", at: Date.now(), message: "no-show undone by staff before the charge ran" },
     });
     await ctx.db.insert("activity", {
       orgId: s.orgId,
       kind: "invoice.auto_charge_cancelled",
-      summary: `No-show undone on ${s.title}: the card charge was cancelled. Invoice ${inv.number} is still a draft; void it if the fee no longer applies.`,
+      summary: voidIt
+        ? `No-show undone on ${s.title}: the card charge was cancelled and invoice ${inv.number} was voided.`
+        : `No-show undone on ${s.title}: the card charge was cancelled. Invoice ${inv.number} was already ${inv.status}; check it.`,
       entityType: "invoice",
       entityId: inv._id,
       accent: "info",
