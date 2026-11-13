@@ -276,7 +276,16 @@ export const updateAsset = mutation({
     const kind = a.kind ?? asset.kind;
     const tags = a.tags === undefined ? asset.tags : cleanTags(a.tags);
     const t = await titlesFor(ctx, orgId, songId, sessionId);
-    await ctx.db.patch(asset._id, { name, kind, tags, songId, sessionId, searchText: buildSearchText({ name, tags, kind, ...t }), updatedAt: Date.now() });
+    // "Final" (convex/sessionDelivery.ts) means final for THIS booking's client.
+    // A file moved to another booking, or off every booking, is a working file
+    // there until someone on that booking marks it Final.
+    const moved = sessionId !== asset.sessionId;
+    await ctx.db.patch(asset._id, {
+      name, kind, tags, songId, sessionId,
+      ...(moved && asset.clientFinal ? { clientFinal: false } : {}),
+      searchText: buildSearchText({ name, tags, kind, ...t }),
+      updatedAt: Date.now(),
+    });
     await logEvent(ctx, orgId, asset._id, "edit", actor);
     return null;
   },

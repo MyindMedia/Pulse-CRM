@@ -1125,3 +1125,35 @@ describe("session delivery: erasure (F2-02)", () => {
     expect(after.otherStudio!.revoked).toBeUndefined();
   });
 });
+
+/* ── F2-05: the Final flag does not follow a file to another booking ── */
+
+describe("session delivery: moving a file (F2-05)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("A-17 a Final file moved to another booking is no longer Final", async () => {
+    const r = await released(s);
+    await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.a.assetId, sessionId: s.A.otherSessionId });
+    const moved = await s.t.run(async (ctx) => await ctx.db.get(r.a.assetId));
+    expect(moved).toMatchObject({ sessionId: s.A.otherSessionId });
+    expect(moved!.clientFinal).not.toBe(true);
+    // Gone from the old booking's page and refused by fileUrl.
+    expect((await s.t.query(api.sessionDelivery.page, { token: r.token }))!.files.map((f) => f.versionId)).toEqual([r.b.versionId]);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token: r.token, versionId: r.a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    // Not a Final file of the new booking either.
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.otherSessionId })).toMatchObject({ finalCount: 0 });
+
+    // Taken off any booking: also cleared.
+    await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.b.assetId, sessionId: null });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(r.b.assetId)))!.clientFinal).not.toBe(true);
+  });
+
+  it("A-17 editing a Final file without moving it keeps it Final", async () => {
+    const r = await released(s);
+    await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.a.assetId, name: "Lead vocal (final).wav", tags: ["final"] });
+    await s.as(s.A.owner).mutation(api.mediaLibrary.updateAsset, { assetId: r.a.assetId, sessionId: s.A.sessionId });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(r.a.assetId)))!.clientFinal).toBe(true);
+  });
+});
