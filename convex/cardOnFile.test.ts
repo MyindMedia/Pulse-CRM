@@ -765,6 +765,7 @@ describe("autoChargeDecision", () => {
     status: "no_show",
     feeCents: 10_000,
     chargeCents: 10_000,
+    paidCents: 0,
     startTime: 10 * HOUR,
     now: 9 * HOUR,
   };
@@ -806,5 +807,92 @@ describe("U-19: the no-show email says what really happened", () => {
       Per our booking policy, a no-show fee of $100 applies to your missed session "Nova - Studio A". Your $60 deposit has been applied toward it. The studio will send you an invoice for the $40 balance. Reply here with any questions - we would love to get you rebooked."
     `);
     expect(body).not.toMatch(/have sent|was sent/);
+  });
+});
+
+/* ── Round 2 review findings (HIGH-RISK-REVIEW-2026-11-12) ─────────────── */
+
+/** A confirmed booking that has already started (a no-show can only be
+ *  charged once the session's start time has passed). */
+async function startedConfirmed(t: T, session: Id<"sessions">, over: Record<string, unknown> = {}) {
+  await t.run((ctx) =>
+    ctx.db.patch(session, { status: "confirmed", startTime: Date.now() - HOUR, endTime: Date.now() + HOUR, ...over }),
+  );
+}
+
+describe("H205-01 / H205-03: never charged for money already paid", () => {
+  it("paid in full (no deposit), then no-show: nothing is charged and no fee invoice is raised", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session, { depositCents: 0, depositPaid: true, amountPaidCents: 20_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    expect(await scheduled(t, "chargeFee")).toHaveLength(0);
+    expect(await invoicesA(t)).toHaveLength(0);
+    expect(fake.pi).toHaveLength(0);
+  });
+
+  it("deposit and then the balance paid, 100% fee: nothing more is charged", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true, feePct: 100 });
+    await agreeAndSave(t, ids);
+    await t.run((ctx) => ctx.db.patch(ids.session, {
+      cardConsent: { text: "agreed", feePct: 100, windowHours: 24, maxFeeCents: 20_000, agreedAt: Date.now(), paymentMethodId: "pm_checkout" },
+    }));
+    await startedConfirmed(t, ids.session, { depositPaid: true, amountPaidCents: 20_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    expect(await scheduled(t, "chargeFee")).toHaveLength(0);
+    expect(await invoicesA(t)).toHaveLength(0);
+  });
+
+  it("paid more than the deposit but less than the fee: only the rest of the fee is charged", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session, { depositPaid: true, amountPaidCents: 8_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    expect(inv.amountCents).toBe(2_000);
+    await t.run((ctx) => ctx.db.patch(inv._id, { autoCharge: { status: "pending", at: Date.now() - 20 * 60_000 } }));
+    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    expect(fake.pi).toHaveLength(1);
+    expect(fake.pi[0].params.amount).toBe(2_000);
+  });
+
+  it("a payment made after the no-show was marked stops the charge", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(ids.session, { depositPaid: true, amountPaidCents: 20_000 });
+      await ctx.db.patch(inv._id, { autoCharge: { status: "pending", at: Date.now() - 20 * 60_000 } });
+    });
+    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    expect(fake.pi).toHaveLength(0);
+    expect((await invoicesA(t))[0].autoCharge?.status).toBe("skipped");
+  });
+
+  it("autoChargeDecision refuses when what was paid covers the fee, or the charge exceeds what is left", () => {
+    const base: AutoChargeInput = {
+      stripeConfigured: true, switchOn: true, stripeAccountId: "acct_A", chargesEnabled: true,
+      stripeCustomerId: "cus_A", defaultPaymentMethodId: "pm_1",
+      consent: { text: "x", feePct: 50, windowHours: 24, maxFeeCents: 10_000, agreedAt: 1, paymentMethodId: "pm_1" },
+      status: "no_show", feeCents: 10_000, chargeCents: 4_000, paidCents: 6_000, startTime: 10 * HOUR, now: 11 * HOUR,
+    };
+    expect(autoChargeDecision(base)).toEqual({ charge: true });
+    expect(autoChargeDecision({ ...base, paidCents: 10_000 }).charge).toBe(false);
+    expect(autoChargeDecision({ ...base, paidCents: 20_000 }).charge).toBe(false);
+    expect(autoChargeDecision({ ...base, chargeCents: 4_001 }).charge).toBe(false);
+  });
+
+  it("the client email credits everything already paid, not only the deposit", () => {
+    const body = feeEmailBody({
+      clientName: "Nova", label: "no-show fee", status: "no_show", title: "S", feeCents: 10_000,
+      depositForfeitCents: 6_000, paidAppliedCents: 8_000, balanceCents: 2_000, outcome: "invoice_to_follow",
+    });
+    expect(body).toMatch(/The \$80 you already paid for this session has been applied toward it\./);
   });
 });

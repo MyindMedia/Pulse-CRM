@@ -17,7 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
-import { autoChargeDecision, feeEmailBody } from "./lib/cardConsent";
+import { autoChargeDecision, feeEmailBody, feeStillOwedCents, paidTowardSession } from "./lib/cardConsent";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -579,9 +579,11 @@ async function assessNoShowShield(
 
   const fee = Math.round((s.rateCents * feePct) / 100);
   const depositForfeitCents = s.depositPaid ? s.depositCents : 0;
-  // The deposit already in hand is applied toward the fee; only the remainder
-  // needs collecting.
-  const additionalCents = Math.max(0, fee - depositForfeitCents);
+  // Everything already in hand for this session (the deposit, or more when
+  // the client paid in full) is applied toward the fee; only the remainder
+  // needs collecting. A client who paid at least the fee owes nothing more.
+  const paidCents = paidTowardSession(s);
+  const additionalCents = feeStillOwedCents(fee, paidCents);
 
   await ctx.db.patch(s._id, {
     cancellationFeeCents: fee,
@@ -624,6 +626,7 @@ async function assessNoShowShield(
       status,
       feeCents: fee,
       chargeCents: additionalCents,
+      paidCents,
       startTime: s.startTime,
       now: Date.now(),
     });
@@ -653,6 +656,7 @@ async function assessNoShowShield(
           title: s.title,
           feeCents: fee,
           depositForfeitCents,
+          paidAppliedCents: Math.min(paidCents, fee),
           balanceCents: additionalCents,
           outcome: "invoice_to_follow",
         }),

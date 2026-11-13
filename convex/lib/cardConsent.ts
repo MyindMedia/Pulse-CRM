@@ -33,6 +33,22 @@ export function feeCentsFor(rateCents: number, feePct: number): number {
   return Math.round((rateCents * feePct) / 100);
 }
 
+/** Everything the client has already paid toward this session: the running
+ *  total, or the deposit when only that is recorded. A fee is never charged
+ *  for money already in hand. */
+export function paidTowardSession(s: {
+  amountPaidCents?: number;
+  depositPaid?: boolean;
+  depositCents?: number;
+}): number {
+  return Math.max(s.amountPaidCents ?? 0, s.depositPaid ? (s.depositCents ?? 0) : 0);
+}
+
+/** What is still owed on a fee once what was already paid is applied. */
+export function feeStillOwedCents(feeCents: number, paidCents: number): number {
+  return Math.max(0, feeCents - Math.max(0, paidCents));
+}
+
 /** The sentence the client agrees to. Built on the server from the studio's
  *  own policy, so the page cannot show one thing and record another. */
 export function cardConsentText(p: ConsentPolicy): string {
@@ -86,8 +102,10 @@ export type AutoChargeInput = {
   status: "cancelled" | "no_show";
   /** The full fee being assessed now (before the deposit is applied). */
   feeCents: number;
-  /** What would be charged to the card (fee less the kept deposit). */
+  /** What would be charged to the card (fee less everything already paid). */
   chargeCents: number;
+  /** Everything the client has already paid toward this session. */
+  paidCents: number;
   startTime: number;
   now: number;
 };
@@ -97,6 +115,14 @@ export type AutoChargeDecision = { charge: true } | { charge: false; reason: str
 /** Every rule that must hold before a fee is charged to a saved card. */
 export function autoChargeDecision(i: AutoChargeInput): AutoChargeDecision {
   if (i.chargeCents <= 0) return { charge: false, reason: "nothing to charge" };
+  // Never charge for money already in hand: what was paid toward the session
+  // (deposit or more) comes off the fee first.
+  if (i.paidCents >= i.feeCents) {
+    return { charge: false, reason: "the client already paid at least the fee" };
+  }
+  if (i.chargeCents > feeStillOwedCents(i.feeCents, i.paidCents)) {
+    return { charge: false, reason: "charge is more than the fee less what the client already paid" };
+  }
   if (!i.switchOn) return { charge: false, reason: "studio switch off" };
   if (!i.stripeConfigured || !i.stripeAccountId || !i.chargesEnabled) {
     return { charge: false, reason: "studio Stripe not ready" };
@@ -130,14 +156,20 @@ export function feeEmailBody(a: {
   title: string;
   feeCents: number;
   depositForfeitCents: number;
+  /** Everything already paid that was applied toward the fee (at most the
+   *  fee). Defaults to the deposit. */
+  paidAppliedCents?: number;
   balanceCents: number;
   outcome: "invoice_to_follow" | "charged";
   cardLast4?: string;
 }): string {
+  const applied = a.paidAppliedCents ?? a.depositForfeitCents;
   const depositLine =
-    a.depositForfeitCents > 0
-      ? ` Your ${money(a.depositForfeitCents)} deposit has been applied toward it.`
-      : "";
+    applied > a.depositForfeitCents
+      ? ` The ${money(applied)} you already paid for this session has been applied toward it.`
+      : a.depositForfeitCents > 0
+        ? ` Your ${money(a.depositForfeitCents)} deposit has been applied toward it.`
+        : "";
   const what =
     a.outcome === "charged"
       ? `We charged the ${money(a.balanceCents)} balance to your saved card${a.cardLast4 ? ` ending ${a.cardLast4}` : ""}, as you agreed when you booked.`

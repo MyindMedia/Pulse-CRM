@@ -9,7 +9,7 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
-import { autoChargeDecision, feeEmailBody } from "./lib/cardConsent";
+import { autoChargeDecision, feeEmailBody, paidTowardSession } from "./lib/cardConsent";
 import { markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
 
 /* ============================================================
@@ -308,6 +308,9 @@ export const _claimFeeCharge = internalMutation({
       status: session.status,
       feeCents: session.cancellationFeeCents ?? inv.amountCents,
       chargeCents: inv.amountCents,
+      // What the client has paid toward the session as it stands now: a
+      // payment made since the fee was assessed is never charged again.
+      paidCents: paidTowardSession(session),
       startTime: session.startTime,
       // When the fee was assessed, not when this ran.
       now: inv.autoCharge.at,
@@ -397,6 +400,7 @@ async function clientFeeEmail(
       title: session.title,
       feeCents: fee,
       depositForfeitCents: session.depositForfeited ? session.depositCents : 0,
+      paidAppliedCents: Math.min(paidTowardSession(session), fee),
       balanceCents: inv.amountCents,
       outcome,
       cardLast4: artist.cardLast4,
