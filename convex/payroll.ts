@@ -192,6 +192,35 @@ const at = (ts: number | undefined, tz: string) => (ts === undefined ? "no clock
 const FUTURE_SLACK_MS = 5 * 60_000;
 const NOTE_MAX = 500;
 
+/** The same hours are never paid twice: an added or moved entry may not share
+ *  any time with another of the teammate's entries (a running clock counts up
+ *  to now). Removed entries count for nothing and are ignored. Reads only this
+ *  teammate's entries. */
+async function refuseOverlap(
+  ctx: MutationCtx,
+  orgId: string,
+  memberId: Id<"members">,
+  inAt: number,
+  outAt: number | undefined,
+  exceptId?: Id<"timeEntries">,
+  tz?: string,
+) {
+  const now = Date.now();
+  const end = outAt ?? Math.max(now, inAt + 1);
+  const rows = await ctx.db
+    .query("timeEntries")
+    .withIndex("by_org_member", (q) => q.eq("orgId", orgId).eq("memberId", memberId))
+    .collect();
+  for (const r of rows) {
+    if (r._id === exceptId || r.voidedAt) continue;
+    const rEnd = r.clockOutAt ?? Math.max(now, r.clockInAt + 1);
+    if (r.clockInAt < end && rEnd > inAt) {
+      const span = tz ? ` (${at(r.clockInAt, tz)} to ${at(r.clockOutAt, tz)})` : "";
+      throw new Error(`Those times overlap another entry for this teammate${span}. Fix that entry instead.`);
+    }
+  }
+}
+
 /** Manually add a completed entry (e.g. someone forgot to clock in). */
 export const addManualEntry = mutation({
   args: {
@@ -208,6 +237,8 @@ export const addManualEntry = mutation({
     if (clockOutAt <= clockInAt) throw new Error("Clock-out must be after clock-in.");
     if (clockOutAt > Date.now() + FUTURE_SLACK_MS) throw new Error("Clock-out can't be in the future.");
     if (note !== undefined && note.length > NOTE_MAX) throw new Error("Keep the note under 500 characters.");
+    const tz = await studioTz(ctx, orgId);
+    await refuseOverlap(ctx, orgId, memberId, clockInAt, clockOutAt, undefined, tz);
     const who = await actorName(ctx);
     const id = await ctx.db.insert("timeEntries", {
       orgId,
@@ -220,7 +251,6 @@ export const addManualEntry = mutation({
       note,
       editedBy: who.subject ?? undefined,
     });
-    const tz = await studioTz(ctx, orgId);
     await ctx.db.insert("activity", {
       orgId,
       kind: "timesheet.added",
@@ -267,6 +297,9 @@ export const adjustEntry = mutation({
         .withIndex("by_member_status", (q) => q.eq("memberId", entry.memberId).eq("status", "active"))
         .first();
       if (running && running._id !== entryId) throw new Error("This teammate already has an open clock.");
+    }
+    if (inAt !== entry.clockInAt || outAt !== entry.clockOutAt) {
+      await refuseOverlap(ctx, orgId, entry.memberId, inAt, outAt, entryId, await studioTz(ctx, orgId));
     }
     const who = await actorName(ctx);
     fields.editedBy = who.subject ?? undefined;

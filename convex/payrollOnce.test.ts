@@ -606,3 +606,67 @@ describe("a removed entry counts for nothing everywhere (H208-05)", () => {
     expect(mine.map((e) => e._id)).toEqual([keep]);
   });
 });
+
+describe("the same hours are never entered twice (H208-06)", () => {
+  it("a manual entry over hours already punched is refused", async () => {
+    const t = newT();
+    const { engId } = await studio(t);
+    await expect(as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + DAY, clockOutAt: START + DAY + 4 * HOUR,
+    })).rejects.toThrow(/overlap/);
+    await expect(as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + DAY + 3 * HOUR, clockOutAt: START + DAY + 6 * HOUR,
+    })).rejects.toThrow(/overlap/);
+    const sum = await as(t, "own").query(api.payroll.summary, { start: START, end: END });
+    expect(sum.totalPayCents).toBe(20_000);
+  });
+
+  it("an entry right after another (touching, not overlapping) is fine", async () => {
+    const t = newT();
+    const { engId } = await studio(t);
+    await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + DAY + 4 * HOUR, clockOutAt: START + DAY + 5 * HOUR,
+    });
+    const sum = await as(t, "own").query(api.payroll.summary, { start: START, end: END });
+    expect(sum.totalPayCents).toBe(25_000);
+  });
+
+  it("a manual entry over a clock that is still running is refused", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: now - 3 * HOUR, status: "active", source: "self" }),
+    );
+    await expect(as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: now - 2 * HOUR, clockOutAt: now - HOUR,
+    })).rejects.toThrow(/overlap/);
+  });
+
+  it("moving an entry onto another is refused; a removed entry does not count", async () => {
+    const t = newT();
+    const { orgId, engId, entryId } = await studio(t);
+    const other = await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: START + DAY + 6 * HOUR, clockOutAt: START + DAY + 8 * HOUR, status: "completed", source: "self",
+      }),
+    );
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 7 * HOUR }))
+      .rejects.toThrow(/overlap/);
+    expect((await t.run((ctx) => ctx.db.get(entryId)))!.clockOutAt).toBe(START + DAY + 4 * HOUR);
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId: other });
+    await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 7 * HOUR });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))!.clockOutAt).toBe(START + DAY + 7 * HOUR);
+  });
+
+  it("another teammate's hours at the same time are not an overlap", async () => {
+    const t = newT();
+    const { orgId } = await studio(t);
+    const ana = await t.run((ctx) =>
+      ctx.db.insert("members", { orgId, name: "Ana", role: "engineer", skills: [], payType: "hourly", payRateCents: 4_000 } as never),
+    );
+    await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: ana, clockInAt: START + DAY, clockOutAt: START + DAY + 4 * HOUR,
+    });
+  });
+});
