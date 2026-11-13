@@ -406,6 +406,27 @@ describe("H206-04: a refund call that errors is retried, and a stuck refund is n
     expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
   });
 
+  it("Stripe answers with a 4xx refusal: not retried, marked failed, team told to refund by hand", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [Object.assign(new Error("Charge has already been refunded"), { statusCode: 400 })];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(1);
+    expect((await strays(t))[0].status).toBe("refund_failed");
+    const team = (await notes(t, "payment.refund_failed")).find((n) => n.recipient !== "nova@r2.test");
+    expect(team?.body).toContain("Refund it by hand");
+  });
+
+  it("a 5xx from Stripe is treated as no answer: retried, then left pending", async () => {
+    const t = convexTest(schema);
+    const { strayId } = await pendingStray(t);
+    fake.replies = [Object.assign(new Error("api_error"), { statusCode: 500 })];
+    await t.action(internal.strayPayments.refund, { strayId });
+    expect(fake.refundCalls).toHaveLength(REFUND_ATTEMPTS);
+    expect((await strays(t))[0].status).toBe("refund_pending");
+    expect(await notes(t, "payment.refund_failed")).toHaveLength(0);
+  });
+
   it("Stripe never answers and the sweep cannot reach it either: the team is told once to check Stripe, the client is told nothing", async () => {
     const t = convexTest(schema);
     const { strayId } = await pendingStray(t);

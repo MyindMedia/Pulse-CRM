@@ -213,6 +213,13 @@ async function createRefund(row: Doc<"strayPayments">): Promise<RefundOutcome> {
       return outcomeOf(r);
     } catch (err) {
       lastError = String((err as Error)?.message ?? err).slice(0, 300);
+      // Stripe answered and refused (a 4xx API error, e.g. insufficient
+      // balance or already refunded): that is a definite no, not retried.
+      // A network error or 5xx means Stripe may have refunded anyway.
+      const status = (err as { statusCode?: number })?.statusCode;
+      if (typeof status === "number" && status >= 400 && status < 500) {
+        return { kind: "failed", error: lastError, unconfirmed: false };
+      }
       if (attempt < REFUND_ATTEMPTS) await new Promise((res) => setTimeout(res, RETRY_DELAY_MS * attempt));
     }
   }

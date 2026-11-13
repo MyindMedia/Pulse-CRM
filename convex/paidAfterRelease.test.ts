@@ -328,7 +328,10 @@ describe("a payment that lands on a released booking is refunded", () => {
     const t = convexTest(schema);
     const id = await seed(t, { status: "cancelled" });
     await t.mutation(internal.billingWebhooks.handle, { event: paidEvent(id) });
-    fake.refundError = new Error("Your card's balance is insufficient");
+    // Stripe answered and refused (an API error with an HTTP status). A bare
+    // thrown error now means Stripe did not answer and the row stays pending
+    // for the sweep (H206-R2-02, covered in highRiskBookingPaymentsRound2).
+    fake.refundError = Object.assign(new Error("Your card's balance is insufficient"), { statusCode: 400 });
     await runRefunds(t);
     const [row] = await strays(t);
     expect(row.status).toBe("refund_failed");
