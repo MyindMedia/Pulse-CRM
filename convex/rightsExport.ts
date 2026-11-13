@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { orgHasFeature } from "./lib/entitlements";
+import { displayStatus, isSheetExecuted, legacyHandTick, signedByPerson } from "./lib/splitSigning";
 
 /* ============================================================
    Rights-ready export.
@@ -25,7 +26,10 @@ export type PacketContributor = {
   publishingPct: number;
   pro?: string;
   ipi?: string;
+  /** Signed by the person, through their link. */
   signed: boolean;
+  /** The studio recorded this person's signature outside Pulse (paper). */
+  markedByStudio?: boolean;
 };
 
 export type RightsPacketInput = {
@@ -38,7 +42,7 @@ export type RightsPacketInput = {
   bpm?: number;
   musicalKey?: string;
   kind: string;
-  sheetStatus?: "draft" | "sent" | "fully_executed";
+  sheetStatus?: "draft" | "sent" | "fully_executed" | "marked_by_studio";
   contributors: PacketContributor[];
 };
 
@@ -55,19 +59,29 @@ export function buildRightsPacket(input: RightsPacketInput) {
   const allSigned = input.contributors.length > 0 && input.contributors.every((c) => c.signed);
   const hasIsrc = Boolean(input.isrc && input.isrc.trim());
   const hasIswc = Boolean(input.iswc && input.iswc.trim());
-  const sheetExecuted = input.sheetStatus === "fully_executed";
+  const sheetExecuted = isSheetExecuted(input.sheetStatus);
+  // Paper signatures the owner recorded count for release, but are never
+  // reported as signed in Pulse.
+  const signaturesCovered =
+    allSigned ||
+    (input.contributors.length > 0 &&
+      (input.sheetStatus === "marked_by_studio" || input.contributors.every((c) => c.signed || c.markedByStudio)));
 
   const warnings: string[] = [];
   if (input.contributors.length === 0) warnings.push("No split sheet contributors on file.");
   if (!mastersBalanced) warnings.push(`Master split totals ${masterTotal}% (must be 100%).`);
   if (!publishingBalanced) warnings.push(`Publishing split totals ${publishingTotal}% (must be 100%).`);
-  if (!allSigned) warnings.push("Not every contributor has signed the split sheet.");
-  if (!sheetExecuted) warnings.push("Split sheet is not marked fully executed.");
+  if (!allSigned && signaturesCovered) {
+    warnings.push("Some signatures were collected outside Pulse and marked by the studio; Pulse holds no signature record for them.");
+  } else if (!allSigned) {
+    warnings.push("Not every contributor has signed the split sheet.");
+  }
+  if (!sheetExecuted) warnings.push("Split sheet is not executed.");
   if (!hasIsrc) warnings.push("No ISRC assigned (needed for distribution).");
   if (!hasIswc) warnings.push("No ISWC assigned (needed for PRO registration).");
 
   const releaseReady =
-    mastersBalanced && publishingBalanced && allSigned && hasIsrc && hasIswc && sheetExecuted;
+    mastersBalanced && publishingBalanced && signaturesCovered && hasIsrc && hasIswc && sheetExecuted;
 
   return {
     song: {
@@ -111,7 +125,7 @@ export function contributorsCsv(contributors: PacketContributor[]): string {
         String(c.publishingPct),
         esc(c.pro ?? ""),
         esc(c.ipi ?? ""),
-        c.signed ? "yes" : "no",
+        c.signed ? "yes" : c.markedByStudio ? "marked by studio" : "no",
       ].join(","),
     );
   }
@@ -144,7 +158,8 @@ export const packet = query({
       publishingPct: c.publishingPct,
       pro: c.pro,
       ipi: c.ipi,
-      signed: c.signed,
+      signed: signedByPerson(c),
+      markedByStudio: !signedByPerson(c) && (legacyHandTick(c) || sheet?.status === "marked_by_studio"),
     }));
 
     const packet = buildRightsPacket({
@@ -157,7 +172,7 @@ export const packet = query({
       bpm: song.bpm,
       musicalKey: song.musicalKey,
       kind: song.kind,
-      sheetStatus: sheet?.status,
+      sheetStatus: sheet ? displayStatus(sheet) : undefined,
       contributors,
     });
 

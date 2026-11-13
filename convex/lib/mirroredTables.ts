@@ -174,7 +174,8 @@ const NESTED_PROJECTORS: Partial<
         masterPct: c.masterPct,
         publishingPct: c.publishingPct,
         pro: c.pro,
-        signed: c.signed,
+        // Signed only by the person's own signature (a hand tick is not one).
+        signed: c.signed === true && typeof c.signedAt === "number",
         signedAt: c.signedAt,
         signatureKind: c.signatureKind,
       })),

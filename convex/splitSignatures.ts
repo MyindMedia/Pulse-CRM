@@ -7,6 +7,7 @@ import { requireCapability } from "./lib/access";
 import { whitelabelFor } from "./usage";
 import { sameEmail, validEmail } from "./lib/emailKey";
 import { allocateSongLines } from "./lib/royaltyAllocate";
+import { displayStatus, everyoneSigned, signedByPerson } from "./lib/splitSigning";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -25,8 +26,9 @@ import { allocateSongLines } from "./lib/royaltyAllocate";
         `sign` mutation stamps `signed: true` + `signedAt` +
         `signature` + `signedFromUa` onto that contributor row,
         revokes the link (single-use), and writes an audit event.
-     4. When every contributor has signed, the split-sheet status
-        auto-flips to `fully_executed`.
+     4. When every contributor has signed by link (`signedAt`), the
+        split-sheet status auto-flips to `fully_executed`. A hand tick
+        from before signatures were enforced does not count.
    ============================================================ */
 
 const YEAR_MS = 365 * 24 * 3600 * 1000;
@@ -44,13 +46,15 @@ export const issue = mutation({
   args: { splitSheetId: v.id("splitSheets") },
   handler: async (ctx, { splitSheetId }) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "sessions.edit", { orgId });
+    // The same permission as editing the sheet: sending it out for signature
+    // is a sheet action, not a session one.
+    await requireCapability(ctx, "splitsheet.edit", { orgId });
     const sheet = await ctx.db.get(splitSheetId);
     if (!sheet || sheet.orgId !== orgId) throw new Error("Split sheet not found");
     const actor = await currentActor(ctx);
 
     const missing = sheet.contributors
-      .filter((c) => !c.signed && !validEmail(c.email))
+      .filter((c) => !signedByPerson(c) && !validEmail(c.email))
       .map((c) => c.name.trim() || "Unnamed contributor");
     if (missing.length > 0) {
       throw new ConvexError({
@@ -62,25 +66,30 @@ export const issue = mutation({
 
     const expiresAt = Date.now() + YEAR_MS;
     const out: { name: string; email: string; token: string; contributorIndex: number }[] = [];
+    // This sheet's signing links (a handful per contributor at most).
+    const sheetGrants = await ctx.db
+      .query("collaboratorGrants")
+      .withIndex("by_entity", (q) => q.eq("entityId", splitSheetId))
+      .collect();
 
     for (let i = 0; i < sheet.contributors.length; i++) {
       const c = sheet.contributors[i];
-      if (c.signed) continue;
+      // A hand tick from before signatures were enforced is not a signature:
+      // that person gets a link like anyone else still to sign.
+      if (signedByPerson(c)) continue;
       if (!c.email) continue; // unreachable: checked above
 
       // Revoke any prior unused signing grants for this sheet+email so a
-      // re-issue cleanly supersedes the old link.
-      const stale = await ctx.db
-        .query("collaboratorGrants")
-        .withIndex("by_entity", (q) => q.eq("entityId", splitSheetId))
-        .collect();
-      for (const g of stale) {
+      // re-issue (or a double click) cleanly supersedes the old link: one
+      // live link per person.
+      for (const g of sheetGrants) {
         if (
           g.scope === "splitsheet" &&
           !g.revoked &&
           sameEmail(g.email, c.email)
         ) {
           await ctx.db.patch(g._id, { revoked: true });
+          g.revoked = true;
         }
       }
 
@@ -130,7 +139,7 @@ export const lookup = query({
     // your own used link shows the "you have signed" confirmation, never the
     // scary invalid screen. Unsigned dead links stay null: the sign form
     // must only ever render for the one live token.
-    const alreadySigned = sheet.contributors[idx].signed;
+    const alreadySigned = signedByPerson(sheet.contributors[idx]);
     if ((grant.revoked || grant.expiresAt < Date.now()) && !alreadySigned) return null;
     const song = await ctx.db.get(sheet.songId);
     const artist = song ? await ctx.db.get(song.artistId) : null;
@@ -139,7 +148,19 @@ export const lookup = query({
       studioName: org?.name ?? "the studio",
       whitelabel: await whitelabelFor(ctx, sheet.orgId),
       song: song ? { title: song.title, artist: artist?.name ?? "Unknown" } : null,
-      sheet: { _id: sheet._id, status: sheet.status, contributors: sheet.contributors },
+      // Only what the sign page shows. Never another person's signature,
+      // email, IPI/PRO or browser: anyone holding a link can read this.
+      sheet: {
+        _id: sheet._id,
+        status: displayStatus(sheet),
+        contributors: sheet.contributors.map((c) => ({
+          name: c.name,
+          role: c.role,
+          masterPct: c.masterPct,
+          publishingPct: c.publishingPct,
+          signed: signedByPerson(c),
+        })),
+      },
       signer: { name: grant.name, email: grant.email, contributorIndex: idx },
       alreadySigned,
       expiresAt: grant.expiresAt,
@@ -190,12 +211,14 @@ export const sign = mutation({
       throw new Error("This signing link is no longer valid.");
     }
     const sheet = await ctx.db.get(grant.entityId as Id<"splitSheets">);
-    if (!sheet) throw new Error("Split sheet not found.");
+    if (!sheet || sheet.orgId !== grant.orgId) throw new Error("Split sheet not found.");
 
     const idx = sheet.contributors.findIndex(
       (c) => sameEmail(c.email, grant.email),
     );
     if (idx < 0) throw new Error("Signer not found on this split sheet.");
+    // Never overwrite a signature already on record.
+    if (signedByPerson(sheet.contributors[idx])) throw new Error("You have already signed this split sheet.");
 
     const now = Date.now();
     const next: Doc<"splitSheets">["contributors"] = sheet.contributors.map((c, i) =>
@@ -221,8 +244,9 @@ export const sign = mutation({
       useCount: grant.useCount + 1,
     });
 
-    // If everyone has signed, flip the sheet to fully executed.
-    const allSigned = next.every((c) => c.signed);
+    // If everyone has signed by link, flip the sheet to fully executed (this
+    // also upgrades a sheet the studio had marked signed on paper).
+    const allSigned = everyoneSigned(next);
     if (allSigned && sheet.status !== "fully_executed") {
       await ctx.db.patch(sheet._id, { status: "fully_executed", updatedAt: now });
       await allocateSongLines(ctx, sheet.orgId, sheet.songId);

@@ -27,6 +27,7 @@ import { internalMutation } from "./functions";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { money } from "./lib/money";
+import { isSheetExecuted } from "./lib/splitSigning";
 import {
   BENCHMARKS,
   BAND_RANK,
@@ -351,7 +352,7 @@ export async function gatherProfitCounts(ctx: QueryCtx | MutationCtx, orgId: str
   const NEAR = new Set(["mastering", "delivered", "released"]);
   const sheetBySong = new Map(splitSheets.map((sh) => [sh.songId, sh] as const));
   const nearSongs = songs.filter((s) => NEAR.has(s.stage));
-  const executedSplitSongs = nearSongs.filter((s) => sheetBySong.get(s._id)?.status === "fully_executed").length;
+  const executedSplitSongs = nearSongs.filter((s) => isSheetExecuted(sheetBySong.get(s._id)?.status)).length;
   const unexecutedNearReleaseSongs = nearSongs.length - executedSplitSongs;
 
   // Engineer revenue concentration over the window.

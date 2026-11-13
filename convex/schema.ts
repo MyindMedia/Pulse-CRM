@@ -1834,7 +1834,16 @@ export default defineSchema({
   splitSheets: defineTable({
     orgId: v.string(),
     songId: v.id("songs"),
-    status: v.union(v.literal("draft"), v.literal("sent"), v.literal("fully_executed")),
+    // fully_executed: every contributor signed by link. marked_by_studio: the
+    // owner recorded signatures collected outside Pulse (paper), with a note;
+    // royalties and the release gate treat it as executed, screens never show
+    // it as signed by the people (convex/lib/splitSigning.ts).
+    status: v.union(
+      v.literal("draft"),
+      v.literal("sent"),
+      v.literal("fully_executed"),
+      v.literal("marked_by_studio"),
+    ),
     contributors: v.array(
       v.object({
         name: v.string(),
@@ -1858,9 +1867,38 @@ export default defineSchema({
       }),
     ),
     updatedAt: v.number(),
+    // Set by splitSheets.markSignedOutsidePulse (owner only).
+    markedAt: v.optional(v.number()),
+    markedBy: v.optional(v.string()),
+    markedByUserId: v.optional(v.string()),
+    markedNote: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_song", ["songId"]),
+
+  // Signatures that stopped covering a split sheet because its terms changed
+  // after they were given. Kept whole so a re-save never erases who signed,
+  // when and how (splitSheets.upsert).
+  splitSignatureHistory: defineTable({
+    orgId: v.string(),
+    splitSheetId: v.id("splitSheets"),
+    songId: v.id("songs"),
+    name: v.string(),
+    role: v.string(),
+    masterPct: v.number(),
+    publishingPct: v.number(),
+    email: v.optional(v.string()),
+    // false = a hand tick from before signatures were enforced (no record).
+    signedByPerson: v.boolean(),
+    signedAt: v.optional(v.number()),
+    signature: v.optional(v.string()),
+    signatureKind: v.optional(v.union(v.literal("typed"), v.literal("drawn"))),
+    signatureFont: v.optional(v.string()),
+    signedFromUa: v.optional(v.string()),
+    clearedAt: v.number(),
+    clearedBy: v.string(),
+    reason: v.string(),
+  }).index("by_sheet", ["splitSheetId"]),
 
   // ── Invoices ──
   // Registry of rows inserted by the agency demo-data filler, so flipping a

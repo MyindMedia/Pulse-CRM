@@ -2,6 +2,7 @@ import { type MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { periodFor } from "./usage";
+import { displayStatus, signedByPerson } from "./lib/splitSigning";
 
 /* ============================================================
    Org-scoped CSV exports. Each export is a mutation (not a query)
@@ -158,9 +159,9 @@ export const splitSheetsCsv = mutation({
       const song = await ctx.db.get(sheet.songId);
       for (const c of sheet.contributors) {
         rows.push([
-          song?.title ?? "", sheet.status, c.name, c.role,
+          song?.title ?? "", displayStatus(sheet), c.name, c.role,
           c.masterPct, c.publishingPct, c.pro, c.ipi, c.email,
-          c.signed ? "yes" : "no",
+          signedByPerson(c) ? "yes" : c.signed || sheet.status === "marked_by_studio" ? "marked by studio" : "no",
         ]);
       }
     }

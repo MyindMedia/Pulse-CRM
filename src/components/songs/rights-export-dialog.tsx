@@ -111,7 +111,7 @@ export function RightsExportDialog({
                         <TD className="text-right tabular-nums">{c.publishingPct}%</TD>
                         <TD className="text-steel">{c.pro || "-"}</TD>
                         <TD className="text-right">
-                          {c.signed ? <Badge tone="positive">yes</Badge> : <Badge tone="neutral">no</Badge>}
+                          {c.signed ? <Badge tone="positive">yes</Badge> : c.markedByStudio ? <Badge tone="neutral">marked by studio</Badge> : <Badge tone="neutral">no</Badge>}
                         </TD>
                       </TR>
                     ))}

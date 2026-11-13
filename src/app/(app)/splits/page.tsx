@@ -29,6 +29,7 @@ const STATUS: Record<string, { label: string; tone: "neutral" | "info" | "positi
   draft: { label: "Draft", tone: "neutral" },
   sent: { label: "Out for signature", tone: "info" },
   fully_executed: { label: "Fully signed", tone: "positive" },
+  marked_by_studio: { label: "Marked signed by studio", tone: "neutral" },
 };
 
 export default function SplitSheetsPage() {
@@ -76,7 +77,7 @@ export default function SplitSheetsPage() {
                   </p>
                 </div>
                 {s.imported && <Badge tone="neutral">Imported</Badge>}
-                {s.missingEmail > 0 && s.status !== "fully_executed" && (
+                {s.missingEmail > 0 && (s.status === "draft" || s.status === "sent") && (
                   <Badge tone="gold">{s.missingEmail} need an email</Badge>
                 )}
                 <Badge tone={st.tone}>{st.label}</Badge>

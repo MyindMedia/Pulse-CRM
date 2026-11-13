@@ -20,6 +20,7 @@ import type { Id } from "./_generated/dataModel";
 import type { WeeklyBriefingData, RateCutData } from "./aiContext";
 import { complete, DEFAULT_MODEL } from "./lib/openai";
 import { verifyDraft } from "./lib/aiVerify";
+import { isSheetExecuted } from "./lib/splitSigning";
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 
 /** Format a Date for human-readable display. */
@@ -770,7 +771,7 @@ ${(c.openNotes ?? []).map((n) => `- [${Math.floor(n.timestampSec / 60)}:${String
         const missing = [
           c.isrc ? null : "ISRC",
           c.iswc ? null : "ISWC",
-          c.splitStatus !== "fully_executed" ? "an executed split sheet" : null,
+          !isSheetExecuted(c.splitStatus) ? "an executed split sheet" : null,
         ]
           .filter(Boolean)
           .join(", ");

@@ -1,6 +1,7 @@
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 import { allocate, masterParts } from "./royaltyMath";
+import { isSheetExecuted, signedByPerson } from "./splitSigning";
 
 /* ============================================================
    Royalty Shares come from the song's FULLY EXECUTED split sheet,
@@ -22,8 +23,8 @@ export async function sheetFor(ctx: QueryCtx | MutationCtx, orgId: string, songI
 /** Signatures a sheet is still waiting on; null when there is no sheet. */
 export function waitingOn(sheet: Doc<"splitSheets"> | null): number | null {
   if (!sheet) return null;
-  if (sheet.status === "fully_executed") return 0;
-  return Math.max(1, sheet.contributors.filter((c) => !c.signed).length);
+  if (isSheetExecuted(sheet.status)) return 0;
+  return Math.max(1, sheet.contributors.filter((c) => !signedByPerson(c)).length);
 }
 
 /** Allocate one matched line if its song's sheet is executed. */
@@ -39,7 +40,7 @@ export async function allocateLine(
     return "allocated";
   }
   const s = sheet === undefined ? await sheetFor(ctx, line.orgId, line.songId) : sheet;
-  const parts = s && s.status === "fully_executed" ? masterParts(s.contributors) : [];
+  const parts = s && isSheetExecuted(s.status) ? masterParts(s.contributors) : [];
   if (parts.length === 0) {
     if (line.state !== "unallocated") await ctx.db.patch(line._id, { state: "unallocated" });
     return "unallocated";
@@ -62,10 +63,12 @@ export async function allocateLine(
   return "allocated";
 }
 
-/** Called when a song's sheet becomes fully executed. */
+/** Called when a song's sheet becomes executed (signed by everyone, or
+ *  marked signed outside Pulse by the owner). Safe to call twice: a line
+ *  already allocated is skipped. */
 export async function allocateSongLines(ctx: MutationCtx, orgId: string, songId: Id<"songs">): Promise<number> {
   const sheet = await sheetFor(ctx, orgId, songId);
-  if (!sheet || sheet.status !== "fully_executed") return 0;
+  if (!sheet || !isSheetExecuted(sheet.status)) return 0;
   const lines = await ctx.db
     .query("royaltyLines")
     .withIndex("by_org_song", (q) => q.eq("orgId", orgId).eq("songId", songId))

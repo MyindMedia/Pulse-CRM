@@ -5,15 +5,16 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, FileDown, Plus, Scale, Send, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileDown, FileSignature, Plus, Scale, Send, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RightsExportDialog } from "@/components/songs/rights-export-dialog";
 import { SigningLinksDialog, type SigningLink } from "@/components/songs/signing-links-dialog";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/field";
-import { Checkbox } from "@/components/ui/toggle";
+import { Input, Textarea } from "@/components/ui/field";
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useCapabilities } from "@/lib/use-capabilities";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
@@ -29,16 +30,24 @@ type Contributor = {
   pro?: string;
   ipi?: string;
   email?: string;
-  signed: boolean;
+  /** Row in the saved sheet this came from, so the server keeps its signature. */
+  fromIndex?: number;
+  /** Read-only, from the server: who signed and when. Never edited here. */
+  signedBy: "person" | "studio" | null;
+  signedAt: number | null;
 };
 
-type SplitStatus = "draft" | "sent" | "fully_executed";
+type SplitStatus = "draft" | "sent" | "fully_executed" | "marked_by_studio";
 
-const SPLIT_STATUS: Record<SplitStatus, { label: string; tone: "neutral" | "info" | "positive" }> = {
+const SPLIT_STATUS: Record<SplitStatus, { label: string; tone: "neutral" | "info" | "positive" | "gold" }> = {
   draft: { label: "Draft", tone: "neutral" },
   sent: { label: "Sent", tone: "info" },
-  fully_executed: { label: "Fully executed", tone: "positive" },
+  fully_executed: { label: "Signed by everyone", tone: "positive" },
+  marked_by_studio: { label: "Marked signed by studio", tone: "gold" },
 };
+
+const signedOn = (ms: number) =>
+  new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 
 function emptyContributor(): Contributor {
   return {
@@ -49,15 +58,19 @@ function emptyContributor(): Contributor {
     pro: "",
     ipi: "",
     email: "",
-    signed: false,
+    signedBy: null,
+    signedAt: null,
   };
 }
 
 export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   const split = useQuery(api.splitSheets.forSong, { songId });
   const upsert = useMutation(api.splitSheets.upsert);
-  const setStatusMut = useMutation(api.splitSheets.setStatus);
   const issueSigning = useMutation(api.splitSignatures.issue);
+  const markOutside = useMutation(api.splitSheets.markSignedOutsidePulse);
+  const { role } = useCapabilities();
+  const [markOpen, setMarkOpen] = useState(false);
+  const [markNote, setMarkNote] = useState("");
 
   const [rows, setRows] = useState<Contributor[] | null>(null);
   const [saving, setSaving] = useState(false);
@@ -74,7 +87,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   const working: Contributor[] =
     rows ??
     (split
-      ? split.contributors.map((c) => ({
+      ? split.contributors.map((c, i) => ({
           name: c.name,
           role: c.role,
           masterPct: c.masterPct,
@@ -82,7 +95,9 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
           pro: c.pro ?? "",
           ipi: c.ipi ?? "",
           email: c.email ?? "",
-          signed: c.signed,
+          fromIndex: i,
+          signedBy: c.signedBy,
+          signedAt: c.signedAt,
         }))
       : [emptyContributor()]);
 
@@ -139,7 +154,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
           pro: c.pro?.trim() || undefined,
           ipi: c.ipi?.trim() || undefined,
           email: c.email?.trim() || undefined,
-          signed: c.signed,
+          fromIndex: c.fromIndex,
         })),
       });
       toast.success("Split sheet saved.");
@@ -170,20 +185,29 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
     }
   }
 
-  async function changeStatus(status: SplitStatus) {
+  async function markSignedOutside() {
     if (!split) return;
     setStatusUpdating(true);
     try {
-      await setStatusMut({ id: split._id, status });
-      toast.success(`Split sheet marked ${SPLIT_STATUS[status].label.toLowerCase()}.`);
+      await markOutside({ id: split._id, note: markNote });
+      toast.success("Marked signed outside Pulse. Royalties can now be split from this sheet.");
+      setMarkOpen(false);
+      setMarkNote("");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not update the status.");
+      toast.error(errorMessage(err, "Could not mark the sheet."));
     } finally {
       setStatusUpdating(false);
     }
   }
 
-  const currentStatus = (split?.status ?? "draft") as SplitStatus;
+  const currentStatus = (split?.displayStatus ?? "draft") as SplitStatus;
+  const anySignature = working.some((c) => c.signedBy !== null);
+  const isOwner = role === "owner";
+  const canMarkOutside = currentStatus !== "fully_executed" && currentStatus !== "marked_by_studio";
+  // Executed before signatures were enforced (a hand tick, or a signature an
+  // old re-save wiped): shown as marked by studio, but not yet relabelled.
+  // The owner can record where the signatures are.
+  const legacyExecuted = split?.status === "fully_executed" && currentStatus === "marked_by_studio";
 
   return (
     <div className="space-y-4">
@@ -290,17 +314,18 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
                     onChange={(v) => patch(i, { email: v })}
                     placeholder="name@email.com"
                     type="email"
-                    required={!c.signed}
-                    invalid={!c.signed && !EMAIL_RE.test((c.email ?? "").trim())}
+                    required={c.signedBy === null}
+                    invalid={c.signedBy === null && !EMAIL_RE.test((c.email ?? "").trim())}
                   />
                   <div className="flex items-center justify-between gap-2 pt-5">
-                    <label className="flex items-center gap-2 text-xs font-medium text-steel">
-                      <Checkbox
-                        checked={c.signed}
-                        onCheckedChange={(v) => patch(i, { signed: v === true })}
-                      />
-                      Signed
-                    </label>
+                    {/* Read-only: only the person's own signing link signs. */}
+                    {c.signedBy === "person" && c.signedAt ? (
+                      <Badge tone="positive">Signed on {signedOn(c.signedAt)}</Badge>
+                    ) : c.signedBy === "studio" ? (
+                      <Badge tone="gold">Marked signed by studio</Badge>
+                    ) : (
+                      <span className="text-xs text-steel/70">Not signed yet</span>
+                    )}
                     <IconButton
                       variant="ghost"
                       size="icon-sm"
@@ -314,6 +339,22 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
               </div>
             ))}
           </div>
+
+          {anySignature && (
+            <p className="text-xs text-steel/80">
+              Changing a name, role or share, or adding or removing someone, clears the signatures
+              and everyone signs again. Changing someone&rsquo;s email clears their signature and they sign
+              again from the new address. Once anyone has signed, only the studio owner can change an
+              email or a share, clear the signatures or unmark the sheet. Fixing a PRO or IPI keeps
+              every signature.
+            </p>
+          )}
+          {split?.marked && (
+            <p className="text-xs text-steel/80">
+              Marked signed outside Pulse{split.marked.by ? ` by ${split.marked.by}` : ""}
+              {split.marked.at ? ` on ${signedOn(split.marked.at)}` : ""}: {split.marked.note}
+            </p>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" onClick={addRow}>
@@ -345,17 +386,17 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
             {currentStatus === "draft" ? "Send for signature" : "Re-send signing links"}
           </Button>
         )}
-        {split && currentStatus !== "fully_executed" && (
+        {split && isOwner && (canMarkOutside || legacyExecuted) && (
           <Button
             variant="outline"
-            onClick={() => changeStatus("fully_executed")}
+            onClick={() => setMarkOpen(true)}
             disabled={statusUpdating || dirty}
           >
-            <CheckCircle2 className="size-4" />
-            Mark fully executed
+            <FileSignature className="size-4" />
+            Mark signed outside Pulse
           </Button>
         )}
-        {split && !split.allSigned && currentStatus !== "fully_executed" && (
+        {split && !split.allSigned && (currentStatus === "draft" || currentStatus === "sent") && (
           <span className="text-xs text-steel/70">
             Not all contributors have signed yet.
           </span>
@@ -370,6 +411,36 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
 
       <RightsExportDialog songId={songId} open={exportOpen} onOpenChange={setExportOpen} />
       <SigningLinksDialog links={issuedLinks} open={linksOpen} onOpenChange={setLinksOpen} />
+      <Dialog open={markOpen} onOpenChange={setMarkOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Mark signed outside Pulse</DialogTitle>
+            <DialogDescription>
+              For signatures collected on paper. The sheet shows &ldquo;Marked signed by studio&rdquo;, never
+              that each person signed in Pulse, and royalties are split from it. This is recorded with your name.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <label className="block space-y-1">
+              <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
+                Where are the signed copies?
+              </span>
+              <Textarea
+                value={markNote}
+                onChange={(e) => setMarkNote(e.target.value)}
+                maxLength={1000}
+                placeholder="Paper sheet signed 3 May, kept in the studio safe"
+              />
+            </label>
+          </DialogBody>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setMarkOpen(false)}>Cancel</Button>
+            <Button onClick={markSignedOutside} disabled={statusUpdating || markNote.trim().length < 3}>
+              {statusUpdating ? "Saving…" : "Mark signed"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
