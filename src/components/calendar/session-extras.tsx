@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useConvex, useMutation, useQuery, useAction } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -10,6 +10,7 @@ import {
   Check,
   ClipboardList,
   Download,
+  FileArchive,
   FileText,
   History,
   Image as ImageIcon,
@@ -39,10 +40,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EntityLink, InvoiceLink } from "@/components/shell/entity-link";
-import { putToR2WithProgress } from "@/lib/r2-upload";
 import { SessionDeliveryCard } from "@/components/calendar/session-delivery-card";
-import { SessionDropZone, UploadQueueList, useUploadQueue } from "@/components/calendar/session-upload-queue";
+import {
+  FOLDER_REFUSED,
+  SessionDropZone,
+  UploadQueueList,
+  useSessionUploads,
+} from "@/components/calendar/session-upload-queue";
+import { fileKind } from "@/components/delivery/format";
+import { uploads } from "@/lib/upload-manager";
+import { sessionFileTask } from "@/lib/session-upload-task";
+import { formatBytes } from "@/lib/format-bytes";
 import { money, relativeTime, shortDate } from "@/lib/format";
+import targetStyles from "@/components/calendar/session-files.module.css";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { NotificationRow } from "@/components/bookings/types";
@@ -65,18 +75,6 @@ function errorText(err: unknown, fallback: string): string {
   }
   if (err instanceof Error && err.message) return err.message.replace(/^\[.*?\]\s*/, "").replace(/^Uncaught \w+:\s*/, "");
   return fallback;
-}
-
-function bytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB"];
-  let i = 0;
-  let v = n;
-  while (v >= 1024 && i < units.length - 1) {
-    v /= 1024;
-    i++;
-  }
-  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
 export function SectionTitle({ icon: Icon, children, aside }: { icon: React.ComponentType<{ className?: string }>; children: React.ReactNode; aside?: React.ReactNode }) {
@@ -244,7 +242,8 @@ export function SessionNotesPanel({ sessionId }: { sessionId: Id<"sessions"> }) 
 
 /* ── Files and songs ──────────────────────────────────────────── */
 
-function fileIcon(mime: string) {
+function fileIcon(mime: string, fileName: string) {
+  if (fileKind(fileName, mime) === "archive") return FileArchive;
   if (mime.startsWith("audio/")) return AudioLines;
   if (mime.startsWith("image/")) return ImageIcon;
   if (mime.startsWith("video/")) return Play;
@@ -255,11 +254,7 @@ function fileIcon(mime: string) {
 export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sessions">; artistId: Id<"artists"> }) {
   const data = useQuery(api.sessionFiles.list, { sessionId });
   const convex = useConvex();
-  const prepare = useMutation(api.sessionFiles.prepareUpload);
-  const confirm = useAction(api.media.confirmUpload);
-  const attach = useMutation(api.sessionFiles.attach);
   const removeFile = useMutation(api.sessionFiles.remove);
-  const createSong = useMutation(api.songs.create);
   const linkSong = useMutation(api.sessionFiles.linkSong);
   const unlinkSong = useMutation(api.sessionFiles.unlinkSong);
 
@@ -271,32 +266,23 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
   const [playing, setPlaying] = useState<{ versionId: string; url: string } | null>(null);
   const [finalBusy, setFinalBusy] = useState<ReadonlySet<string>>(new Set());
 
-  const queue = useUploadQueue<{ asSong?: boolean }>(
-    async (file, { signal, onProgress }, meta) => {
-      const mimeType = file.type || "application/octet-stream";
-      const prep = await prepare({ sessionId, fileName: file.name || "upload", mimeType, size: file.size });
-      await putToR2WithProgress(file, prep, onProgress, signal);
-      const mediaId = prep.mediaId as Id<"mediaFiles">;
-      // A cancel that lands after the bytes are in leaves an unconfirmed upload,
-      // which the pending-upload sweep clears; nothing is attached.
-      if (signal.aborted) throw new DOMException("Upload canceled.", "AbortError");
-      await confirm({ mediaId });
-      if (signal.aborted) throw new DOMException("Upload canceled.", "AbortError");
-      let songId: Id<"songs"> | undefined;
-      if (meta?.asSong) {
-        const title = file.name.replace(/\.[a-z0-9]{1,8}$/i, "").trim() || "Untitled";
-        songId = (await createSong({ title, artistId, kind: "single" })) as Id<"songs">;
-      }
-      await attach({ sessionId, mediaId, songId });
-    },
-    (err) => {
-      const msg = errorText(err, "Upload failed.");
-      return /R2 is not configured/i.test(msg) ? "File storage is not set up on this deployment yet." : msg;
-    },
-    (file, meta) => {
-      if (meta?.asSong) toast.success(`Added "${file.name}" as a new song`);
-    },
-  );
+  // Uploads live in a module-level store, not in this component: closing the
+  // panel leaves them running, and reopening it shows this booking's rows.
+  const queue = useSessionUploads(sessionId);
+  function addUploads(files: File[], asSong = false) {
+    uploads.add(
+      sessionId,
+      files.map((file) =>
+        sessionFileTask(convex, {
+          sessionId,
+          artistId,
+          file,
+          asSong,
+          onDone: asSong ? () => toast.success(`Added "${file.name}" as a new song`) : undefined,
+        }),
+      ),
+    );
+  }
 
   async function toggleFinal(assetId: Id<"mediaAssets">, next: boolean) {
     setFinalBusy((prev) => new Set(prev).add(assetId));
@@ -317,11 +303,18 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
     return await convex.query(api.sessionFiles.downloadUrl, { versionId });
   }
 
+  /* Opens the file in a new tab. Safari blocks a window.open that runs after
+     an await (the click is spent by then), so the tab opens here, inside the
+     click, and is sent to the signed link once it arrives. */
   async function download(versionId: Id<"mediaVersions">) {
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
     try {
       const { url } = await urlFor(versionId);
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (tab && !tab.closed) tab.location.replace(url);
+      else window.open(url, "_blank", "noopener,noreferrer");
     } catch (err) {
+      tab?.close();
       toast.error(errorText(err, "Could not open the file."));
     }
   }
@@ -341,7 +334,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
 
   if (data === null) return null;
   return (
-    <section className="space-y-4" aria-label="Files and songs">
+    <section className={cn("space-y-4", targetStyles.targets)} aria-label="Files and songs">
       {/* Songs */}
       <div className={SECTION}>
         <SectionTitle
@@ -409,34 +402,42 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
         <SectionTitle icon={Paperclip}>Files</SectionTitle>
         {data?.canUpload && (
           <div className="space-y-2">
+            {/* Hidden from everyone: "browse" and "Upload as new song" open them,
+                so assistive tech never meets a second, unlabeled file button. */}
             <input
               ref={fileInput}
               type="file"
               multiple
-              className="sr-only"
+              hidden
               tabIndex={-1}
-              aria-label="Upload files to this session"
+              aria-hidden="true"
               data-testid="session-file-input"
               onChange={(e) => {
                 const picked = Array.from(e.target.files ?? []);
                 e.target.value = "";
-                queue.add(picked);
+                addUploads(picked);
               }}
             />
             <input
               ref={songInput}
               type="file"
               accept="audio/*"
-              className="sr-only"
+              hidden
               tabIndex={-1}
-              aria-label="Upload audio as a new song"
+              aria-hidden="true"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
-                if (f) queue.add([f], { asSong: true });
+                if (f) addUploads([f], true);
               }}
             />
-            <SessionDropZone onFiles={(list) => queue.add(list)} onBrowse={() => fileInput.current?.click()} />
+            <SessionDropZone
+              onFiles={(list, folders) => {
+                for (const name of folders) uploads.refuse(sessionId, name, FOLDER_REFUSED);
+                addUploads(list);
+              }}
+              onBrowse={() => fileInput.current?.click()}
+            />
             {data.canCreateSong && (
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" variant="outline" className="h-9 max-sm:h-11" onClick={() => songInput.current?.click()}>
@@ -447,7 +448,12 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
             )}
           </div>
         )}
-        <UploadQueueList items={queue.items} onCancel={queue.cancel} onDismiss={queue.remove} />
+        <UploadQueueList items={queue.items} onCancel={uploads.cancel} onDismiss={uploads.dismiss} />
+        {data?.canUpload && (
+          <p role="status" className="sr-only">
+            {queue.announcement}
+          </p>
+        )}
         {data === undefined ? (
           <Skeleton className="h-12 w-full" />
         ) : data.files.length === 0 ? (
@@ -455,7 +461,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
         ) : (
           <ul className="space-y-2" data-testid="session-files">
             {data.files.map((f) => {
-              const Icon = fileIcon(f.mimeType);
+              const Icon = fileIcon(f.mimeType, f.fileName);
               const audio = f.mimeType.startsWith("audio/");
               const isPlaying = playing?.versionId === f.versionId;
               return (
@@ -467,7 +473,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
                     <div className="min-w-0 flex-1 basis-32">
                       <p className="truncate text-sm font-medium text-bone" title={f.fileName}>{f.name}</p>
                       <p className="truncate text-[0.6875rem] text-steel/70">
-                        {bytes(f.size)} · {f.uploadedBy} · {shortDate(f.uploadedAt)}
+                        {formatBytes(f.size)} · {f.uploadedBy} · {shortDate(f.uploadedAt)}
                       </p>
                     </div>
                     <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">

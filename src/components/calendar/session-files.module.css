@@ -1,0 +1,45 @@
+/* Hit targets for the session Files and songs section (F2-23).
+
+   Why this file exists: the hardware UI kit (src/app/hardware.css) is loaded
+   unlayered, and it sizes every Button by its data-size:
+     :root:has(.pulse-hw) .pl-key[data-size="icon-sm"] { width: 26px; height: 26px }   specificity 0,4,0
+     :root:has(.pulse-hw) .pl-key[data-size="sm"]      { height: 26px }                specificity 0,4,0
+   Tailwind utilities (size-9, max-sm:size-11, h-9) sit in @layer utilities, and
+   an unlayered rule beats a layered one whatever the specificity, so those
+   classes never applied inside the app shell. This module is unlayered too,
+   and it wins in two ways that do not depend on load order:
+   1. min-width / min-height, which the kit never sets and which always beat
+      width / height in layout;
+   2. for the kit's icon keys, a width and height under a selector of
+      specificity 0,5,0 (the kit's 0,4,0 plus this section's class).
+   Nothing global changes: every rule is scoped to .targets, which only the
+   Files and songs section carries.
+
+   Sizes: 36 px in the dense staff panel, 44 px at phone width (below 40rem,
+   the same breakpoint as Tailwind's max-sm). */
+
+.targets :global(button),
+.targets :global([role="button"]),
+.targets :global(select) {
+  min-width: 36px;
+  min-height: 36px;
+}
+
+:root:has(:global(.pulse-hw)) .targets :global(.pl-key[data-size="icon-sm"]) {
+  width: 36px;
+  height: 36px;
+}
+
+@media (max-width: 39.9375rem) {
+  .targets :global(button),
+  .targets :global([role="button"]),
+  .targets :global(select) {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  :root:has(:global(.pulse-hw)) .targets :global(.pl-key[data-size="icon-sm"]) {
+    width: 44px;
+    height: 44px;
+  }
+}
