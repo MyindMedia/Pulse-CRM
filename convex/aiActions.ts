@@ -413,10 +413,20 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
       // key keeps the old room+window code so drafts made before this change
       // are still recognised.
       const draftDedupeKey = `social_post_draft:${baseRec.roomId}:${baseRec.discountCode}`;
-      const alreadyDrafted = await ctx.runQuery(internal.opsActions.openDedupeExists, {
-        orgId: data.orgId,
-        dedupeKey: draftDedupeKey,
-      });
+      // The key ends in the percentage, which flips between 15 and 20 from
+      // week to week; an open draft for the same window at the other
+      // percentage, or a promo for it still waiting or live, is an overlap.
+      const windowKey = baseRec.discountCode.replace(/\d+$/, "");
+      const keys = [...new Set([draftDedupeKey, ...[15, 20].map((pct) => `social_post_draft:${baseRec.roomId}:${windowKey}${pct}`)])];
+      let alreadyDrafted = false;
+      for (const dedupeKey of keys) {
+        if (await ctx.runQuery(internal.opsActions.openDedupeExists, { orgId: data.orgId, dedupeKey })) { alreadyDrafted = true; break; }
+      }
+      if (!alreadyDrafted) {
+        alreadyDrafted = await ctx.runQuery(internal.promos.openSweepPromoFor, {
+          orgId: data.orgId, roomId: baseRec.roomId, label: `${baseRec.roomName} ${baseRec.windowLabel}`, now: Date.now(),
+        });
+      }
       if (alreadyDrafted) continue;
       const rec = { ...baseRec, discountCode: sweepPromoCode(baseRec.discountCode) };
       {

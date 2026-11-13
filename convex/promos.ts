@@ -123,6 +123,18 @@ export const list = query({
  *  window is refreshed, not duplicated. With `awaitingApproval`, the promo is
  *  created switched OFF and goes live only when a person approves it
  *  (approvePost for its draft post, or `activate` on the Promos screen). */
+/** Is a sweep promo for this room and window still waiting or live? The
+ *  sweep's dedupe key carries the percentage, which flips between 15 and 20
+ *  as utilisation moves, so it alone missed an overlapping promo for the
+ *  same window. Bounded: the newest 200 promos of the studio. */
+export const openSweepPromoFor = internalQuery({
+  args: { orgId: v.string(), roomId: v.id("rooms"), label: v.string(), now: v.number() },
+  handler: async (ctx, { orgId, roomId, label, now }) => {
+    const recent = await ctx.db.query("promos").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(200);
+    return recent.some((p) => p.source === "rate_cut" && p.roomId === roomId && p.label === label && p.endsAt > now && (p.active || p.awaitingApproval === true));
+  },
+});
+
 export const createInternal = internalMutation({
   args: {
     orgId: v.string(), ...promoArgs, source: v.union(v.literal("owner"), v.literal("rate_cut")),

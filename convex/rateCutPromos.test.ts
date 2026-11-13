@@ -207,6 +207,25 @@ describe("rate-cut sweep discount codes", () => {
     expect((await t.run((ctx) => ctx.db.query("socialPosts").collect())).length).toBe(posts.length);
   });
 
+  it("same class as H210 findings: a second sweep makes no overlapping promo for a window whose suggested percentage changed", async () => {
+    const { t } = await setup();
+    const first = await sweep(t);
+    // Simulate last week's suggestion having been made at the other percentage.
+    await t.run(async (ctx) => {
+      for (const a of await ctx.db.query("opsActions").collect()) {
+        if (!a.dedupeKey) continue;
+        const flipped = a.dedupeKey.endsWith("20") ? a.dedupeKey.replace(/20$/, "15") : a.dedupeKey.replace(/15$/, "20");
+        await ctx.db.patch(a._id, { dedupeKey: flipped });
+      }
+    });
+    await t.action(internal.aiActions.generateRateCutPromosForOrg, { orgId: A });
+    expect((await promos(t)).length).toBe(first.ps.length);
+    // And with the draft row closed but its promo still waiting, still no overlap.
+    await t.run(async (ctx) => { for (const a of await ctx.db.query("opsActions").collect()) await ctx.db.delete(a._id); });
+    await t.action(internal.aiActions.generateRateCutPromosForOrg, { orgId: A });
+    expect((await promos(t)).length).toBe(first.ps.length);
+  });
+
   it("U-08: generated codes include a random part", async () => {
     expect(randomCodeSuffix()).toMatch(/^[A-HJ-NP-Z2-9]{5}$/);
     const a = sweepPromoCode("ROOMAMONMOR20");
