@@ -115,6 +115,12 @@ export const eraseArtist = mutation({
         notes: redactText(s.notes, terms),
       });
       scrubbed++;
+      // The session's file delivery keeps the address it was sent to.
+      const delivery = await ctx.db.query("sessionDeliveries").withIndex("by_session", (q) => q.eq("sessionId", s._id)).first();
+      if (delivery && delivery.orgId === orgId && delivery.sentTo) {
+        await ctx.db.patch(delivery._id, { sentTo: "[erased]" });
+        scrubbed++;
+      }
     }
 
     // 3. Redact the client message history (their communications).
@@ -166,6 +172,10 @@ export const eraseArtist = mutation({
           recipient: "[erased]",
           subject: redactText(n.subject, terms) ?? n.subject,
           body: redactText(n.body, terms) ?? n.body,
+          // A designed email (session file delivery) repeats the name in
+          // escaped HTML that redactText cannot reliably match: drop it. The
+          // redacted plain body stays as the log.
+          html: undefined,
         });
         scrubbed++;
       }

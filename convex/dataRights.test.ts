@@ -83,6 +83,30 @@ describe("GDPR data rights - export + erasure", () => {
     });
   });
 
+  it("scrubs the session file delivery copies: the designed email html and the delivery's sentTo", async () => {
+    const { deliveryId, notificationId } = await t.run(async (ctx) => {
+      const deliveryId = await ctx.db.insert("sessionDeliveries", {
+        orgId: "orgA", sessionId: aSession, status: "released", token: "e".repeat(64), expiresAt: Date.now() + HOUR,
+        readyAt: Date.now(), readyBy: "Owner", sentTo: "nova@x.com", lastSentAt: Date.now(), sendCount: 1, downloadCount: 0,
+      });
+      const notificationId = await ctx.db.insert("notifications", {
+        orgId: "orgA", channel: "email", recipient: "nova@x.com", subject: "Your files from Studio A are ready",
+        body: "Your files are ready, Nova", kind: "delivery.ready", sessionId: aSession, status: "sent",
+        html: "<h1>Your files are ready, Nova Reign</h1>", accent: "#3b63e6",
+      });
+      return { deliveryId, notificationId };
+    });
+    await t.mutation(api.dataRights.eraseArtist, { artistId: aArtist });
+    await t.run(async (ctx) => {
+      const n = await ctx.db.get(notificationId);
+      expect(n?.recipient).toBe("[erased]");
+      expect(n?.html).toBeUndefined();
+      const d = await ctx.db.get(deliveryId);
+      expect(d?.sentTo).toBe("[erased]");
+      expect(JSON.stringify(d)).not.toContain("nova@x.com");
+    });
+  });
+
   it("cannot erase a client in another org (tenant isolation)", async () => {
     // The viewer is owner of orgA only; orgB's client is out of scope.
     await expect(t.mutation(api.dataRights.eraseArtist, { artistId: bArtist })).rejects.toThrow(/not found/i);
