@@ -282,6 +282,15 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     await noButton(s, token, 18000, "amount_mismatch");
   });
 
+  it("R3-01 a cancelled booking offers nowhere to pay", async () => {
+    const s = await setup();
+    await invoice(s, "sent", 18000);
+    await ready(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "cancelled" }); });
+    const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st).toMatchObject({ cancelled: true, onlinePay: "none", onlinePayReason: "amount_mismatch" });
+  });
+
   it("R3-01 two open invoices that add up to what is owed: no button (neither charges it)", async () => {
     const s = await setup();
     await invoice(s, "sent", 9000);

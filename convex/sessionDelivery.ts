@@ -205,7 +205,7 @@ export type PayTarget =
   | { kind: "none"; reason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" };
 
 export type PayTargetInput = {
-  session: Pick<Doc<"sessions">, "_id" | "rateCents" | "amountPaidCents" | "depositCents" | "depositPaid" | "pricingHidden">;
+  session: Pick<Doc<"sessions">, "_id" | "rateCents" | "amountPaidCents" | "depositCents" | "depositPaid" | "pricingHidden" | "status">;
   /** This booking's invoices in this studio. */
   invoices: Array<Pick<Doc<"invoices">, "_id" | "status" | "amountCents">>;
   /** owedFrom(session, paid invoices). */
@@ -223,6 +223,9 @@ export type PayTargetInput = {
 export function decidePayTarget(x: PayTargetInput): PayTarget {
   const { session, owed } = x;
   if (owed === 0) return { kind: "none", reason: "nothing_owed" };
+  // A cancelled booking can no longer be paid at its checkout, and nothing on
+  // it is delivered anyway.
+  if (session.status === "cancelled") return { kind: "none", reason: "amount_mismatch" };
   // A broken rate (Infinity) or anything odd: no amount is certain.
   if (!Number.isFinite(owed) || owed < 0 || !Number.isInteger(owed)) return { kind: "none", reason: "amount_mismatch" };
 
