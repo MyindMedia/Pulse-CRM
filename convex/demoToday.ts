@@ -1,6 +1,7 @@
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { deleteDeliveryForSession } from "./lib/deliveryCleanup";
 
 /* ============================================================
    Demo "today" fill. The year seed spreads sessions at random across
@@ -77,6 +78,7 @@ export const fill = internalMutation({
       for (const p of prep) await ctx.db.delete(p._id);
       const own = await ctx.db.query("shifts").withIndex("by_session", (q) => q.eq("sessionId", s._id)).collect();
       for (const sh of own) if (sh.createdBy === TAG) await ctx.db.delete(sh._id);
+      await deleteDeliveryForSession(ctx, s._id);
       await ctx.db.delete(s._id);
       removed++;
     }

@@ -49,12 +49,16 @@ export const ORG_TABLES = [
   "roomBlocks", "sessionChangeRequests", "memberCalendars", "memberBusyBlocks",
   // Session modal: staff notes and extra linked songs.
   "sessionNotes", "sessionSongs",
+  // Session file delivery: the client's link token and the address it went to.
+  "sessionDeliveries",
   // Banking and receipts (openspec add-bank-sync-receipts). Plaid items are
   // removed at Plaid and receipt files deleted before these rows go.
   "bankTransactions", "bankAccounts", "bankConnections", "receipts",
   "stripeLedgerEntries", "stripePayouts", "revenueEntries",
   // Files in Cloudflare R2: the objects are deleted before these rows go.
   "mediaFiles",
+  // The media library over those files: assets, versions, notes and history.
+  "mediaAssets", "mediaVersions", "mediaNotes", "mediaEvents",
   "financeMatchRejections", "financeAudit",
   // The double-entry ledger (openspec ledger-books-statements).
   "ledgerAccounts", "journalEntries", "openingBalances", "reportedStatements", "bankStatementBalances",

@@ -297,3 +297,76 @@ describe("catalog and royalty tables", () => {
     expect(orgOwned.filter((n) => !listed.has(n))).toEqual([]);
   });
 });
+
+describe("session delivery and media library tables (F2-08)", () => {
+  it("every org-owned session delivery and media library table is listed", async () => {
+    const { mediaLibraryTables } = await import("./mediaLibraryTables");
+    const { ORG_TABLES } = await import("./subaccountDeletion");
+    const listed = new Set<string>(ORG_TABLES);
+    const orgOwned = [
+      "sessionDeliveries",
+      ...Object.entries(mediaLibraryTables)
+        .filter(([, def]) => "orgId" in ((def as unknown as { validator: { fields: object } }).validator.fields))
+        .map(([name]) => name),
+    ];
+    expect(orgOwned).toEqual(expect.arrayContaining(["sessionDeliveries", "mediaAssets", "mediaVersions", "mediaNotes", "mediaEvents"]));
+    expect(orgOwned.filter((n) => !listed.has(n))).toEqual([]);
+  });
+
+  it("a deleted workspace takes its delivery rows with it, and leaves another studio's alone", async () => {
+    const t = convexTest(schema);
+    const { orgId, as } = await setup(t);
+    const safe = await t.run(async (ctx) => {
+      const doomedSession = (await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!;
+      const row = (o: string, sessionId: typeof doomedSession._id) => ({
+        orgId: o, sessionId, status: "released" as const, token: o.padEnd(64, "0").slice(0, 64), expiresAt: Date.now() + 1000,
+        readyAt: Date.now(), readyBy: "Eng", sendCount: 1, downloadCount: 0, sentTo: "ari@example.com",
+      });
+      await ctx.db.insert("sessionDeliveries", row(orgId, doomedSession._id));
+      const safeArtist = (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", "org_safe")).first())!;
+      const safeSession = await ctx.db.insert("sessions", {
+        orgId: "org_safe", title: "Safe", artistId: safeArtist._id, serviceType: "recording",
+        startTime: Date.now(), endTime: Date.now() + 3_600_000, status: "confirmed", rateCents: 0, depositCents: 0,
+        depositPaid: false, amountPaidCents: 0, intakeCompleted: false,
+      });
+      return await ctx.db.insert("sessionDeliveries", row("org_safe", safeSession));
+    });
+    const { token } = await as.mutation(api.subaccountDeletion.requestDeletion, { orgId });
+    await as.mutation(api.subaccountDeletion.confirmDeletion, { orgId, token, typedName: "Vault Studios", typedPhrase: "DELETE" });
+    const left = await t.run(async (ctx) => await ctx.db.query("sessionDeliveries").collect());
+    expect(left.map((r) => r._id)).toEqual([safe]);
+  });
+
+  it("agency._deleteSubaccount takes the delivery rows too", async () => {
+    const t = convexTest(schema);
+    const { orgId } = await setup(t);
+    await t.run(async (ctx) => {
+      const session = (await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!;
+      await ctx.db.insert("sessionDeliveries", {
+        orgId, sessionId: session._id, status: "off", token: "f".repeat(64), expiresAt: 0, readyAt: 0, readyBy: "Eng", sendCount: 0, downloadCount: 0,
+      });
+    });
+    await t.mutation(internal.agency._deleteSubaccount, { orgId });
+    expect(await t.run(async (ctx) => await ctx.db.query("sessionDeliveries").collect())).toEqual([]);
+  });
+
+  it("wiping demo bookings one by one deletes their delivery rows (deleteDeliveryForSession)", async () => {
+    const t = convexTest(schema);
+    const { orgId } = await setup(t);
+    const sessionId = await t.run(async (ctx) => {
+      const s = (await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).first())!;
+      await ctx.db.patch(s._id, { source: "demo_year" });
+      await ctx.db.insert("sessionDeliveries", {
+        orgId, sessionId: s._id, status: "released", token: "d".repeat(64), expiresAt: Date.now() + 1000, readyAt: 0, readyBy: "Eng", sendCount: 1, downloadCount: 0,
+      });
+      return s._id;
+    });
+    await t.mutation(internal.seedDemoYear.wipeYearPage, { orgId, table: "sessions", cursor: null });
+    const left = await t.run(async (ctx) => ({
+      session: await ctx.db.get(sessionId),
+      deliveries: await ctx.db.query("sessionDeliveries").collect(),
+    }));
+    expect(left.session).toBeNull();
+    expect(left.deliveries).toEqual([]);
+  });
+});

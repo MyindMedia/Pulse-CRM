@@ -3,6 +3,7 @@ import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { Id, TableNames } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";
+import { deleteDeliveryForSession } from "./lib/deliveryCleanup";
 
 /* ============================================================
    Demo mode - the agency-side switch that fills a sub-account
@@ -139,6 +140,7 @@ async function clearDemo(ctx: MutationCtx, orgId: string) {
     .collect();
   for (const r of rows) {
     try {
+      if (r.table === "sessions") await deleteDeliveryForSession(ctx, r.docId as Id<"sessions">);
       await ctx.db.delete(r.docId as Id<TableNames>);
     } catch {
       // already deleted by hand - fine

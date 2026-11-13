@@ -2,6 +2,7 @@ import { internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { normalizePhone } from "./lib/phone";
+import { deleteDeliveryForSession } from "./lib/deliveryCleanup";
 
 /* Internal-only fixtures for live-testing the two-way SMS flows against prod.
    Run via `npx convex run smsTestFixtures:<fn>` with the deploy key; every row
@@ -188,6 +189,7 @@ export const teardown = internalMutation({
           await ctx.db.delete(p._id);
           removed++;
         }
+        await deleteDeliveryForSession(ctx, s._id);
         await ctx.db.delete(s._id);
         removed++;
       }

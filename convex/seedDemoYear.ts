@@ -3,6 +3,7 @@ import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
+import { deleteDeliveryForSession } from "./lib/deliveryCleanup";
 
 /* ============================================================
    Demo year-fill. Generates a robust rolling 52-week dataset for a
@@ -358,6 +359,7 @@ export const wipeYearPage = internalMutation({
           .withIndex("by_session", (q) => q.eq("sessionId", row._id as Id<"sessions">))
           .collect();
         for (const n of notes) await ctx.db.delete(n._id);
+        await deleteDeliveryForSession(ctx, row._id as Id<"sessions">);
       }
       await ctx.db.delete(row._id);
       removed++;

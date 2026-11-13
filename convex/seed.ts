@@ -25,6 +25,8 @@ const TABLES = [
   "artists",
   "songs",
   "sessions",
+  // A delivery dies with its booking (lib/deliveryCleanup.ts).
+  "sessionDeliveries",
   "engineeringLogs",
   "deliverables",
   "revisionComments",

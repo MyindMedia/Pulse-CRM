@@ -775,7 +775,7 @@ export const _deleteSubaccount = internalMutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }) => {
     const childTables = [
-      "rooms", "sessions", "members", "artists", "songs", "invites", "shifts",
+      "rooms", "sessions", "sessionDeliveries", "members", "artists", "songs", "invites", "shifts",
       "availability", "timeOff", "equipment", "activity",
     ] as const;
     let deleted = 0;
