@@ -123,6 +123,37 @@ async function revokeStaleSigningLinks(
   }
 }
 
+/** Has anyone ever signed this sheet, or has the owner ever marked it signed?
+ *  Historical on purpose: clearing the signatures or unmarking the sheet must
+ *  not reopen it to non-owners (H209-R2-01/02). Bounded: one indexed `.first()`. */
+async function everSigned(ctx: MutationCtx, sheet: Doc<"splitSheets">): Promise<boolean> {
+  if (isSheetExecuted(sheet.status)) return true;
+  if (sheet.markedAt !== undefined) return true;
+  if (sheet.contributors.some((c) => c.signed || signedByPerson(c))) return true;
+  const kept = await ctx.db
+    .query("splitSignatureHistory")
+    .withIndex("by_sheet", (q) => q.eq("splitSheetId", sheet._id))
+    .first();
+  return kept !== null;
+}
+
+/** The sheet counts as marked signed by the studio: the owner's paper mark, or
+ *  a legacy executed sheet that rests on a hand tick (shown as marked). */
+function isMarked(sheet: Pick<Doc<"splitSheets">, "status" | "contributors">): boolean {
+  return displayStatus(sheet) === "marked_by_studio";
+}
+
+/** Throws unless the caller is the studio owner. */
+async function requireOwner(ctx: MutationCtx, orgId: string, message: string) {
+  const viewer = await requireCapability(ctx, "splitsheet.edit", { orgId });
+  if (viewer.kind !== "studio_member" || viewer.role !== "owner") {
+    throw new ConvexError({ code: "CAPABILITY_DENIED", message });
+  }
+}
+
+const OWNER_ONLY_AFTER_SIGNING =
+  "Someone has already signed this split sheet. Only the studio owner can change a contributor's email or share, clear the signatures or unmark the sheet now.";
+
 function notSignedError(contributors: SplitContributor[]) {
   const waiting = contributors.filter((c) => !signedByPerson(c)).map((c) => c.name.trim() || "Unnamed contributor");
   return new ConvexError({
@@ -208,20 +239,6 @@ export const upsert = mutation({
     if (existing && existing.orgId !== orgId) throw new Error("Not found");
     if (existing) {
       const merged = mergeContributors(existing.contributors, contributors);
-      // Once anyone has signed (or the owner marked the sheet signed), only
-      // the owner may change who a share is paid to or how big it is.
-      const anyoneSigned =
-        isSheetExecuted(existing.status) || existing.contributors.some((c) => c.signed || signedByPerson(c));
-      if (anyoneSigned && (merged.emailChanged || merged.sharesChanged)) {
-        const viewer = await requireCapability(ctx, "splitsheet.edit", { orgId });
-        if (viewer.kind !== "studio_member" || viewer.role !== "owner") {
-          throw new ConvexError({
-            code: "CAPABILITY_DENIED",
-            message:
-              "Someone has already signed this split sheet. Only the studio owner can change a contributor's email or share now.",
-          });
-        }
-      }
       // A cleared signature (a term change, or a signed person's email
       // changed) or any such change to an executed sheet means it is no
       // longer signed by everyone: it goes back out for signature.
@@ -231,6 +248,17 @@ export const upsert = mutation({
       let nextStatus = existing.status;
       if (reopened) nextStatus = existing.status === "draft" ? "draft" : "sent";
       if (status !== undefined) nextStatus = status;
+      // Once anyone has ever signed (or the owner ever marked the sheet
+      // signed), only the owner may change who a share is paid to or how big
+      // it is, clear signatures, or take the sheet out of "marked". The check
+      // reads the sheet's history, so clearing or unmarking first does not
+      // open the door to a second save (H209-R2-01, H209-R2-02).
+      const unmarks = isMarked(existing) && nextStatus !== existing.status;
+      const ownerOnly =
+        merged.emailChanged || merged.sharesChanged || merged.cleared.length > 0 || reopened || unmarks;
+      if (ownerOnly && (await everSigned(ctx, existing))) {
+        await requireOwner(ctx, orgId, OWNER_ONLY_AFTER_SIGNING);
+      }
       // Only an explicit request to execute is checked here. A re-save that
       // changes nothing agreed keeps the sheet's status, so a sheet executed
       // before signatures were enforced can still have an IPI or PRO fixed.
@@ -329,6 +357,9 @@ export const setStatus = mutation({
       throw notSignedError(sheet.contributors);
     }
     if (sheet.status === status) return; // a second click changes nothing
+    // Unmarking a sheet the owner marked signed (or a legacy executed sheet
+    // resting on a hand tick) is the owner's call (H209-R2-01, H209-R2-02).
+    if (isMarked(sheet)) await requireOwner(ctx, orgId, OWNER_ONLY_AFTER_SIGNING);
     await ctx.db.patch(id, { status, updatedAt: Date.now() });
     const song = await ctx.db.get(sheet.songId);
     if (status === "fully_executed") {

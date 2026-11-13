@@ -273,6 +273,97 @@ describe("H5 split sheet signatures", () => {
     expect((await sheetOf(t, songId)).status).toBe("sent");
   });
 
+  it("H209-R2-01/02: a non-owner cannot clear signatures with a role change and then re-key an email or share", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await signAs(t, as, sheetId, ["alice@x.com", "bob@x.com"]);
+    const before = await sheetOf(t, songId);
+    expect(before.status).toBe("fully_executed");
+
+    // Step 1: a role-only change would clear every signature. Owner only now.
+    const roleChange = two().map((c, i) => ({ ...c, fromIndex: i, role: i === 0 ? "Writer" : c.role }));
+    await expect(as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: roleChange })).rejects.toMatchObject({
+      data: { code: "CAPABILITY_DENIED" },
+    });
+    expect(await sheetOf(t, songId)).toEqual(before);
+
+    // Even after the owner clears the signatures, the sheet stays owner-only
+    // for emails and shares: the gate reads the sheet's signature history.
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: roleChange });
+    const cleared = await sheetOf(t, songId);
+    expect(cleared.status).toBe("sent");
+    expect(cleared.contributors.every((c) => !c.signed && c.signedAt === undefined)).toBe(true);
+    const redirect = roleChange.map((c, i) => ({ ...c, email: i === 0 ? "producer@x.com" : c.email }));
+    await expect(as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: redirect })).rejects.toMatchObject({
+      data: { code: "CAPABILITY_DENIED" },
+    });
+    await expect(
+      as("u_mgr").mutation(api.splitSheets.upsert, {
+        songId, contributors: roleChange.map((c, i) => ({ ...c, masterPct: i === 0 ? 90 : 10 })),
+      }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    expect((await sheetOf(t, songId)).contributors[0].email).toBe("alice@x.com");
+    // A PRO or IPI fix is still fine for a manager.
+    await as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: roleChange.map((c) => ({ ...c, ipi: "42" })) });
+    expect((await sheetOf(t, songId)).contributors[0].ipi).toBe("42");
+  });
+
+  it("H209-R2-01/02: a non-owner cannot unmark a marked sheet, by setStatus or upsert, and then re-key an email", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await as("u_owner").mutation(api.splitSheets.markSignedOutsidePulse, { id: sheetId, note: "Paper copy in the safe" });
+    const marked = await sheetOf(t, songId);
+
+    for (const status of ["sent", "draft"] as const) {
+      await expect(as("u_mgr").mutation(api.splitSheets.setStatus, { id: sheetId, status })).rejects.toMatchObject({
+        data: { code: "CAPABILITY_DENIED" },
+      });
+      await expect(
+        as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i })), status }),
+      ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    }
+    // A role change on a marked sheet would reopen (unmark) it: owner only.
+    await expect(
+      as("u_mgr").mutation(api.splitSheets.upsert, {
+        songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i, role: i === 0 ? "Writer" : c.role })),
+      }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    expect(await sheetOf(t, songId)).toEqual(marked);
+
+    // The owner may unmark it; afterwards a manager still cannot re-key an email.
+    await as("u_owner").mutation(api.splitSheets.setStatus, { id: sheetId, status: "sent" });
+    expect((await sheetOf(t, songId)).status).toBe("sent");
+    const redirect = two().map((c, i) => ({ ...c, fromIndex: i, email: i === 0 ? "producer@x.com" : c.email }));
+    await expect(as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: redirect })).rejects.toMatchObject({
+      data: { code: "CAPABILITY_DENIED" },
+    });
+    expect((await sheetOf(t, songId)).contributors[0].email).toBe("alice@x.com");
+  });
+
+  it("H209-R2-02: a legacy executed sheet resting on a hand tick cannot be unmarked by a non-owner", async () => {
+    const sheetId = await t.run((ctx) => ctx.db.insert("splitSheets", {
+      orgId: "o1", songId, status: "fully_executed", updatedAt: 0,
+      contributors: [
+        { name: "Ticked", role: "Writer", masterPct: 50, publishingPct: 50, email: "tick@x.com", signed: true },
+        { name: "Other", role: "Writer", masterPct: 50, publishingPct: 50, email: "o@x.com", signed: true },
+      ],
+    }));
+    await expect(as("u_mgr").mutation(api.splitSheets.setStatus, { id: sheetId, status: "draft" })).rejects.toMatchObject({
+      data: { code: "CAPABILITY_DENIED" },
+    });
+    expect((await sheetOf(t, songId)).status).toBe("fully_executed");
+  });
+
+  it("H209-R2: a sheet nobody ever signed or marked stays open to a manager (status and edits)", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await as("u_mgr").mutation(api.splitSheets.setStatus, { id: sheetId, status: "sent" });
+    await as("u_mgr").mutation(api.splitSheets.upsert, {
+      songId, contributors: two(80).map((c, i) => ({ ...c, fromIndex: i, role: "Writer", email: i === 0 ? "a3@x.com" : c.email })),
+    });
+    expect((await sheetOf(t, songId)).contributors[0]).toMatchObject({ email: "a3@x.com", masterPct: 80, role: "Writer" });
+  });
+
   it("H209-01: an unused signing link for an address that left the sheet is revoked", async () => {
     await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
     const sheetId = (await sheetOf(t, songId))._id;
