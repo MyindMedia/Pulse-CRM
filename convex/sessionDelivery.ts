@@ -648,13 +648,19 @@ export const page = query({
   },
 });
 
-/** One signed download for one file, minted on click. Re-checks everything
+/** One signed URL for one file, minted on click. Re-checks everything
  *  `page` checks, requires the delivery to be released and the version to be
- *  the latest of a Final file on this booking in this studio. Counts the
- *  download; at most URL_RATE_MAX an hour per delivery. */
+ *  the latest of a Final file on this booking in this studio. `purpose` says
+ *  why the page asked: only "download" (the default) adds to downloadCount, so
+ *  pressing play is not reported to the studio as a download. Every URL minted,
+ *  for either purpose, counts toward URL_RATE_MAX an hour per delivery. */
 export const fileUrl = mutation({
-  args: { token: v.string(), versionId: v.id("mediaVersions") },
-  handler: async (ctx, { token, versionId }): Promise<{ url: string; fileName: string }> => {
+  args: {
+    token: v.string(),
+    versionId: v.id("mediaVersions"),
+    purpose: v.optional(v.union(v.literal("play"), v.literal("download"))),
+  },
+  handler: async (ctx, { token, versionId, purpose }): Promise<{ url: string; fileName: string }> => {
     const live = await liveDelivery(ctx, token);
     if (!live || live.delivery.status !== "released") throw new ConvexError(NOT_AVAILABLE);
     const { delivery } = live;
@@ -689,7 +695,7 @@ export const fileUrl = mutation({
     await ctx.db.patch(delivery._id, {
       urlWindowStart: windowStart,
       urlCount: count + 1,
-      downloadCount: delivery.downloadCount + 1,
+      downloadCount: delivery.downloadCount + ((purpose ?? "download") === "download" ? 1 : 0),
     });
     return { url, fileName };
   },

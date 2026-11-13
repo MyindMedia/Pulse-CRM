@@ -632,6 +632,31 @@ describe("session delivery: public page and downloads", () => {
     expect(dl.url).toContain("X-Amz-Signature");
   });
 
+  it("F2-09 a play is not counted as a download, but every mint counts toward the rate limit", async () => {
+    const { a, token } = await released(s);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now());
+    const play = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId, purpose: "play" });
+    expect(play.url).toContain("X-Amz-Signature");
+    let row = (await deliveryRow(s, s.A.sessionId))[0];
+    expect(row.downloadCount).toBe(0);
+    expect(row.urlCount).toBe(1);
+
+    await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId, purpose: "download" });
+    await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    row = (await deliveryRow(s, s.A.sessionId))[0];
+    expect(row.downloadCount).toBe(2);
+    expect(row.urlCount).toBe(3);
+
+    for (let i = 0; i < 117; i++) {
+      await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId, purpose: "play" });
+    }
+    await expect(
+      s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId, purpose: "play" }),
+    ).rejects.toThrow("Too many downloads. Try again in an hour.");
+    expect((await deliveryRow(s, s.A.sessionId))[0].downloadCount).toBe(2);
+  });
+
   it("A-15 public results carry no token", async () => {
     const { a, token } = await released(s);
     const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
