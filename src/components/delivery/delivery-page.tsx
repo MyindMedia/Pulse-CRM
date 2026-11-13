@@ -12,13 +12,12 @@ import {
   initials,
   inkFor,
   isPlayable,
-  longDate,
   safeAccent,
   safeHttpUrl,
   serverMessage,
-  shortDate,
   usd,
 } from "./format";
+import { downloadInFrame, isTouchApple } from "./platform";
 
 /* The client's download page, /delivery/<token>. No login: the token in the
    URL is the only credential, so it is never logged, never put in an error
@@ -31,7 +30,14 @@ import {
      unlocked   play (audio only), download, Download all
 
    File bytes never pass through this page or Convex: each click mints one ten
-   minute signed R2 link (sessionDelivery.fileUrl) and the browser goes there.
+   minute signed R2 link (sessionDelivery.fileUrl). A download loads that link
+   in its own hidden frame (the server sends it as an attachment), so the page
+   never navigates away and several downloads never cancel each other. Play
+   asks for its link with purpose "play", which the server does not count as a
+   download.
+
+   Dates come from the server already written out in the studio's time zone
+   (booking.dateLabel, expiresLabel), so the page and the email agree.
 
    Design reference: specs/features/session-file-delivery/mockup.html, view 3. */
 
@@ -57,11 +63,23 @@ function rememberLink(cache: LinkCache, id: string, url: string): void {
   cache.set(id, { url, at: Date.now() });
 }
 
-/** Hands the browser a signed link. The server sets an attachment file name,
- *  so this downloads and the page stays where it is. */
-function startDownload(url: string): void {
+/** Starts one download in a hidden frame. False when the link is unusable. */
+function startDownload(url: string): boolean {
   const safe = safeHttpUrl(url);
-  if (safe) window.location.assign(safe);
+  if (!safe) return false;
+  downloadInFrame(safe);
+  return true;
+}
+
+const subscribeNever = () => () => {};
+const touchAppleNow = () => isTouchApple(navigator);
+const notOnServer = () => false;
+
+/** iPhone or iPad. False on the server and during hydration, so the first
+ *  client render matches the server's HTML; React then re-renders with the
+ *  real answer. */
+function useTouchApple(): boolean {
+  return React.useSyncExternalStore(subscribeNever, touchAppleNow, notOnServer);
 }
 
 const BIG =
@@ -230,8 +248,8 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
     setMessage(versionId, null);
     setBusy((b) => ({ ...b, [versionId]: true }));
     try {
-      const { url } = await fileUrl({ token, versionId });
-      startDownload(url);
+      const { url } = await fileUrl({ token, versionId, purpose: "download" });
+      if (!startDownload(url)) setMessage(versionId, "That file is not available.");
     } catch (err) {
       setMessage(versionId, serverMessage(err, "That file is not available."));
     } finally {
@@ -240,23 +258,26 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
   }
 
   const [step, setStep] = React.useState<{ at: number; of: number } | null>(null);
-  const [allMessage, setAllMessage] = React.useState<string | null>(null);
   const running = React.useRef(false);
+  // iPhone and iPad start one download per tap, so they get a line instead
+  // of Download all.
+  const touchApple = useTouchApple();
 
   async function downloadAll() {
     if (running.current) return;
     running.current = true;
-    setAllMessage(null);
     const list = files.map((f) => f.versionId);
+    for (const id of list) setMessage(id, null);
     try {
       for (let i = 0; i < list.length; i++) {
         setStep({ at: i + 1, of: list.length });
         try {
-          const { url } = await fileUrl({ token, versionId: list[i] });
-          startDownload(url);
+          const { url } = await fileUrl({ token, versionId: list[i], purpose: "download" });
+          if (!startDownload(url)) setMessage(list[i], "That file is not available.");
         } catch (err) {
+          // The reason goes on the row it belongs to.
           const msg = serverMessage(err, "That file is not available.");
-          setAllMessage(msg);
+          setMessage(list[i], msg);
           // Rate limited: every later call would be refused too.
           if (msg.startsWith("Too many")) break;
         }
@@ -310,7 +331,7 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
     }
     setLoadingId(versionId);
     try {
-      const { url } = await fileUrl({ token, versionId });
+      const { url } = await fileUrl({ token, versionId, purpose: "play" });
       const safe = safeHttpUrl(url);
       if (!safe) throw new Error("unusable link");
       rememberLink(urls.current, versionId, safe);
@@ -340,7 +361,7 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
   const heading = locked
     ? `Your files are finished${first ? `, ${first}` : ""}`
     : `Your files are ready${first ? `, ${first}` : ""}`;
-  const when = [page.booking.title, page.booking.roomName, longDate(page.booking.startTime)]
+  const when = [page.booking.title, page.booking.roomName, page.booking.dateLabel]
     .filter((x): x is string => !!x && x.trim().length > 0)
     .join(" · ");
   const payUrl = safeHttpUrl(page.payUrl);
@@ -379,27 +400,26 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
           <div>
             <p className="font-bold">{count}</p>
             <p className="font-mono text-[0.75rem] tracking-[0.01em] text-steel">
-              Link works until {shortDate(page.expiresAt)}
+              Link works until {page.expiresLabel}
             </p>
           </div>
-          <div className="grid gap-1.5 @max-[30rem]:w-full">
-            <button type="button" className={BIG} onClick={downloadAll} disabled={step !== null}>
-              {step ? (
-                <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
-              ) : (
-                <Download className="size-4" strokeWidth={1.75} aria-hidden />
-              )}
-              {step ? `Starting ${step.at} of ${step.of}` : "Download all"}
-            </button>
-            <p className="sr-only" role="status" aria-live="polite">
-              {step ? `Starting ${step.at} of ${step.of}` : ""}
-            </p>
-            {allMessage && (
-              <p role="status" aria-live="polite" className="text-[0.8125rem] text-critical">
-                {allMessage}
+          {touchApple ? (
+            <p className="text-[0.8125rem] text-steel">Tap a file to download it.</p>
+          ) : (
+            <div className="grid gap-1.5 @max-[30rem]:w-full">
+              <button type="button" className={BIG} onClick={downloadAll} disabled={step !== null}>
+                {step ? (
+                  <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
+                ) : (
+                  <Download className="size-4" strokeWidth={1.75} aria-hidden />
+                )}
+                {step ? `Starting ${step.at} of ${step.of}` : "Download all"}
+              </button>
+              <p className="sr-only" role="status" aria-live="polite">
+                {step ? `Starting ${step.at} of ${step.of}` : ""}
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

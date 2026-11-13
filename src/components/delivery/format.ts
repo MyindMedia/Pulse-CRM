@@ -1,4 +1,6 @@
 import { ConvexError } from "convex/values";
+import { formatBytes } from "@/lib/format-bytes";
+import { moneyExact } from "@/lib/format";
 
 /* Pure helpers for the public delivery page (/delivery/<token>). Nothing here
    touches the network, the token or a file URL. */
@@ -40,28 +42,12 @@ export function inkFor(accent: string): string {
   return contrast(bg, luminance(dark)) >= contrast(bg, 1) ? dark : LIGHT_INK;
 }
 
-const UNITS = ["B", "KB", "MB", "GB", "TB"];
+/** Decimal file sizes, the same text as the delivery email (one source). */
+export { formatBytes };
 
-/** 212_000 -> "212 KB", 58_200_000 -> "58.2 MB", 1_420_000_000 -> "1.42 GB".
- *  Decimal units, three significant figures (same as the delivery email). */
-export function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  let i = 0;
-  let v = n;
-  while (v >= 1000 && i < UNITS.length - 1) {
-    v /= 1000;
-    i++;
-  }
-  let r = Number(v.toPrecision(3));
-  if (r >= 1000 && i < UNITS.length - 1) {
-    i++;
-    r = Number((v / 1000).toPrecision(3));
-  }
-  return `${i === 0 ? Math.round(n) : r} ${UNITS[i]}`;
-}
-
+/** "$180.00": always two decimals, as in the email. */
 export function usd(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return moneyExact(cents);
 }
 
 export type FileKind = "audio" | "video" | "archive" | "image" | "doc" | "file";
@@ -154,12 +140,4 @@ export function serverMessage(err: unknown, fallback = "Something went wrong. Tr
     if (msg.trim() && msg.length <= 160 && !/https?:|\/\//i.test(msg)) return msg.trim();
   }
   return fallback;
-}
-
-export function longDate(ts: number): string {
-  return new Date(ts).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-}
-
-export function shortDate(ts: number): string {
-  return new Date(ts).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
