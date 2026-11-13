@@ -1640,6 +1640,35 @@ export default defineSchema({
   // Staff-only notes on one booking, newest first in the session modal. Never
   // sent to the client and never on a public page. The author is the signed-in
   // staff member (agency operators carry no member id, only their user id).
+  // Final session files handed to the client (convex/sessionDelivery.ts). One
+  // row per booking. The public /delivery/<token> page reads only through this
+  // row; the files it lists are the booking's mediaAssets marked clientFinal.
+  // Not mirrored to devices: the token is a bearer secret.
+  sessionDeliveries: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    status: v.union(v.literal("awaiting_payment"), v.literal("released"), v.literal("off")),
+    token: v.string(), // 32 random bytes, hex
+    expiresAt: v.number(),
+    readyAt: v.number(),
+    readyBy: v.string(),
+    releasedAt: v.optional(v.number()),
+    releasedBy: v.optional(v.string()), // "payment" or a member's name
+    offAt: v.optional(v.number()),
+    sentTo: v.optional(v.string()),
+    lastSentAt: v.optional(v.number()),
+    sendCount: v.number(),
+    firstOpenedAt: v.optional(v.number()),
+    lastOpenedAt: v.optional(v.number()),
+    downloadCount: v.number(),
+    // Signed-URL rate limit: count within the window that started at urlWindowStart.
+    urlWindowStart: v.optional(v.number()),
+    urlCount: v.optional(v.number()),
+  })
+    .index("by_session", ["sessionId"])
+    .index("by_token", ["token"])
+    .index("by_org", ["orgId"]),
+
   sessionNotes: defineTable({
     orgId: v.string(),
     sessionId: v.id("sessions"),
@@ -1699,6 +1728,13 @@ export default defineSchema({
     sessionId: v.optional(v.id("sessions")),
     // "skipped": a text to a number that replied STOP; never handed to the provider.
     status: v.union(v.literal("simulated"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
+    // A designed email (session file delivery). `html` is the inner body only,
+    // already escaped by its template; `deliver` wraps it in the studio layout
+    // with the button and the studio's accent. Absent = the plain `body` path.
+    html: v.optional(v.string()),
+    ctaLabel: v.optional(v.string()),
+    ctaUrl: v.optional(v.string()),
+    accent: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),

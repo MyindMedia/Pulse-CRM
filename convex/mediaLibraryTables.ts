@@ -36,6 +36,10 @@ export const mediaLibraryTables = {
     tags: v.array(v.string()),
     songId: v.optional(v.id("songs")),
     sessionId: v.optional(v.id("sessions")),
+    // A session file the team marked Final: part of the client's delivery
+    // (convex/sessionDelivery.ts). Absent or false = a working file, never shown
+    // to the client.
+    clientFinal: v.optional(v.boolean()),
     // Highest version number so far; never decreases, so numbers are not reused.
     currentVersion: v.number(),
     versionCount: v.number(),
