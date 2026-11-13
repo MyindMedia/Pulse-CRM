@@ -1190,3 +1190,33 @@ describe("session delivery: resend throttle (F2-06)", () => {
     expect(await deliveryEmails(s, s.A.sessionId)).toHaveLength(2);
   });
 });
+
+/* ── F2-07: the read cap applies to Final files, not to every file ── */
+
+describe("session delivery: many working files (F2-07)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("F2-07 a booking with 205 working files and 3 Final files lists all 3", async () => {
+    await s.t.run(async (ctx) => {
+      for (let i = 0; i < 205; i++) {
+        await ctx.db.insert("mediaAssets", {
+          orgId: "studio_a", name: `Take ${i}.wav`, kind: "session", tags: [], sessionId: s.A.sessionId,
+          currentVersion: 1, versionCount: 1, totalBytes: 1000, searchText: `take ${i}`, createdBy: "Eli Engineer",
+          createdAt: Date.now(), updatedAt: Date.now(),
+        });
+      }
+    });
+    const finals = [];
+    for (const name of ["Master.wav", "Stems.zip", "Notes.pdf"]) finals.push(await finalFile(s, s.A.sessionId, name));
+    await settle(s, s.A.sessionId, "balance");
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    const p = await s.t.query(api.sessionDelivery.page, { token: row.token });
+    expect(p!.files.map((f) => f.name).sort()).toEqual(["Master.wav", "Notes.pdf", "Stems.zip"]);
+    expect(await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId })).toMatchObject({ finalCount: 3 });
+    const mail = (await deliveryEmails(s, s.A.sessionId))[0];
+    for (const name of ["Master.wav", "Notes.pdf", "Stems.zip"]) expect(mail.html).toContain(name);
+  });
+});

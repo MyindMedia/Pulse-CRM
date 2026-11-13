@@ -53,6 +53,9 @@ export const mediaLibraryTables = {
     .index("by_org", ["orgId", "updatedAt"])
     .index("by_org_song", ["orgId", "songId"])
     .index("by_org_session", ["orgId", "sessionId"])
+    // A booking's Final files (session file delivery), read without walking
+    // past its working files first.
+    .index("by_org_session_final", ["orgId", "sessionId", "clientFinal"])
     .searchIndex("search_text", { searchField: "searchText", filterFields: ["orgId", "kind"] }),
 
   // One row per upload. Numbered per asset; a restore is a new row that

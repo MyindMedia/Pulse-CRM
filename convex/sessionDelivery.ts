@@ -48,7 +48,8 @@ export const OPENED_MIN_GAP_MS = 60_000;
 /** Resend at most this often: every send is an email to the client. */
 export const RESEND_MIN_GAP_MS = 2 * 60_000;
 
-/** Bound on the files read for one booking. */
+/** Bound on the Final files read for one booking. The index holds only Final
+ *  rows of this booking, so working files never count against it. */
 const MAX_FILES = 200;
 
 type Ctx = QueryCtx | MutationCtx;
@@ -73,7 +74,7 @@ export type FinalFile = { asset: Doc<"mediaAssets">; version: Doc<"mediaVersions
 export async function finalFiles(ctx: Ctx, orgId: string, sessionId: Id<"sessions">): Promise<FinalFile[]> {
   const assets = await ctx.db
     .query("mediaAssets")
-    .withIndex("by_org_session", (q) => q.eq("orgId", orgId).eq("sessionId", sessionId))
+    .withIndex("by_org_session_final", (q) => q.eq("orgId", orgId).eq("sessionId", sessionId).eq("clientFinal", true))
     .take(MAX_FILES);
   const out: FinalFile[] = [];
   for (const asset of assets) {
