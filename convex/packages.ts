@@ -936,8 +936,14 @@ export async function drawDownOnCompletion(
 }
 
 /**
- * Put back every hour drawn for a session (voided or refunded) and undo the
- * price cut the draw made. Safe to call twice: returned rows are skipped.
+ * Put back every hour drawn for a session (voided or refunded). Safe to call
+ * twice: returned rows are skipped. Putting hours back never creates a cash
+ * debt by itself: on a completed, cancelled or no-show session the price stays
+ * as it is (a refunded session does not turn into "$X due"). Only on a session
+ * that has not happened yet (hours applied by hand, then taken back) does the
+ * price return to what it was, because that is undoing the apply. A voided
+ * session that is completed again gets its price back then (see
+ * drawDownOnCompletion), when it is a real session again.
  */
 export async function returnHoursForSession(
   ctx: MutationCtx,
@@ -972,7 +978,7 @@ export async function returnHoursForSession(
   }
   if (hoursReturned <= 0) return { hoursReturned: 0, valueCents: 0 };
   const fresh = await ctx.db.get(s._id);
-  if (fresh) await ctx.db.patch(s._id, { rateCents: fresh.rateCents + valueCents });
+  if (fresh && isOpenSession(fresh)) await ctx.db.patch(s._id, { rateCents: fresh.rateCents + valueCents });
   await ctx.db.insert("activity", {
     orgId: s.orgId,
     kind: "session.package.returned",

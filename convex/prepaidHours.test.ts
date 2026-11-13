@@ -429,7 +429,9 @@ describe("H6 drawing hours down on completion", () => {
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
-    expect((await getSession(t, sessionId))?.rateCents).toBe(30000);
+    // Round 2 (H207-08): putting hours back never raises the price by itself.
+    // This asserted 30000 before; a cancelled session now keeps its price.
+    expect((await getSession(t, sessionId))?.rateCents).toBe(0);
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
     const view = await owner.query(api.packages.forSession, { sessionId });
@@ -686,5 +688,56 @@ describe("Round 2: a session paid from prepaid hours is paid (H207-01, H207-02, 
     await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(9);
+  });
+});
+
+describe("Round 2: putting hours back never creates a cash debt (H207-08, H207-11)", () => {
+  let t: T;
+  let owner: ReturnType<T["withIdentity"]>;
+  let artistId: Id<"artists">;
+  let creditId: Id<"packageCredits">;
+  beforeEach(async () => {
+    t = convexTest(schema);
+    owner = await studio(t, "org_a", "u_a");
+    const productId = await product(t, "org_a", 10, 100000);
+    artistId = await artist(t, "org_a");
+    creditId = (await sell(owner, productId, artistId)).creditId;
+  });
+
+  it("a refund gives the hours back and leaves nothing due, no pay link and no invoice", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 20000, hours: 2 });
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await getSession(t, sessionId))?.rateCents).toBe(0);
+    await owner.mutation(api.packages.returnHours, { sessionId });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+    expect((await getSession(t, sessionId))?.rateCents).toBe(0);
+    expect((await owner.query(api.sessions.payLink, { id: sessionId }))?.balanceCents).toBe(0);
+    // Re-setting it to completed bills nothing and takes nothing.
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect(await t.run(async (ctx) => ctx.db.query("invoices").collect())).toHaveLength(0);
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+  });
+
+  it("a voided session completed again is priced in full and drawn again, once", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(8);
+    expect((await getSession(t, sessionId))?.rateCents).toBe(0);
+    expect(await t.run(async (ctx) => ctx.db.query("invoices").collect())).toHaveLength(0);
+  });
+
+  it("taking back hours applied by hand to an upcoming session restores its price (undo)", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await owner.mutation(api.packages.redeem, { sessionId, creditId, hours: 1 });
+    const cut = (await getSession(t, sessionId))!.rateCents;
+    expect(cut).toBeLessThan(30000);
+    await owner.mutation(api.packages.returnHours, { sessionId });
+    expect((await getSession(t, sessionId))?.rateCents).toBe(30000);
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
   });
 });
