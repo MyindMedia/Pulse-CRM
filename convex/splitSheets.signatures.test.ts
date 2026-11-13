@@ -588,6 +588,29 @@ describe("H5 split sheet signatures", () => {
     expect(await t.query(api.splitSignatures.lookup, { token: "dead" })).toBeNull();
   });
 
+  it("H209-04: the public signing lookup never returns another signer's signature, email or browser", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, {
+      songId, contributors: two().map((c) => ({ ...c, ipi: "00012345678", pro: "BMI" })),
+    });
+    const sheetId = (await sheetOf(t, songId))._id;
+    const links = await as("u_owner").mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    const alice = links.find((l) => l.email === "alice@x.com")!;
+    await t.mutation(api.splitSignatures.sign, {
+      token: alice.token, signature: "data:image/png;base64,AAAA", signatureKind: "drawn", userAgent: "AliceBrowser/1",
+    });
+    const bob = links.find((l) => l.email === "bob@x.com")!;
+    const view = await t.query(api.splitSignatures.lookup, { token: bob.token });
+    expect(view!.sheet.contributors).toEqual([
+      { name: "Alice", role: "Songwriter", masterPct: 50, publishingPct: 50, signed: true },
+      { name: "Bob", role: "Producer", masterPct: 50, publishingPct: 50, signed: false },
+    ]);
+    const raw = JSON.stringify(view);
+    for (const leak of ["alice@x.com", "data:image/png", "AliceBrowser", "00012345678", "BMI"]) {
+      expect(raw).not.toContain(leak);
+    }
+    expect(view!.signer.email).toBe("bob@x.com");
+  });
+
   it("report: lists hand-ticked sheets and changes nothing", async () => {
     const other = await t.run(async (ctx) => {
       const s = (await ctx.db.get(songId))!;

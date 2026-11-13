@@ -7,7 +7,7 @@ import { requireCapability } from "./lib/access";
 import { whitelabelFor } from "./usage";
 import { sameEmail, validEmail } from "./lib/emailKey";
 import { allocateSongLines } from "./lib/royaltyAllocate";
-import { everyoneSigned, signedByPerson } from "./lib/splitSigning";
+import { displayStatus, everyoneSigned, signedByPerson } from "./lib/splitSigning";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -146,7 +146,19 @@ export const lookup = query({
       studioName: org?.name ?? "the studio",
       whitelabel: await whitelabelFor(ctx, sheet.orgId),
       song: song ? { title: song.title, artist: artist?.name ?? "Unknown" } : null,
-      sheet: { _id: sheet._id, status: sheet.status, contributors: sheet.contributors },
+      // Only what the sign page shows. Never another person's signature,
+      // email, IPI/PRO or browser: anyone holding a link can read this.
+      sheet: {
+        _id: sheet._id,
+        status: displayStatus(sheet),
+        contributors: sheet.contributors.map((c) => ({
+          name: c.name,
+          role: c.role,
+          masterPct: c.masterPct,
+          publishingPct: c.publishingPct,
+          signed: signedByPerson(c),
+        })),
+      },
       signer: { name: grant.name, email: grant.email, contributorIndex: idx },
       alreadySigned,
       expiresAt: grant.expiresAt,
