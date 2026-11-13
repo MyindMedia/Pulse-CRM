@@ -716,7 +716,10 @@ export async function applyStatus(
     const id = s._id;
     // Snapshot BEFORE the patch: only a fresh transition out of an active state
     // into cancelled / no-show assesses the shield (so a re-set is idempotent).
-    const wasActive = s.status !== "cancelled" && s.status !== "no_show";
+    // A completed session is not "active" here: voiding one (completed ->
+    // cancelled, the way prepaid hours are put back) must not charge a late
+    // cancellation fee or offer its long-past slot to the waitlist.
+    const wasActive = s.status !== "cancelled" && s.status !== "no_show" && s.status !== "completed";
     await ctx.db.patch(id, { status });
     // Prepaid hours: a completed session voided back to cancelled gets its
     // hours put back on the client's block.

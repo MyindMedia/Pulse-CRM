@@ -741,3 +741,26 @@ describe("Round 2: putting hours back never creates a cash debt (H207-08, H207-1
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
   });
 });
+
+describe("Round 2: voiding a completed session charges no fee (H207-13)", () => {
+  it("completed -> cancelled puts the hours back without a cancellation fee or card charge", async () => {
+    const t = convexTest(schema);
+    const owner = await studio(t, "org_a", "u_a");
+    await t.run(async (ctx) => {
+      const org = await ctx.db.query("orgs").first();
+      await ctx.db.patch(org!._id, { cancellationFeePct: 50, cancellationWindowHours: 48 });
+    });
+    const productId = await product(t, "org_a", 2, 20000);
+    const artistId = await artist(t, "org_a");
+    const { creditId } = await sell(owner, productId, artistId);
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 3 });
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(2);
+    const s = await getSession(t, sessionId);
+    expect(s?.cancellationFeeCents).toBeUndefined();
+    const acts = await t.run(async (ctx) => ctx.db.query("activity").collect());
+    expect(acts.some((a) => /cancellation fee/i.test(a.summary))).toBe(false);
+  });
+});
