@@ -9,6 +9,7 @@ describe("lockCopy", () => {
       heading: "Pay $180.00 to unlock your files",
       body: "Downloads open on this page as soon as the payment goes through.",
       payUrl: "https://x.test/pay",
+      balanceDue: true,
     });
   });
 
@@ -17,6 +18,7 @@ describe("lockCopy", () => {
       heading: "Pay $300.00 to unlock your files",
       body: "Myind Sound will send you a way to pay. Your files unlock here as soon as it is paid.",
       payUrl: null,
+      balanceDue: true,
     });
   });
 
@@ -37,11 +39,27 @@ describe("lockCopy", () => {
     expect(copy.body).toContain("will send you a way to pay");
   });
 
-  it("a zero or missing amount drops the figure, and a blank studio name reads as The studio", () => {
-    expect(lockCopy({ studioName: "  ", balanceCents: 0, payUrl: null })).toEqual({
-      heading: "Pay to unlock your files",
-      body: "The studio will send you a way to pay. Your files unlock here as soon as it is paid.",
+  it("R4-04: nothing owed: Payment received, no Balance due pill, no pay wording, no button", () => {
+    const copy = lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: null });
+    expect(copy).toEqual({
+      heading: "Payment received",
+      body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
       payUrl: null,
+      balanceDue: false,
     });
+    expect(`${copy.heading} ${copy.body}`).not.toMatch(/pay to|way to pay|balance/i);
+    // A stray link is never shown when nothing is owed.
+    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: "https://x.test/pay" }).payUrl).toBeNull();
+  });
+
+  it("R4-04: a blank studio name reads as The studio in the nothing-owed line", () => {
+    expect(lockCopy({ studioName: " ", balanceCents: 0, payUrl: null }).body).toBe(
+      "The studio is sending your files. This page unlocks as soon as they do.",
+    );
+  });
+
+  it("balanceDue is true for an amount, and for hidden prices", () => {
+    expect(lockCopy({ studioName: "S", balanceCents: 100, payUrl: null }).balanceDue).toBe(true);
+    expect(lockCopy({ studioName: "S", balanceCents: null, payUrl: null }).balanceDue).toBe(true);
   });
 });

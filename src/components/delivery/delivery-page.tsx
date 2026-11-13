@@ -398,10 +398,12 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
 
       {locked ? (
         <section aria-labelledby="lock-title" className="grid gap-3 rounded-lg border border-hairline bg-coal px-4 py-[1.125rem]">
-          <span className="inline-flex h-6 items-center gap-1.5 justify-self-start rounded-full border border-hairline bg-coal-2 px-2.5 text-[0.75rem] font-semibold text-[color:var(--gold-text)]">
-            <Lock className="size-3" strokeWidth={1.75} aria-hidden />
-            Balance due
-          </span>
+          {lock.balanceDue && (
+            <span className="inline-flex h-6 items-center gap-1.5 justify-self-start rounded-full border border-hairline bg-coal-2 px-2.5 text-[0.75rem] font-semibold text-[color:var(--gold-text)]">
+              <Lock className="size-3" strokeWidth={1.75} aria-hidden />
+              Balance due
+            </span>
+          )}
           <h2 id="lock-title" className="text-[1.25rem] leading-[1.25] font-bold tracking-normal">
             {lock.heading}
           </h2>
