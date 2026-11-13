@@ -374,6 +374,61 @@ describe("upload manager: who added each file (R3-07)", () => {
     expect(m.rows("s1").map((r) => r.status)).toEqual(["uploading", "uploading", "queued"]);
   });
 
+  describe("R4-07: an org id of null is a refresh, not a studio change", () => {
+    async function start() {
+      const m = createUploadManager({ newId, unloadTarget: null });
+      m.setIdentity(ME);
+      const [a, b, c] = [fakeTask("a"), fakeTask("b"), fakeTask("c")];
+      m.add("s1", [a.task, b.task, c.task]);
+      await flush();
+      return { m, a, b, c };
+    }
+
+    it("org null with the same user is ignored, and the org coming back changes nothing", async () => {
+      const { m, a } = await start();
+      m.setIdentity({ userId: "user_a", orgId: null });
+      expect(m.rows("s1").map((r) => r.status)).toEqual(["uploading", "uploading", "queued"]);
+      expect(a.ctx!.signal.aborted).toBe(false);
+      m.setIdentity(ME);
+      expect(m.rows("s1").map((r) => r.status)).toEqual(["uploading", "uploading", "queued"]);
+      expect(a.ctx!.signal.aborted).toBe(false);
+    });
+
+    it("a different non-null org id is a change", async () => {
+      const { m, a } = await start();
+      m.setIdentity({ userId: "user_a", orgId: null });
+      m.setIdentity({ userId: "user_a", orgId: "studio_b" });
+      expect(a.ctx!.signal.aborted).toBe(true);
+      expect(m.rows("s1").map((r) => r.error)).toEqual([SIGNED_OUT_RUNNING, SIGNED_OUT_RUNNING, SIGNED_OUT_QUEUED]);
+    });
+
+    it("a user id that is null or different is a change, even when the org is null too", async () => {
+      for (const next of [
+        { userId: null, orgId: null },
+        { userId: null, orgId: "studio_a" },
+        { userId: "user_b", orgId: null },
+        { userId: "user_b", orgId: "studio_a" },
+      ]) {
+        const { m } = await start();
+        m.setIdentity(next);
+        expect(m.rows("s1").map((r) => r.error), JSON.stringify(next)).toEqual([SIGNED_OUT_RUNNING, SIGNED_OUT_RUNNING, SIGNED_OUT_QUEUED]);
+      }
+    });
+
+    it("a user with no org yet adopts the org that arrives, without canceling their own uploads", async () => {
+      const m = createUploadManager({ newId, unloadTarget: null });
+      m.setIdentity({ userId: "user_a", orgId: null });
+      const a = fakeTask("a");
+      m.add("s1", [a.task]);
+      await flush();
+      m.setIdentity(ME);
+      expect(m.rows("s1")[0].status).toBe("uploading");
+      // And from then on a different org is a change.
+      m.setIdentity({ userId: "user_a", orgId: "studio_b" });
+      expect(m.rows("s1")[0]).toMatchObject({ status: "canceled", error: SIGNED_OUT_RUNNING });
+    });
+  });
+
   it("files added after the change upload as the new user", async () => {
     const m = createUploadManager({ newId, unloadTarget: null });
     m.setIdentity(ME);

@@ -14,7 +14,9 @@ import { uploads } from "@/lib/upload-manager";
    Mounted in the app shell OUTSIDE AuthGate, so it still sees the sign-out
    that makes AuthGate unmount the rest of the shell. Nothing is reported while
    either answer is loading. Demo mode has no Clerk user at all: that is the
-   stable value null, not a change. Renders nothing. */
+   stable value null, not a change. A studio id of null while the user id is
+   unchanged (the session refreshing) is ignored by the store (R4-07). Renders
+   nothing. */
 export function UploadIdentitySync() {
   // undefined while Clerk loads, null when signed out (and always in demo mode).
   const { user } = useOptionalUser();

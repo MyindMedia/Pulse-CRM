@@ -291,6 +291,22 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
     setIdentity(next: UploadIdentity) {
       const key = identityKey(next);
       if (key === identity) return;
+      if (identity !== null) {
+        const prev = JSON.parse(identity) as [string | null, string | null];
+        if (prev[0] === next.userId) {
+          // R4-07: the same user with no studio id is the session refreshing,
+          // not a studio change. Ignore it; the id coming back is then the
+          // same identity again.
+          if (next.orgId === null) return;
+          // The same user whose studio was not known yet: the studio arrives.
+          // Their files are theirs; they take the new key without canceling.
+          if (prev[1] === null) {
+            for (const w of work.values()) if (w.owner === identity) w.owner = key;
+            identity = key;
+            return;
+          }
+        }
+      }
       identity = key;
       let changed = false;
       for (const [id, w] of [...work]) {
