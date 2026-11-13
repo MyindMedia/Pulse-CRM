@@ -1,111 +1,126 @@
 import { describe, expect, it } from "vitest";
-import { lockCopy } from "./lock-copy";
+import { lockCopy, type LockCopy } from "./lock-copy";
 
-/* R3-05 and C-14: the locked page's words, by pay target. */
+/* The locked client page's words, driven by payUrl, balanceCents and
+   nothingOwed (Addendum 5, page table). Every cell is pinned below. */
 
-describe("lockCopy", () => {
-  it("with a pay target: the amount, the Pay button and the usual line", () => {
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "https://x.test/pay" })).toEqual({
-      heading: "Pay $180.00 to unlock your files",
-      body: "Downloads open on this page as soon as the payment goes through.",
-      payUrl: "https://x.test/pay",
-      balanceDue: true,
+const STUDIO = "Myind Sound";
+const PAY = "https://x.test/pay";
+
+describe("lockCopy: the page table (Addendum 5)", () => {
+  const ROWS: Array<{ situation: string; input: Parameters<typeof lockCopy>[0]; expected: LockCopy }> = [
+    {
+      situation: "exact-match target",
+      input: { studioName: STUDIO, balanceCents: 18000, payUrl: PAY, nothingOwed: false },
+      expected: {
+        heading: "Pay $180.00 to unlock your files",
+        body: "Downloads open on this page as soon as the payment goes through.",
+        payUrl: PAY,
+        balanceDue: true,
+      },
+    },
+    {
+      situation: "no target, amount visible",
+      input: { studioName: STUDIO, balanceCents: 30000, payUrl: null, nothingOwed: false },
+      expected: {
+        heading: "There is a $300.00 balance on this booking",
+        body: "Myind Sound will be in touch about payment. Your files unlock here as soon as the balance is paid.",
+        payUrl: null,
+        balanceDue: true,
+      },
+    },
+    {
+      situation: "no target, prices hidden",
+      input: { studioName: STUDIO, balanceCents: null, payUrl: null, nothingOwed: false },
+      expected: {
+        heading: "Your files are ready once the balance is paid",
+        body: "Myind Sound will be in touch about payment. Your files unlock here as soon as the balance is paid.",
+        payUrl: null,
+        balanceDue: true,
+      },
+    },
+    {
+      situation: "nothing owed, amount visible",
+      input: { studioName: STUDIO, balanceCents: 0, payUrl: null, nothingOwed: true },
+      expected: {
+        heading: "Payment received",
+        body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
+        payUrl: null,
+        balanceDue: false,
+      },
+    },
+    {
+      situation: "nothing owed, prices hidden",
+      input: { studioName: STUDIO, balanceCents: null, payUrl: null, nothingOwed: true },
+      expected: {
+        heading: "Payment received",
+        body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
+        payUrl: null,
+        balanceDue: false,
+      },
+    },
+  ];
+
+  for (const row of ROWS) {
+    it(`${row.situation}`, () => {
+      expect(lockCopy(row.input)).toEqual(row.expected);
     });
-  });
+  }
+});
 
-  it("no pay target: no button, and the studio will send a way to pay (C-14)", () => {
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 30000, payUrl: null })).toEqual({
-      heading: "Pay $300.00 to unlock your files",
-      body: "Myind Sound will send you a way to pay. Your files unlock here as soon as it is paid.",
-      payUrl: null,
-      balanceDue: true,
-    });
-  });
-
-  it("hidden prices: the heading has no amount and nothing on the page shows one (G-23)", () => {
-    for (const payUrl of [null, "https://x.test/invoice"]) {
-      const copy = lockCopy({ studioName: "Myind Sound", balanceCents: null, payUrl });
-      expect(copy.heading).toBe("Your files are ready once the balance is paid");
-      expect(`${copy.heading} ${copy.body}`).not.toMatch(/\$|\d/);
-    }
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: null, payUrl: null }).body).toBe(
-      "Myind Sound will send you a way to pay. Your files unlock here as soon as it is paid.",
+describe("lockCopy: edge cases", () => {
+  it("a blank studio name reads as The studio", () => {
+    expect(lockCopy({ studioName: " ", balanceCents: 30000, payUrl: null, nothingOwed: false }).body).toBe(
+      "The studio will be in touch about payment. Your files unlock here as soon as the balance is paid.",
     );
-  });
-
-  it("an unusable pay link counts as none", () => {
-    const copy = lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "javascript:alert(1)" });
-    expect(copy.payUrl).toBeNull();
-    expect(copy.body).toContain("will send you a way to pay");
-  });
-
-  it("R4-04: nothing owed: Payment received, no Balance due pill, no pay wording, no button", () => {
-    const copy = lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: null });
-    expect(copy).toEqual({
-      heading: "Payment received",
-      body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
-      payUrl: null,
-      balanceDue: false,
-    });
-    expect(`${copy.heading} ${copy.body}`).not.toMatch(/pay to|way to pay|balance/i);
-    // A stray link is never shown when nothing is owed.
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: "https://x.test/pay" }).payUrl).toBeNull();
-  });
-
-  it("R4-04: a blank studio name reads as The studio in the nothing-owed line", () => {
-    expect(lockCopy({ studioName: " ", balanceCents: 0, payUrl: null }).body).toBe(
+    expect(lockCopy({ studioName: " ", balanceCents: 0, payUrl: null, nothingOwed: true }).body).toBe(
       "The studio is sending your files. This page unlocks as soon as they do.",
     );
   });
 
-  it("P4-02: no pay target and an open invoice: pay with the invoice the studio sent", () => {
-    const LINE = "Pay with the invoice Myind Sound sent you. Your files unlock here as soon as it is paid.";
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 30000, payUrl: null, invoiceOpen: true })).toEqual({
-      heading: "Pay $300.00 to unlock your files",
-      body: LINE,
-      payUrl: null,
-      balanceDue: true,
-    });
-    // Hidden prices: still no amount anywhere.
-    const hidden = lockCopy({ studioName: "Myind Sound", balanceCents: null, payUrl: null, invoiceOpen: true });
-    expect(hidden.body).toBe(LINE);
-    expect(`${hidden.heading} ${hidden.body}`).not.toMatch(/\$|\d/);
-    // An unusable link counts as none here too.
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "javascript:alert(1)", invoiceOpen: true }).body).toBe(LINE);
-    // A blank studio name.
-    expect(lockCopy({ studioName: " ", balanceCents: 18000, payUrl: null, invoiceOpen: true }).body).toBe(
-      "Pay with the invoice The studio sent you. Your files unlock here as soon as it is paid.",
-    );
+  it("an unusable pay link counts as none", () => {
+    const copy = lockCopy({ studioName: STUDIO, balanceCents: 18000, payUrl: "javascript:alert(1)", nothingOwed: false });
+    expect(copy.payUrl).toBeNull();
+    expect(copy.heading).toBe("There is a $180.00 balance on this booking");
   });
 
-  it("P4-02: no open invoice: the studio will send a way to pay, as before", () => {
-    for (const invoiceOpen of [false, undefined]) {
-      expect(lockCopy({ studioName: "Myind Sound", balanceCents: 30000, payUrl: null, invoiceOpen }).body).toBe(
-        "Myind Sound will send you a way to pay. Your files unlock here as soon as it is paid.",
-      );
+  it("a missing pay link (undefined) counts as none", () => {
+    expect(lockCopy({ studioName: STUDIO, balanceCents: 18000, payUrl: undefined, nothingOwed: false }).payUrl).toBeNull();
+  });
+
+  it("nothing owed never shows a stray pay link", () => {
+    expect(lockCopy({ studioName: STUDIO, balanceCents: 0, payUrl: PAY, nothingOwed: true }).payUrl).toBeNull();
+  });
+
+  it("hidden prices never show an amount or a digit, with or without a link", () => {
+    for (const payUrl of [null, PAY]) {
+      const copy = lockCopy({ studioName: STUDIO, balanceCents: null, payUrl, nothingOwed: false });
+      expect(`${copy.heading} ${copy.body}`).not.toMatch(/\$|\d/);
     }
   });
 
-  it("P4-02: with a pay target, an open invoice changes nothing", () => {
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 18000, payUrl: "https://x.test/pay", invoiceOpen: true })).toEqual({
-      heading: "Pay $180.00 to unlock your files",
-      body: "Downloads open on this page as soon as the payment goes through.",
-      payUrl: "https://x.test/pay",
-      balanceDue: true,
-    });
+  it("a pay button never appears without an amount shown", () => {
+    expect(lockCopy({ studioName: STUDIO, balanceCents: null, payUrl: PAY, nothingOwed: false }).payUrl).toBeNull();
   });
+});
 
-  it("P4-02: nothing owed stays Payment received, open invoice or not (R4-04)", () => {
-    expect(lockCopy({ studioName: "Myind Sound", balanceCents: 0, payUrl: null, invoiceOpen: true })).toEqual({
-      heading: "Payment received",
-      body: "Myind Sound is sending your files. This page unlocks as soon as they do.",
-      payUrl: null,
-      balanceDue: false,
-    });
-  });
-
-  it("balanceDue is true for an amount, and for hidden prices", () => {
-    expect(lockCopy({ studioName: "S", balanceCents: 100, payUrl: null }).balanceDue).toBe(true);
-    expect(lockCopy({ studioName: "S", balanceCents: null, payUrl: null }).balanceDue).toBe(true);
+describe("lockCopy: the client page never says invoice or sent you", () => {
+  it("no string lockCopy can return contains invoice or sent you", () => {
+    const studios = [STUDIO, " ", ""];
+    const cents = [null, 0, 1, 18000, 3000000];
+    const payUrls = [null, undefined, PAY, "javascript:alert(1)"];
+    const seen: string[] = [];
+    for (const studioName of studios)
+      for (const balanceCents of cents)
+        for (const payUrl of payUrls)
+          for (const nothingOwed of [true, false]) {
+            const copy = lockCopy({ studioName, balanceCents, payUrl, nothingOwed });
+            seen.push(copy.heading, copy.body);
+          }
+    expect(seen.length).toBe(2 * studios.length * cents.length * payUrls.length * 2);
+    for (const text of seen) {
+      expect(text).not.toMatch(/invoice/i);
+      expect(text).not.toMatch(/sent you/i);
+    }
   });
 });

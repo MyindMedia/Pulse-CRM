@@ -30,8 +30,7 @@ import { lockCopy } from "./lock-copy";
      null       the generic expired page: no studio name, no logo (A-01)
      locked     names and sizes, a lock mark per file, and a Pay button only
                 when the server has a link that charges exactly what is shown
-                (otherwise: pay the open invoice, or the studio will send a
-                way to pay)
+                (otherwise the copy names no payment)
      unlocked   play (audio only), download, Download all
 
    File bytes never pass through this page or Convex: each click mints one ten
@@ -382,9 +381,8 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
     .filter((x): x is string => !!x && x.trim().length > 0)
     .join(" · ");
   // R3-05: a Pay button only when the server has one that charges exactly
-  // what is shown; otherwise pay the open invoice (P4-02), or the studio sends
-  // a way to pay.
-  const lock = lockCopy({ studioName: page.studio.name, balanceCents: page.balanceCents, payUrl: page.payUrl, invoiceOpen: page.invoiceOpen });
+  // what is shown. Otherwise the page names no payment (Addendum 5).
+  const lock = lockCopy({ studioName: page.studio.name, balanceCents: page.balanceCents, payUrl: page.payUrl, nothingOwed: page.nothingOwed });
   const count = `${files.length} file${files.length === 1 ? "" : "s"} · ${formatBytes(page.totalBytes)}`;
 
   return (

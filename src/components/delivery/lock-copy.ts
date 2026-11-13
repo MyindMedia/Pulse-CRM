@@ -1,16 +1,16 @@
 import { safeHttpUrl, usd } from "./format";
 
-/* What the locked client page says (R3-05). The server offers a Pay link only
-   when that link charges exactly the amount shown (payTargetFor); otherwise
-   payUrl is null and the page says to pay the invoice the studio sent when one
-   is open (invoiceOpen, P4-02), or that the studio will send a way to pay. A
+/* What the locked client page says (Addendum 5, page table). The page points
+   at a payment in exactly one case: the exact-match Pay button, which the
+   server offers only when that link charges the amount shown (payUrl). In
+   every other case the copy names no invoice, no link and no method. A
    booking with hidden prices has balanceCents null: no figure anywhere. */
 
 export type LockCopy = {
   heading: string;
   body: string;
   payUrl: string | null;
-  /** False when exactly 0 is owed (R4-04): no "Balance due" pill, no Pay button. */
+  /** False when nothing is owed (nothingOwed): no "Balance due" pill, no Pay button. */
   balanceDue: boolean;
 };
 
@@ -18,13 +18,11 @@ export function lockCopy(input: {
   studioName: string;
   balanceCents: number | null;
   payUrl: string | null | undefined;
-  /** The booking has an open (sent, viewed or overdue) invoice (page.invoiceOpen). */
-  invoiceOpen?: boolean;
+  /** Locked and nothing is owed: the delivery has not released yet (page.nothingOwed). */
+  nothingOwed: boolean;
 }): LockCopy {
   const studio = input.studioName.trim() || "The studio";
-  // R4-04: a locked page with nothing owed is only waiting for the studio's
-  // own release; it says so and talks about no payment.
-  if (input.balanceCents !== null && input.balanceCents <= 0) {
+  if (input.nothingOwed) {
     return {
       heading: "Payment received",
       body: `${studio} is sending your files. This page unlocks as soon as they do.`,
@@ -32,15 +30,21 @@ export function lockCopy(input: {
       balanceDue: false,
     };
   }
-  const payUrl = safeHttpUrl(input.payUrl);
+  // The Pay button needs the amount on the page beside it: with hidden prices
+  // there is no exact-match amount to show, so no button.
+  const payUrl = input.balanceCents === null ? null : safeHttpUrl(input.payUrl);
+  if (payUrl) {
+    return {
+      heading: `Pay ${usd(input.balanceCents!)} to unlock your files`,
+      body: "Downloads open on this page as soon as the payment goes through.",
+      payUrl,
+      balanceDue: true,
+    };
+  }
+  const body = `${studio} will be in touch about payment. Your files unlock here as soon as the balance is paid.`;
   const heading =
     input.balanceCents === null
       ? "Your files are ready once the balance is paid"
-      : `Pay ${usd(input.balanceCents)} to unlock your files`;
-  const body = payUrl
-    ? "Downloads open on this page as soon as the payment goes through."
-    : input.invoiceOpen === true
-      ? `Pay with the invoice ${studio} sent you. Your files unlock here as soon as it is paid.`
-      : `${studio} will send you a way to pay. Your files unlock here as soon as it is paid.`;
-  return { heading, body, payUrl, balanceDue: true };
+      : `There is a ${usd(input.balanceCents)} balance on this booking`;
+  return { heading, body, payUrl: null, balanceDue: true };
 }
