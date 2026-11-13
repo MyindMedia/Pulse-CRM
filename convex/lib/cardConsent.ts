@@ -54,14 +54,18 @@ export function feeStillOwedCents(feeCents: number, paidCents: number): number {
 export function cardConsentText(p: ConsentPolicy): string {
   const fee = feeCentsFor(p.rateCents, p.feePct);
   const studio = p.studioName.trim() || "The studio";
-  const cancel =
+  // The card is charged automatically only for a no-show. A late cancel is
+  // billed by an invoice the studio chooses to send, never to the card.
+  const lateCancel =
     p.windowHours > 0
-      ? `miss this session or cancel less than ${p.windowHours} hour${p.windowHours === 1 ? "" : "s"} before it starts`
-      : "miss this session";
+      ? ` If you cancel less than ${p.windowHours} hour${p.windowHours === 1 ? "" : "s"} before it starts, ` +
+        `${studio} may bill you that fee by invoice; a cancellation is never charged to this card automatically.`
+      : "";
   return (
     `${studio} will save the card you pay with today, securely with Stripe. ` +
-    `If you ${cancel}, ${studio} may charge that card a fee of ${p.feePct}% of the session price ` +
-    `(${money(fee)}), less any deposit you already paid, under its cancellation policy.`
+    `If you miss this session, ${studio} may charge that card a fee of ${p.feePct}% of the session price ` +
+    `(${money(fee)}), less anything you already paid for this session, under its cancellation policy.` +
+    lateCancel
   );
 }
 
@@ -137,13 +141,16 @@ export function autoChargeDecision(i: AutoChargeInput): AutoChargeDecision {
   if (i.defaultPaymentMethodId !== i.consent.paymentMethodId) {
     return { charge: false, reason: "card on file is not the one agreed at checkout" };
   }
-  // Never more than the client agreed to, and a late cancel only inside the
-  // notice window they were shown.
+  // Never more than the client agreed to.
   if (i.feeCents > i.consent.maxFeeCents) {
     return { charge: false, reason: "fee is above what the client agreed" };
   }
-  if (i.status === "cancelled" && i.now < i.startTime - i.consent.windowHours * 3_600_000) {
-    return { charge: false, reason: "cancel is outside the notice window the client agreed" };
+  // Only a no-show is ever charged to the card. Every cancellation reaches
+  // Pulse through staff (setStatus or an approved change request), and
+  // nothing records whether the client or the studio asked for it, so a late
+  // cancel stays a draft invoice that staff choose to send.
+  if (i.status === "cancelled") {
+    return { charge: false, reason: "a late cancellation is billed by invoice, not charged to the card" };
   }
   return { charge: true };
 }

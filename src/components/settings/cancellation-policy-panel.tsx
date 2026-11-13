@@ -160,9 +160,12 @@ export function CancellationPolicyPanel() {
             <p className="font-medium text-bone">Charge the fee to the client&apos;s saved card</p>
             <p>
               Off by default. When on, the online checkout asks each client to agree, in one
-              sentence that states your fee, before the card they pay with is saved. A no-show or
-              late cancel is then charged once to that card. Clients who did not agree, and any
-              failed charge, get an invoice instead. Only the owner can change this.
+              sentence that states your fee, before the card they pay with is saved. A no-show is
+              then charged once to that card, at least 15 minutes after you mark it (undo the
+              no-show in that time and nothing is charged), less anything the client already paid.
+              A late cancel is never charged to the card: it stays a draft invoice you choose to
+              send. Clients who did not agree, and any failed charge, get an invoice instead. Only
+              the owner can change this.
             </p>
             {policy && !policy.stripeReady && (
               <p className="text-warning">Connect Stripe and turn on card payments first.</p>
@@ -172,7 +175,7 @@ export function CancellationPolicyPanel() {
             checked={policy?.noShowAutoCharge ?? false}
             disabled={switching || policy === undefined || (!policy.noShowAutoCharge && !policy.stripeReady)}
             onCheckedChange={onToggleAutoCharge}
-            aria-label="Charge no-show and late-cancel fees to the client's saved card"
+            aria-label="Charge no-show fees to the client's saved card"
           />
         </div>
       </CardContent>

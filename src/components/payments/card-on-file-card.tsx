@@ -60,7 +60,7 @@ export function CardOnFileCard({
 
   const how = !status.autoChargeOn
     ? "Card charging is off for this studio, so late-cancel and no-show fees go out as an invoice."
-    : "No-show and late-cancel fees are charged to a card only for bookings where the client agreed at checkout. Anything else goes out as an invoice.";
+    : "Only a no-show fee is charged to a card, and only for bookings where the client agreed at checkout. Late-cancel fees and anything else go out as an invoice.";
 
   return (
     <Card>

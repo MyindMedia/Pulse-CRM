@@ -493,7 +493,7 @@ describe("checkout saves the card only after the client agrees", () => {
     const { session } = await seed(t, { autoCharge: true });
     const b = await t.query(api.booking.booking, { sessionId: session });
     expect(b?.cardSave?.text).toBe(
-      "Gold Room will save the card you pay with today, securely with Stripe. If you miss this session or cancel less than 24 hours before it starts, Gold Room may charge that card a fee of 50% of the session price ($100), less any deposit you already paid, under its cancellation policy.",
+      "Gold Room will save the card you pay with today, securely with Stripe. If you miss this session, Gold Room may charge that card a fee of 50% of the session price ($100), less anything you already paid for this session, under its cancellation policy. If you cancel less than 24 hours before it starts, Gold Room may bill you that fee by invoice; a cancellation is never charged to this card automatically.",
     );
     await t.run((ctx) =>
       ctx.db.patch(session, { cardConsent: { text: "x", feePct: 50, windowHours: 24, maxFeeCents: 10_000, agreedAt: 1, paymentMethodId: "pm_secret" } }));
@@ -738,17 +738,25 @@ describe("charging a no-show fee", () => {
     expect(await scheduled(t, "chargeFee")).toHaveLength(0);
   });
 
-  it("a late cancel inside the agreed window is charged; the same booking's consent never charges another studio's account", async () => {
+  it("H205-02 / H205-04: a late cancel inside the window is never charged to the card; it stays a draft invoice", async () => {
     const t = newT();
     const ids = await seed(t, { autoCharge: true });
     await agreeAndSave(t, ids);
     await confirmed(t, ids.session);
+    // Staff cancel 2 hours before the start (inside the 24h window): the
+    // client may not have asked for it (sick engineer, double booking).
     await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "cancelled" });
+    expect(await scheduled(t, "chargeFee")).toHaveLength(0);
     const [inv] = await invoicesA(t);
-    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
-    expect(fake.pi).toHaveLength(1);
-    expect(fake.pi[0].opts.stripeAccount).toBe("acct_A");
     expect(inv.lineItems[0].label).toMatch(/late cancellation fee/);
+    expect(inv.status).toBe("draft");
+    expect(inv.autoCharge).toBeUndefined();
+    // Even an invoice forced into "pending" is refused when the charge runs.
+    await t.run((ctx) => ctx.db.patch(inv._id, { autoCharge: { status: "pending", at: Date.now() - 20 * 60_000 } }));
+    await t.action(internal.cardOnFile.chargeFee, { invoiceId: inv._id });
+    expect(fake.pi).toHaveLength(0);
+    const [mail] = await emails(t, "session.cancellation_fee");
+    expect(mail.body).toMatch(/The studio will send you an invoice/);
   });
 });
 
@@ -779,11 +787,19 @@ describe("autoChargeDecision", () => {
     expect(autoChargeDecision({ ...base, chargeCents: 0 }).charge).toBe(false);
     expect(autoChargeDecision({ ...base, chargesEnabled: false }).charge).toBe(false);
     expect(autoChargeDecision({ ...base, status: "cancelled", now: 10 * HOUR - 25 * HOUR }).charge).toBe(false);
-    expect(autoChargeDecision({ ...base, status: "cancelled", now: 10 * HOUR - 23 * HOUR }).charge).toBe(true);
+    // Owner decision (round 2): a cancellation is never charged to the card,
+    // even inside the window.
+    expect(autoChargeDecision({ ...base, status: "cancelled", now: 10 * HOUR - 23 * HOUR }).charge).toBe(false);
   });
   it("states the window in the sentence only when there is one", () => {
     expect(cardConsentText({ studioName: "X", feePct: 100, windowHours: 0, rateCents: 5_000 })).toMatch(/If you miss this session, X may charge that card a fee of 100% of the session price \(\$50\)/);
     expect(cardConsentText({ studioName: "X", feePct: 25, windowHours: 1, rateCents: 5_000 })).toMatch(/less than 1 hour before/);
+    // The sentence never says a cancellation is charged to the card.
+    const text = cardConsentText({ studioName: "X", feePct: 25, windowHours: 24, rateCents: 5_000 });
+    expect(text).toMatch(/If you miss this session, X may charge that card/);
+    expect(text).toMatch(/less anything you already paid for this session/);
+    expect(text).toMatch(/a cancellation is never charged to this card automatically/);
+    expect(text).not.toMatch(/or cancel less than/);
   });
 });
 
