@@ -231,7 +231,10 @@ export const upsert = mutation({
       let nextStatus = existing.status;
       if (reopened) nextStatus = existing.status === "draft" ? "draft" : "sent";
       if (status !== undefined) nextStatus = status;
-      if (nextStatus === "fully_executed" && !everyoneSigned(merged.contributors)) {
+      // Only an explicit request to execute is checked here. A re-save that
+      // changes nothing agreed keeps the sheet's status, so a sheet executed
+      // before signatures were enforced can still have an IPI or PRO fixed.
+      if (status === "fully_executed" && !everyoneSigned(merged.contributors)) {
         throw notSignedError(merged.contributors);
       }
 

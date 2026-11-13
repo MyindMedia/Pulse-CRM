@@ -290,6 +290,38 @@ describe("H5 split sheet signatures", () => {
     await expect(t.mutation(api.splitSignatures.sign, { token: bobOld.token, signature: "Bob" })).rejects.toThrow(/no longer valid/);
   });
 
+  it("H209-02: a legacy executed sheet with a hand tick can be re-saved (an IPI fix) and keeps its status and royalties", async () => {
+    const lineId = await seedLine(t, songId);
+    const sheetId = await t.run((ctx) => ctx.db.insert("splitSheets", {
+      orgId: "o1", songId, status: "fully_executed", updatedAt: 0,
+      contributors: [
+        { name: "Ticked", role: "Writer", masterPct: 50, publishingPct: 50, email: "tick@x.com", signed: true },
+        { name: "Real", role: "Writer", masterPct: 50, publishingPct: 50, email: "real@x.com", signed: true, signedAt: 5, signature: "Real" },
+      ],
+    }));
+    const rows = [
+      { name: "Ticked", role: "Writer", masterPct: 50, publishingPct: 50, email: "tick@x.com", ipi: "111", fromIndex: 0 },
+      { name: "Real", role: "Writer", masterPct: 50, publishingPct: 50, email: "real@x.com", fromIndex: 1 },
+    ];
+    await as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: rows });
+    const sheet = await sheetOf(t, songId);
+    expect(sheet.status).toBe("fully_executed");
+    expect(sheet.contributors[0]).toMatchObject({ ipi: "111", signed: true });
+    expect(sheet.contributors[1]).toMatchObject({ signedAt: 5, signature: "Real" });
+    // Still shown as marked by the studio, never as signed by everyone.
+    const view = await as("u_owner").query(api.splitSheets.forSong, { songId });
+    expect(view!.displayStatus).toBe("marked_by_studio");
+    // Royalties keep running for the sheet.
+    expect((await shares(t)).filter((s) => s.lineId === lineId).length).toBeGreaterThan(0);
+    // An explicit request to execute is still refused.
+    await expect(
+      as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: rows, status: "fully_executed" }),
+    ).rejects.toMatchObject({ data: { code: "SPLIT_NOT_SIGNED" } });
+    // The owner can relabel it with a note.
+    await as("u_owner").mutation(api.splitSheets.markSignedOutsidePulse, { id: sheetId, note: "Paper copy in the safe" });
+    expect((await sheetOf(t, songId)).status).toBe("marked_by_studio");
+  });
+
   it("U-05: setStatus(fully_executed) is refused while anyone has not signed, and allocates nothing", async () => {
     await seedLine(t, songId);
     await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });

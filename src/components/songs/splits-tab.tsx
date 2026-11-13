@@ -203,6 +203,11 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   const currentStatus = (split?.displayStatus ?? "draft") as SplitStatus;
   const anySignature = working.some((c) => c.signedBy !== null);
   const isOwner = role === "owner";
+  const canMarkOutside = currentStatus !== "fully_executed" && currentStatus !== "marked_by_studio";
+  // Executed before signatures were enforced (a hand tick, or a signature an
+  // old re-save wiped): shown as marked by studio, but not yet relabelled.
+  // The owner can record where the signatures are.
+  const legacyExecuted = split?.status === "fully_executed" && currentStatus === "marked_by_studio";
 
   return (
     <div className="space-y-4">
@@ -380,7 +385,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
             {currentStatus === "draft" ? "Send for signature" : "Re-send signing links"}
           </Button>
         )}
-        {split && isOwner && currentStatus !== "fully_executed" && currentStatus !== "marked_by_studio" && (
+        {split && isOwner && (canMarkOutside || legacyExecuted) && (
           <Button
             variant="outline"
             onClick={() => setMarkOpen(true)}
