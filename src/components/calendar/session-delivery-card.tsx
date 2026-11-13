@@ -110,18 +110,20 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       if (!res) throw new NoLinkYet();
       return res.url;
     });
-    let written: Promise<void>;
-    try {
-      const clip = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
-      if (typeof ClipboardItem !== "undefined" && clip && typeof clip.write === "function") {
+    const clip = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
+    let written: Promise<void> | null = null;
+    if (typeof ClipboardItem !== "undefined" && clip && typeof clip.write === "function") {
+      try {
         written = clip.write([new ClipboardItem({ "text/plain": url.then((u) => new Blob([u], { type: "text/plain" })) })]);
-      } else if (clip && typeof clip.writeText === "function") {
-        written = url.then((u) => clip.writeText(u));
-      } else {
-        written = Promise.reject(new Error("no clipboard"));
+      } catch {
+        written = null; // a ClipboardItem that will not take a promise: use writeText
       }
-    } catch (err) {
-      written = Promise.reject(err);
+    }
+    if (!written) {
+      written =
+        clip && typeof clip.writeText === "function"
+          ? url.then((u) => clip.writeText(u))
+          : url.then(() => Promise.reject(new Error("no clipboard")));
     }
     setBusy("copy");
     void written
