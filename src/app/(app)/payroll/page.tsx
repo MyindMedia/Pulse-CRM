@@ -70,6 +70,9 @@ export default function PayrollPage() {
   const postToExpenses = useMutation(api.payroll.postToExpenses);
 
   const loading = data === undefined;
+  // Only a finished pay period or month can be posted: hours are still being
+  // worked in the current one, and a year or all time overlaps every period.
+  const postable = (range === "lastPeriod" || range === "last") && end <= Date.now();
   const periodLabel =
     range === "period" || range === "lastPeriod"
       ? payPeriodFor(schedule, anchorDate, new Date(), range === "lastPeriod" ? -1 : 0).label
@@ -102,17 +105,31 @@ export default function PayrollPage() {
     setPosting(true);
     try {
       const res = await postToExpenses({ start, end });
-      const already = res.skipped > 0
-        ? ` ${res.skipped} ${res.skipped === 1 ? "teammate was" : "teammates were"} already posted for this period and left as they were.`
-        : "";
-      const held = res.blocked.length > 0
-        ? ` Not posted yet: ${res.blocked.map((b) => b.name).join(", ")} (an entry needs a clock-out time; fix it in the timesheet below, then post again).`
-        : "";
-      if (res.created === 0) {
-        if (held) toast.warning(`Nothing posted.${held}${already}`);
-        else toast.info(res.skipped > 0 ? `This period is already posted.${already}` : "Nothing to post for this period.");
+      const names = (xs: { name: string }[]) => xs.map((x) => x.name).join(", ");
+      const notes: string[] = [];
+      if (res.skipped > 0) {
+        notes.push(`${res.skipped} ${res.skipped === 1 ? "teammate was" : "teammates were"} already posted for this period with nothing new.`);
+      }
+      if (res.blocked.length > 0) {
+        notes.push(`Not posted yet: ${names(res.blocked)} (a clock is still open or needs a clock-out time; fix it in the timesheet below, then post again).`);
+      }
+      if (res.overlapping.length > 0) {
+        notes.push(`Not posted: ${names(res.overlapping)} (already posted for a period that overlaps this one).`);
+      }
+      if (res.overPosted.length > 0) {
+        notes.push(`Already posted more than is now owed: ${res.overPosted.map((o) => `${o.name} (${money(o.overCents)})`).join(", ")}. Fix that expense by hand.`);
+      }
+      const tail = notes.length > 0 ? ` ${notes.join(" ")}` : "";
+      const rows = res.created + res.adjusted;
+      if (rows === 0) {
+        if (res.blocked.length + res.overlapping.length + res.overPosted.length > 0) toast.warning(`Nothing posted.${tail}`);
+        else toast.info(res.skipped > 0 ? `This period is already posted.${tail}` : "Nothing to post for this period.");
       } else {
-        toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.${already}${held}`);
+        const parts = [
+          res.created > 0 ? `${res.created} payroll ${res.created === 1 ? "entry" : "entries"}` : null,
+          res.adjusted > 0 ? `${res.adjusted} ${res.adjusted === 1 ? "correction" : "corrections"} for hours added since the last post` : null,
+        ].filter(Boolean);
+        toast.success(`Posted ${parts.join(" and ")} (${money(res.totalCents)}) to Expenses.${tail}`);
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not post to expenses.");
@@ -128,7 +145,11 @@ export default function PayrollPage() {
         title="Payroll"
         description="Staff hours from the time clock, multiplied by each teammate's rate. Post a period's labor cost straight into your P&L."
         actions={
-          <Button onClick={doPost} disabled={posting || !data || data.rows.length === 0}>
+          <Button
+            onClick={doPost}
+            disabled={posting || !postable || !data || data.rows.length === 0}
+            title={postable ? undefined : "Pick Last pay period or Last month to post a finished period."}
+          >
             <ArrowRightLeft className="size-4" />
             {posting ? "Posting…" : "Post to expenses"}
           </Button>

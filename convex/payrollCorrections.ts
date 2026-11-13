@@ -112,6 +112,9 @@ export const reportDuplicatePayrollPosts = internalQuery({
     const rows = [];
     for (const x of page.page) {
       if (!x.memberId) continue;
+      // Posted by the current postToExpenses, which records its window and
+      // only ever adds the difference (a "Payroll correction"), never a repeat.
+      if (x.payrollStart !== undefined) continue;
       const period = x.payrollPeriod ?? x.notes?.match(/^\[payroll (.+)\]$/)?.[1];
       if (!period) continue;
       // Same teammate, same last day of the period: a small, indexed set.
@@ -121,7 +124,7 @@ export const reportDuplicatePayrollPosts = internalQuery({
           .withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", "payroll").eq("date", x.date))
           .collect()
       ).filter(
-        (y) => y.memberId === x.memberId && (y.payrollPeriod ?? y.notes?.match(/^\[payroll (.+)\]$/)?.[1]) === period,
+        (y) => y.payrollStart === undefined && y.memberId === x.memberId && (y.payrollPeriod ?? y.notes?.match(/^\[payroll (.+)\]$/)?.[1]) === period,
       );
       if (twins.length < 2) continue;
       twins.sort((a, b) => a._creationTime - b._creationTime);

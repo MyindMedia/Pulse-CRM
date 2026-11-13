@@ -50,9 +50,9 @@ describe("posting a pay period once", () => {
     const t = newT();
     await studio(t);
     const first = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
-    expect(first).toEqual({ created: 1, skipped: 0, totalCents: 20_000, blocked: [] });
+    expect(first).toEqual({ created: 1, adjusted: 0, skipped: 0, totalCents: 20_000, blocked: [], overlapping: [], overPosted: [] });
     const second = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
-    expect(second).toEqual({ created: 0, skipped: 1, totalCents: 0, blocked: [] });
+    expect(second).toEqual({ created: 0, adjusted: 0, skipped: 1, totalCents: 0, blocked: [], overlapping: [], overPosted: [] });
     const rows = await payrollRows(t);
     expect(rows).toHaveLength(1);
     expect(rows[0].payrollPeriod).toBe("2026-10-01_2026-11-01");
@@ -88,7 +88,7 @@ describe("posting a pay period once", () => {
     const t = newT();
     const { orgId, engId } = await studio(t);
     await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
-    const NEXT_END = Date.UTC(2026, 11, 1);
+    const NEXT_END = Date.UTC(2026, 10, 8);
     await t.run((ctx) =>
       ctx.db.insert("timeEntries", {
         orgId, memberId: engId, clockInAt: END + DAY, clockOutAt: END + DAY + 2 * HOUR, status: "completed",
@@ -96,10 +96,10 @@ describe("posting a pay period once", () => {
       }),
     );
     const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: END, end: NEXT_END });
-    expect(res).toEqual({ created: 1, skipped: 0, totalCents: 10_000, blocked: [] });
+    expect(res).toEqual({ created: 1, adjusted: 0, skipped: 0, totalCents: 10_000, blocked: [], overlapping: [], overPosted: [] });
     expect((await payrollRows(t)).map((r) => r.payrollPeriod).sort()).toEqual([
       "2026-10-01_2026-11-01",
-      "2026-11-01_2026-12-01",
+      "2026-11-01_2026-11-08",
     ]);
   });
 
@@ -176,7 +176,7 @@ describe("timesheet corrections", () => {
     const { orgId, engId } = await studio(t);
     const now = Date.now();
     const PSTART = now - 10 * DAY;
-    const PEND = now + DAY;
+    const PEND = now - HOUR; // a finished period: an unfinished one cannot be posted
     const staleId = await t.run(async (ctx) => {
       await ctx.db.insert("timeEntries", {
         orgId, memberId: engId, clockInAt: now - 5 * DAY, clockOutAt: now - 5 * DAY + 3 * HOUR, status: "completed",
@@ -347,5 +347,154 @@ describe("timesheet corrections", () => {
       ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: Date.now() - HOUR, status: "active", source: "self" }),
     );
     await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: null })).rejects.toThrow(/open clock/);
+  });
+});
+
+describe("each hour reaches the ledger once, across overlapping windows (H208-02)", () => {
+  const AFTER = Date.UTC(2026, 10, 13, 12); // "now" in these tests: after October ended
+  afterEach(() => vi.useRealTimers());
+  const at = () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER);
+  };
+
+  it("a pay period inside a month already posted is not posted again", async () => {
+    at();
+    const t = newT();
+    const { engId } = await studio(t);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END }); // Last month
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: START + 14 * DAY }); // a biweekly period inside it
+    expect(res).toMatchObject({ created: 0, adjusted: 0, overlapping: [{ memberId: engId, name: "Eli" }] });
+    expect(await payrollRows(t)).toHaveLength(1);
+  });
+
+  it("a month over a pay period already posted is not posted again", async () => {
+    at();
+    const t = newT();
+    await studio(t);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: START + 14 * DAY });
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(res.overlapping).toHaveLength(1);
+    expect(await payrollRows(t)).toHaveLength(1);
+  });
+
+  it("a year-to-date window posted on two different days does not repost the year", async () => {
+    at();
+    const t = newT();
+    await studio(t);
+    const YEAR = Date.UTC(2026, 0, 1);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: YEAR, end: AFTER - DAY });
+    vi.setSystemTime(AFTER + DAY);
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: YEAR, end: AFTER });
+    expect(res).toMatchObject({ created: 0, overlapping: [{ name: "Eli" }] });
+    expect(await payrollRows(t)).toHaveLength(1);
+  });
+
+  it("a period posted before this fix (key in notes only) blocks an overlapping window too", async () => {
+    at();
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("expenses", {
+        orgId, category: "payroll", vendor: "Eli", description: "Payroll", amountCents: 20_000, date: END - 1,
+        memberId: engId, notes: "[payroll 2026-10-01_2026-11-01]",
+      }),
+    );
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START + DAY, end: START + 15 * DAY });
+    expect(res.overlapping).toHaveLength(1);
+    expect(await payrollRows(t)).toHaveLength(1);
+  });
+
+  it("a session payout in the ledger (no period) does not block a period", async () => {
+    at();
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("expenses", {
+        orgId, category: "payroll", vendor: "Eli", description: "Session payout", amountCents: 5_000, date: START + 2 * DAY, memberId: engId,
+      }),
+    );
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(res.created).toBe(1);
+  });
+});
+
+describe("a period is posted only once it is over, and hours added later still land (H208-03)", () => {
+  const AFTER = Date.UTC(2026, 10, 13, 12);
+  afterEach(() => vi.useRealTimers());
+  const at = (ms = AFTER) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(ms);
+  };
+
+  it("a period that has not ended yet is refused and nothing is written", async () => {
+    at();
+    const t = newT();
+    await studio(t);
+    await expect(
+      as(t, "own").mutation(api.payroll.postToExpenses, { start: Date.UTC(2026, 10, 1), end: Date.UTC(2026, 11, 1) }),
+    ).rejects.toThrow(/hasn't ended/);
+    expect(await payrollRows(t)).toHaveLength(0);
+  });
+
+  it("a teammate with a clock still open in the period is held back, even under 12 hours", async () => {
+    const PEND = Date.UTC(2026, 10, 1);
+    at(PEND + 2 * HOUR);
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: PEND - 3 * HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self",
+      }),
+    );
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: PEND });
+    expect(res).toMatchObject({ created: 0, blocked: [{ memberId: engId, name: "Eli" }] });
+    expect(await payrollRows(t)).toHaveLength(0);
+  });
+
+  it("hours added after a post land as a correction for exactly the difference, once", async () => {
+    at();
+    const t = newT();
+    const { engId } = await studio(t);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END }); // 4h = $200
+    await as(t, "own").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + 3 * DAY, clockOutAt: START + 3 * DAY + 3 * HOUR, note: "Missed punch",
+    });
+    const second = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(second).toMatchObject({ created: 0, adjusted: 1, totalCents: 15_000 });
+    const third = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(third).toMatchObject({ created: 0, adjusted: 0, skipped: 1, totalCents: 0 });
+    const rows = await payrollRows(t);
+    expect(rows.map((r) => [r.description, r.amountCents]).sort()).toEqual([["Payroll correction", 15_000], ["Payroll", 20_000]]);
+    expect(rows.every((r) => r.payrollPeriod === "2026-10-01_2026-11-01" && r.payrollStart === START && r.payrollEnd === END)).toBe(true);
+    // The report on past double posts does not mistake the correction for one.
+    const rep = await t.query(internal.payrollCorrections.reportDuplicatePayrollPosts, {
+      orgId: "org_p", paginationOpts: { numItems: 100, cursor: null },
+    });
+    expect(rep.rows).toEqual([]);
+  });
+
+  it("an entry removed after a post is reported as over-posted; nothing is taken back by itself", async () => {
+    at();
+    const t = newT();
+    const { engId, entryId } = await studio(t);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    await as(t, "own").mutation(api.payroll.removeEntry, { entryId, reason: "Not worked" });
+    const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(res).toMatchObject({ created: 0, adjusted: 0, overPosted: [{ memberId: engId, name: "Eli", overCents: 20_000 }] });
+    expect(await payrollRows(t)).toHaveLength(1);
+  });
+
+  it("a salaried teammate's period posted twice adds nothing the second time", async () => {
+    at();
+    const t = newT();
+    const { orgId } = await studio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("members", { orgId, name: "Sal", role: "manager", skills: [], payType: "salary", payRateCents: 3_650_000 } as never),
+    );
+    const first = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(first.created).toBe(2);
+    const second = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
+    expect(second).toMatchObject({ created: 0, adjusted: 0, skipped: 2 });
   });
 });

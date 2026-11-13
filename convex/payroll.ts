@@ -303,36 +303,82 @@ export function payrollPeriodKey(start: number, end: number): string {
   return `${new Date(start).toISOString().slice(0, 10)}_${new Date(end).toISOString().slice(0, 10)}`;
 }
 
-/** Teammates whose pay for this exact period is already in the ledger. Reads
- *  the `payrollPeriod` field, and for rows posted before it existed, the old
- *  "[payroll ...]" tag on rows dated the last moment of the period. */
-async function alreadyPosted(
+const DAY_MS = 86_400_000;
+
+/** The [start, end) a key names, at UTC day precision. */
+function keyRange(key: string): { start: number; end: number } | null {
+  const m = /^(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})$/.exec(key);
+  if (!m) return null;
+  const start = Date.parse(`${m[1]}T00:00:00Z`);
+  const end = Date.parse(`${m[2]}T00:00:00Z`);
+  return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : null;
+}
+
+/** The key a payroll expense was filed under: the field, or for rows posted
+ *  before it existed, the "[payroll ...]" tag in its notes. */
+function keyOf(x: { payrollPeriod?: string; notes?: string }): string | null {
+  return x.payrollPeriod ?? x.notes?.match(/^\[payroll (.+)\]$/)?.[1] ?? null;
+}
+
+type PostedForMember = { sameCents: number; overlaps: boolean };
+
+/**
+ * What is already in the ledger for each teammate against this window.
+ * `sameCents` sums the posts for this exact period (first post plus any
+ * corrections). `overlaps` is set when a post for a different period shares
+ * any time with this one, such as "Last month" after "Last pay period".
+ * Posts made by payroll store their exact window; older rows only carry the
+ * key, so both sides are compared at day precision for those.
+ */
+async function postedForWindow(
   ctx: QueryCtx,
   orgId: string,
   start: number,
   end: number,
-): Promise<Set<string>> {
+): Promise<Map<string, PostedForMember>> {
   const key = payrollPeriodKey(start, end);
-  const tagged = await ctx.db
+  const keyWin = keyRange(key) ?? { start, end };
+  // A payroll post is dated the last moment of its window, so any post whose
+  // window reaches into this one is dated at or after `start`.
+  const rows = await ctx.db
     .query("expenses")
-    .withIndex("by_org_payroll_period", (q) => q.eq("orgId", orgId).eq("payrollPeriod", key))
+    .withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", "payroll").gte("date", start))
     .collect();
-  const legacy = await ctx.db
-    .query("expenses")
-    .withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", "payroll").eq("date", end - 1))
-    .collect();
-  const ids = new Set<string>();
-  for (const x of tagged) if (x.memberId && x.category === "payroll") ids.add(x.memberId);
-  for (const x of legacy) if (x.memberId && x.notes === `[payroll ${key}]`) ids.add(x.memberId);
-  return ids;
+  const out = new Map<string, PostedForMember>();
+  for (const x of rows) {
+    if (!x.memberId) continue;
+    const k = keyOf(x);
+    if (!k) continue; // a session payout, not a period post
+    const cur = out.get(x.memberId) ?? { sameCents: 0, overlaps: false };
+    if (k === key) {
+      cur.sameCents += x.amountCents;
+    } else {
+      const precise = x.payrollStart !== undefined && x.payrollEnd !== undefined;
+      const theirs = precise ? { start: x.payrollStart!, end: x.payrollEnd! } : keyRange(k);
+      const ours = precise ? { start, end } : keyWin;
+      if (theirs && theirs.start < ours.end && ours.start < theirs.end) cur.overlaps = true;
+    }
+    out.set(x.memberId, cur);
+  }
+  return out;
 }
 
 /**
- * Post the window's computed labor cost into the Expenses ledger (one "payroll"
- * expense per paid teammate), so it flows into the P&L. Returns how many rows
- * were created + the total, and how many teammates were skipped because this
- * period was already posted for them. Safe to call twice: a double click, or a
- * post from web and another from the phone, adds nothing the second time.
+ * Post a finished pay period's labor cost into the Expenses ledger (one
+ * "payroll" expense per paid teammate), so it flows into the P&L.
+ *
+ * Each teammate's hours reach the ledger once:
+ * - A period that has not ended yet is refused: hours are still being worked.
+ * - Posting the same period again posts only the difference from what is
+ *   already there, so hours added or fixed after the first post land as a
+ *   "Payroll correction" row, and a double click adds nothing. When less is
+ *   owed than was posted (an entry removed later) nothing is taken back
+ *   automatically; the teammate is listed in `overPosted` for a person to fix.
+ * - A teammate already posted for a different period that shares any time
+ *   with this one (a month over a pay period, a year over anything) is listed
+ *   in `overlapping` and not posted.
+ * - A teammate with a clock still open in the period, or one that needs a
+ *   clock-out time, is held back in `blocked` until it is closed.
  */
 export const postToExpenses = mutation({
   args: { start: v.number(), end: v.number() },
@@ -340,6 +386,9 @@ export const postToExpenses = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     if (!(end > start)) throw new Error("The pay period must end after it starts.");
     const now = Date.now();
+    if (end > now) {
+      throw new Error("This pay period hasn't ended yet. Post it once it's over, so every hour worked is in it.");
+    }
     const members = await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const entries = await ctx.db
       .query("timeEntries")
@@ -354,18 +403,19 @@ export const postToExpenses = mutation({
     }
     const payrollPeriod = payrollPeriodKey(start, end);
     const periodTag = `[payroll ${payrollPeriod}]`;
-    const posted = await alreadyPosted(ctx, orgId, start, end);
+    const prior = await postedForWindow(ctx, orgId, start, end);
     let created = 0;
+    let adjusted = 0;
     let skipped = 0;
     let totalCents = 0;
-    // Teammates held back because an entry needs a clock-out time. Their
-    // period posts once a manager fixes it.
     const blocked: { memberId: Id<"members">; name: string }[] = [];
+    const overlapping: { memberId: Id<"members">; name: string }[] = [];
+    const overPosted: { memberId: Id<"members">; name: string; overCents: number }[] = [];
     for (const m of members) {
       const all = byMember.get(m._id) ?? [];
       if (!m.payType && all.length === 0) continue;
       const { payable: es, needsClockOut: stale } = payableEntries(all, now);
-      if (stale.length > 0) {
+      if (stale.length > 0 || es.some((e) => e.clockOutAt === undefined)) {
         if (m.payType) blocked.push({ memberId: m._id, name: m.name });
         continue;
       }
@@ -375,25 +425,38 @@ export const postToExpenses = mutation({
         now,
         end - start,
       );
-      if (payCents <= 0) continue;
-      if (posted.has(m._id)) {
-        skipped += 1;
+      const before = prior.get(m._id);
+      if (before?.overlaps) {
+        if (payCents > 0) overlapping.push({ memberId: m._id, name: m.name });
+        continue;
+      }
+      const already = before?.sameCents ?? 0;
+      const delta = payCents - already;
+      if (delta < 0) {
+        overPosted.push({ memberId: m._id, name: m.name, overCents: -delta });
+        continue;
+      }
+      if (delta === 0) {
+        if (already > 0) skipped += 1;
         continue;
       }
       await ctx.db.insert("expenses", {
         orgId,
         category: "payroll",
         vendor: m.name,
-        description: "Payroll",
-        amountCents: payCents,
+        description: already > 0 ? "Payroll correction" : "Payroll",
+        amountCents: delta,
         date: end - 1,
         memberId: m._id,
         notes: periodTag,
         payrollPeriod,
+        payrollStart: start,
+        payrollEnd: end,
       });
-      created += 1;
-      totalCents += payCents;
+      if (already > 0) adjusted += 1;
+      else created += 1;
+      totalCents += delta;
     }
-    return { created, skipped, totalCents, blocked };
+    return { created, adjusted, skipped, totalCents, blocked, overlapping, overPosted };
   },
 });

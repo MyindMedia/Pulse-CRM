@@ -177,7 +177,7 @@ describe("hourly staff are paid once (truth-payroll-double-count)", () => {
     const { items } = await asOwner.query(api.payouts.list, {});
     expect(items).toHaveLength(0); // no per-session payout for hourly staff
 
-    const res = await asOwner.mutation(api.payroll.postToExpenses, { start: s.startTime - HOUR, end: s.endTime + HOUR });
+    const res = await asOwner.mutation(api.payroll.postToExpenses, { start: s.startTime - HOUR, end: s.endTime });
     expect(res.created).toBe(1);
     const expenses = await t.run((ctx) => ctx.db.query("expenses").collect());
     expect(expenses).toHaveLength(1);

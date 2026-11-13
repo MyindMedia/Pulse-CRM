@@ -2019,6 +2019,10 @@ export default defineSchema({
     // Payroll rows only: the pay period they cover ("2026-11-01_2026-12-01"),
     // so the same teammate's period is never posted twice.
     payrollPeriod: v.optional(v.string()),
+    // The exact window that post covered, so a later post over any part of
+    // the same time (a month over a pay period) is caught, not only the same key.
+    payrollStart: v.optional(v.number()),
+    payrollEnd: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
