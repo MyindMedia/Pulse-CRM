@@ -38,7 +38,12 @@ import { checkoutBalanceCents, checkoutChargeCents, checkoutKindsOffered, checko
                for the latest version of a Final file of THIS booking
      opened    stamps when the page was opened
    Every way a link can be dead (malformed, unknown, off, expired, cancelled
-   booking, no Final file left) answers exactly like an unknown link.
+   or no-show booking, no Final file left) answers exactly like an unknown link.
+
+   A no-show is treated exactly like a cancelled booking everywhere in this
+   file (isClosed): a no-show bills a fee, not the rate, so the gate's "owed"
+   means nothing for it, and nothing on it is delivered. The status card tells
+   the two apart (`cancelled`, `noShow`).
    ============================================================ */
 
 export const LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -104,6 +109,13 @@ async function deliveryFor(ctx: Ctx, sessionId: Id<"sessions">): Promise<Deliver
     .query("sessionDeliveries")
     .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
     .first();
+}
+
+/** A booking nothing is delivered on: cancelled, or a no-show. Every place in
+ *  this file that refuses or kills a delivery for a cancelled booking asks
+ *  this, so the two can never drift apart. */
+export function isClosed(session: Pick<Doc<"sessions">, "status">): boolean {
+  return session.status === "cancelled" || session.status === "no_show";
 }
 
 async function orgRow(ctx: Ctx, orgId: string): Promise<Doc<"orgs"> | null> {
@@ -193,16 +205,19 @@ function shownCents(owed: number): number | null {
                certain) is owed, computed by the checkout's own functions
                (lib/checkout.ts, the ones booking.payViaStripe charges with)
      none      nothing_owed; invoice_not_sent (one draft invoice would be the
-               target once sent); prices_hidden; amount_mismatch (anything
-               else, including a studio that cannot take cards online, since
-               both pay pages then charge nothing)
+               target once sent); prices_hidden; open_invoice_wrong_amount (an
+               invoice is sent, viewed or overdue but none qualifies, so the
+               team must void or correct it rather than send another);
+               amount_mismatch (anything else, including a studio that cannot
+               take cards online with no invoice open, since both pay pages
+               then charge nothing)
    Both targets also need the studio's online card payments on: without them
    neither pay page can charge anything. */
 
 export type PayTarget =
   | { kind: "invoice"; url: string; cents: number }
   | { kind: "checkout"; url: string; cents: number }
-  | { kind: "none"; reason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" };
+  | { kind: "none"; reason: "invoice_not_sent" | "amount_mismatch" | "prices_hidden" | "nothing_owed" | "open_invoice_wrong_amount" };
 
 export type PayTargetInput = {
   session: Pick<Doc<"sessions">, "_id" | "rateCents" | "amountPaidCents" | "depositCents" | "depositPaid" | "pricingHidden" | "status">;
@@ -223,9 +238,9 @@ export type PayTargetInput = {
 export function decidePayTarget(x: PayTargetInput): PayTarget {
   const { session, owed } = x;
   if (owed === 0) return { kind: "none", reason: "nothing_owed" };
-  // A cancelled booking can no longer be paid at its checkout, and nothing on
-  // it is delivered anyway.
-  if (session.status === "cancelled") return { kind: "none", reason: "amount_mismatch" };
+  // A cancelled booking can no longer be paid at its checkout, a no-show bills
+  // a fee and not the rate, and nothing on either is delivered anyway.
+  if (isClosed(session)) return { kind: "none", reason: "amount_mismatch" };
   // A broken rate (Infinity) or anything odd: no amount is certain.
   if (!Number.isFinite(owed) || owed < 0 || !Number.isInteger(owed)) return { kind: "none", reason: "amount_mismatch" };
 
@@ -255,10 +270,13 @@ export function decidePayTarget(x: PayTargetInput): PayTarget {
     return { kind: "none", reason: "invoice_not_sent" };
   }
   if (session.pricingHidden === true) return { kind: "none", reason: "prices_hidden" };
+  // An invoice is already open and none of them is a target: the fix is to
+  // void or correct it, never to send a second payable invoice.
+  if (open.length > 0) return { kind: "none", reason: "open_invoice_wrong_amount" };
   return { kind: "none", reason: "amount_mismatch" };
 }
 
-type PayFacts = { owed: number; target: PayTarget };
+type PayFacts = { owed: number; target: PayTarget; invoices: Array<Doc<"invoices">> };
 
 async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | null): Promise<PayFacts> {
   const [ledger, room] = await Promise.all([bookingLedger(ctx, session), session.roomId ? ctx.db.get(session.roomId) : null]);
@@ -271,7 +289,15 @@ async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | n
     orgSlug: org?.slug ?? null,
     base: appUrl().replace(/\/$/, ""),
   });
-  return { owed: ledger.owed, target };
+  return { owed: ledger.owed, target, invoices: ledger.invoices };
+}
+
+/** The open invoice the status card names: the first one that is sent, viewed
+ *  or overdue and is not for what is owed, else the first open one. Null when
+ *  none is open. */
+function openInvoiceOf(invoices: Array<Doc<"invoices">>, owed: number): Doc<"invoices"> | null {
+  const open = invoices.filter((inv) => OPEN_INVOICE.has(inv.status));
+  return open.find((inv) => inv.amountCents !== owed) ?? open[0] ?? null;
 }
 
 /** Where the client can pay this booking online for exactly what is owed, or
@@ -282,6 +308,13 @@ export async function payTargetFor(ctx: Ctx, session: Doc<"sessions">, org: Doc<
 
 const PRICE_BROKEN = "This booking's price needs fixing first.";
 const CANCELLED = "This booking was cancelled.";
+const NO_SHOW = "This booking was a no-show, so there is nothing to deliver.";
+
+/** Refuse a staff action on a booking nothing is delivered on, saying why. */
+function refuseClosed(session: Pick<Doc<"sessions">, "status">): void {
+  if (session.status === "cancelled") throw new ConvexError(CANCELLED);
+  if (session.status === "no_show") throw new ConvexError(NO_SHOW);
+}
 
 /** Client types that are a person, greeted by first name. A band, a label
  *  and "other" are greeted by their whole name. */
@@ -453,7 +486,7 @@ export async function onBalanceSettled(
   const delivery = await deliveryFor(ctx, sessionId);
   if (!delivery || delivery.status !== "awaiting_payment") return false;
   const f = await facts(ctx, delivery);
-  if (!f || f.session.status === "cancelled" || f.owed > 0) return false;
+  if (!f || isClosed(f.session) || f.owed > 0) return false;
   return await release(ctx, delivery, "payment", f, opts?.paidCents);
 }
 
@@ -531,6 +564,9 @@ export const status = query({
     const state = d?.status ?? "none";
     const manage = holds(viewer, "schedule.manage");
     const cancelled = session.status === "cancelled";
+    const noShow = session.status === "no_show";
+    const closed = isClosed(session);
+    const openInv = openInvoiceOf(pay.invoices, balance);
     return {
       state,
       finalCount: files.length,
@@ -546,14 +582,18 @@ export const status = query({
       expiresAt: d?.expiresAt ?? null,
       offAt: d?.offAt ?? null,
       canMarkReady:
-        holds(viewer, "deliverables.upload") && (state === "none" || state === "off") && files.length > 0 && !!clientEmail && !cancelled,
-      canRelease: manage && state === "awaiting_payment" && !cancelled,
+        holds(viewer, "deliverables.upload") && (state === "none" || state === "off") && files.length > 0 && !!clientEmail && !closed,
+      canRelease: manage && state === "awaiting_payment" && !closed,
       canTurnOff: manage && (state === "awaiting_payment" || state === "released"),
       cancelled,
+      noShow,
       // Where the client can pay online for exactly what is owed, so the card
       // can tell the team what to do when there is nowhere (payTargetFor).
       onlinePay: pay.target.kind,
       onlinePayReason: pay.target.kind === "none" ? pay.target.reason : null,
+      // The open invoice, so the card can say which one to void or correct.
+      // Its amount is money: the whole field only with money sight.
+      openInvoice: sight.money && openInv ? { number: openInv.number, cents: openInv.amountCents } : null,
     };
   },
 });
@@ -567,7 +607,7 @@ export const markReady = mutation({
   handler: async (ctx, { sessionId }): Promise<{ state: "awaiting_payment" | "released" }> => {
     const access = await staffSession(ctx, sessionId, "deliverables.upload");
     const { orgId, session } = access;
-    if (session.status === "cancelled") throw new ConvexError(CANCELLED);
+    refuseClosed(session);
     const files = await finalFiles(ctx, orgId, sessionId);
     if (files.length === 0) throw new ConvexError("Mark at least one file Final first.");
     const artist = await ctx.db.get(session.artistId);
@@ -633,7 +673,7 @@ export const releaseNow = mutation({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const access = await staffSession(ctx, sessionId, "schedule.manage");
-    if (access.session.status === "cancelled") throw new ConvexError(CANCELLED);
+    refuseClosed(access.session);
     const delivery = await deliveryFor(ctx, sessionId);
     if (!delivery || delivery.orgId !== access.orgId || delivery.status !== "awaiting_payment") {
       throw new ConvexError("Nothing is waiting to send.");
@@ -665,7 +705,7 @@ export const resend = mutation({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const access = await staffSession(ctx, sessionId, "deliverables.upload");
-    if (access.session.status === "cancelled") throw new ConvexError(CANCELLED);
+    refuseClosed(access.session);
     const delivery = await deliveryFor(ctx, sessionId);
     if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") {
       throw new ConvexError("There is no link to send. Tap Ready to deliver first.");
@@ -740,7 +780,7 @@ async function liveDelivery(ctx: Ctx, token: string): Promise<{ delivery: Delive
   if (!delivery || delivery.token !== token) return null;
   if (delivery.status === "off" || delivery.expiresAt <= Date.now()) return null;
   const session = await ctx.db.get(delivery.sessionId);
-  if (!session || session.orgId !== delivery.orgId || session.status === "cancelled") return null;
+  if (!session || session.orgId !== delivery.orgId || isClosed(session)) return null;
   return { delivery, session };
 }
 
@@ -856,7 +896,7 @@ export const fileUrl = mutation({
  *  renders locked: a waiting delivery whose booking no longer owes anything
  *  (some path lowered the balance without calling onBalanceSettled) is
  *  released through the same `release`, by "payment". Anything else (a balance
- *  still owed, already released, off, expired, cancelled, no Final file, no
+ *  still owed, already released, off, expired, cancelled or no-show, no Final file, no
  *  email on file) changes nothing. Never throws for a bad token. */
 export const refresh = mutation({
   args: { token: v.string() },

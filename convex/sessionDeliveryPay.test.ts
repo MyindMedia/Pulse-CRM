@@ -164,7 +164,9 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     // Before the redemption the open invoice is exactly what is owed.
     expect((await look(s, token)).target).toEqual({ kind: "invoice", url: `${APP_URL}/pay/invoice/${inv}`, cents: 30000 });
     await s.as(s.A.owner).mutation(api.packages.redeem, { sessionId: s.A.sessionId, creditId, hours: 1 });
-    const v = await noButton(s, token, 20000, "amount_mismatch");
+    // R4-01: the open $300 invoice is now the wrong amount; the card must not
+    // advise sending a second invoice.
+    const v = await noButton(s, token, 20000, "open_invoice_wrong_amount");
     // The invoice would still charge $300.
     expect((await s.t.query(internal.invoicePay._chargeContext, { invoiceId: inv }))!.amountCents).toBe(30000);
     expect(v.owed).toBe(20000);
@@ -276,7 +278,8 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
       const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
       await ctx.db.patch(org!._id, { stripeChargesEnabled: false });
     });
-    await noButton(s, token, 18000, "amount_mismatch");
+    // R4-01: an open invoice exists and no target qualifies.
+    await noButton(s, token, 18000, "open_invoice_wrong_amount");
     vi.stubEnv("STRIPE_SECRET_KEY", "");
     await s.t.run(async (ctx) => { await ctx.db.patch(inv, { status: "void" }); });
     await noButton(s, token, 18000, "amount_mismatch");
@@ -296,7 +299,7 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
     await invoice(s, "sent", 9000);
     await invoice(s, "overdue", 9000);
     const token = await ready(s);
-    await noButton(s, token, 18000, "amount_mismatch");
+    await noButton(s, token, 18000, "open_invoice_wrong_amount");
   });
 
   it("R3-01 nothing owed: nothing_owed, and Ready releases", async () => {
@@ -332,45 +335,145 @@ describe("session delivery: the Pay button only for the exact amount (Addendum 3
   });
 });
 
-/* ── R3-04: a no-show booking ──────────────────────────────────── */
+/* ── R4-01: an open invoice for the wrong amount ────────────────── */
 
-describe("session delivery: a no-show booking with a paid fee invoice (R3-04)", () => {
+describe("session delivery: an open invoice that is not what is owed (R4-01)", () => {
   beforeEach(() => { r2Env(); });
   afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
-  it("R3-04 the no-show fee replaces nothing on the booking: the gate still counts the full rate, locked, and offers no button", async () => {
-    // $400 session, $100 deposit paid, a 50% no-show fee.
+  it("R4-01 one open invoice for less than is owed: open_invoice_wrong_amount, and the card names the invoice", async () => {
     const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    const inv = await invoice(s, "sent", 25000);
+    const number = (await s.t.run(async (ctx) => await ctx.db.get(inv)))!.number;
+    const token = await ready(s);
+    const v = await noButton(s, token, 30000, "open_invoice_wrong_amount");
+    expect(v.status).toMatchObject({ onlinePay: "none", onlinePayReason: "open_invoice_wrong_amount", openInvoice: { number, cents: 25000 }, balanceCents: 30000 });
+  });
+
+  it("R4-01 viewed and overdue count as open, and so do two open invoices that only add up to what is owed", async () => {
+    for (const statuses of [["viewed"], ["overdue"], ["sent", "overdue"]] as const) {
+      const s = await setup();
+      for (const st of statuses) await invoice(s, st, statuses.length === 1 ? 5000 : 9000);
+      const token = await ready(s);
+      const v = await noButton(s, token, 18000, "open_invoice_wrong_amount");
+      expect(v.status.openInvoice).toMatchObject({ cents: statuses.length === 1 ? 5000 : 9000 });
+    }
+  });
+
+  it("R4-01 without money sight the open invoice is not returned at all", async () => {
+    const s = await setup();
+    await invoice(s, "sent", 5000);
+    await ready(s);
+    const eng = await s.as(s.A.engineer).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(eng).toMatchObject({ onlinePayReason: "open_invoice_wrong_amount", openInvoice: null, balanceCents: null });
+    expect(JSON.stringify(eng)).not.toContain("5000");
+  });
+
+  it("R4-01 no open invoice: amount_mismatch stays, openInvoice null; a draft or paid or void invoice is not open", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    await invoice(s, "paid", 30000);
+    await invoice(s, "void", 5000);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 45000 }); });
+    const token = await ready(s);
+    const v = await noButton(s, token, 5000, "amount_mismatch");
+    expect(v.status.openInvoice).toBeNull();
+  });
+
+  it("R4-01 an open invoice that is the target is still reported to the card", async () => {
+    const s = await setup();
+    const inv = await invoice(s, "sent", 18000);
+    const number = (await s.t.run(async (ctx) => await ctx.db.get(inv)))!.number;
+    const token = await ready(s);
+    const v = await look(s, token);
+    expect(v.target.kind).toBe("invoice");
+    expect(v.status).toMatchObject({ onlinePay: "invoice", onlinePayReason: null, openInvoice: { number, cents: 18000 } });
+  });
+});
+
+/* ── R4-02: a no-show booking is treated exactly like a cancelled one ── */
+
+describe("session delivery: a no-show booking delivers nothing (R4-02)", () => {
+  beforeEach(() => { r2Env(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  const NO_SHOW = "This booking was a no-show, so there is nothing to deliver.";
+
+  async function noShowFee(s: S) {
     await s.t.run(async (ctx) => {
       const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first();
       await ctx.db.patch(org!._id, { cancellationFeePct: 50 });
     });
     await s.as(s.A.owner).mutation(api.sessions.setStatus, { id: s.A.sessionId, status: "no_show" });
+  }
+
+  it("R4-02 Ready to deliver is refused on a no-show: no row, no email; the card says no-show, not cancelled", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    await finalFile(s);
+    await noShowFee(s);
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).rejects.toThrow(NO_SHOW);
+    expect(await s.t.run(async (ctx) => await ctx.db.query("sessionDeliveries").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).first())).toBeNull();
+    expect((await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind.startsWith("delivery."))).toHaveLength(0);
+    const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st).toMatchObject({ noShow: true, cancelled: false, canMarkReady: false, canRelease: false, onlinePay: "none" });
+  });
+
+  it("R4-02 the no-show is billed and recorded exactly as before (the shield's fee, the deposit kept, a draft for the rest)", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
+    await noShowFee(s);
     const session = (await s.t.run(async (ctx) => await ctx.db.get(s.A.sessionId)))!;
-    // The shield records a $200 fee, keeps the $100 deposit toward it, and
-    // drafts an invoice for the other $100. The rate is not changed.
     expect(session).toMatchObject({ status: "no_show", rateCents: 40000, cancellationFeeCents: 20000, depositForfeited: true });
     const fees = await s.t.run(async (ctx) => await ctx.db.query("invoices").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).take(10));
     expect(fees.map((i) => [i.status, i.amountCents, i.lineItems[0].label])).toEqual([["draft", 10000, "Vocal tracking - no-show fee"]]);
+  });
 
-    // Ready to deliver is not refused on a no-show (only a cancelled booking is).
+  it("R4-02 a waiting delivery whose booking becomes a no-show: dead link, never releases, even once everything is paid", async () => {
+    const s = await setup({ rateCents: 40000, depositCents: 10000, depositPaid: true, amountPaidCents: 10000 });
     const token = await ready(s);
-    // Owed by the gate: $400 - $100 deposit = $300. The $100 draft is not it.
-    await noButton(s, token, 30000, "amount_mismatch");
-
-    // The studio sends the fee invoice and it is paid.
-    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: fees[0]._id, status: "sent" });
-    await noButton(s, token, 30000, "amount_mismatch");
-    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: fees[0]._id, status: "paid", paymentMethod: "zelle" });
-    // The client has paid everything the studio billed ($100 deposit + $100
-    // fee), yet the gate still counts the session's full rate: $200 owed.
-    // It stays locked, with no button, and nothing releases.
-    const v = await noButton(s, token, 20000, "amount_mismatch");
-    expect(v.status).toMatchObject({ balanceDue: true, balanceCents: 20000, state: "awaiting_payment" });
-    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    expect((await s.t.query(api.sessionDelivery.page, { token }))!.state).toBe("locked");
+    await noShowFee(s);
+    // The public page and every public mutation answer like an unknown link.
+    expect(await s.t.query(api.sessionDelivery.page, { token })).toBeNull();
+    expect(await s.t.mutation(api.sessionDelivery.opened, { token })).toBeNull();
+    // Every cent the gate counts is paid: still nothing releases.
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { amountPaidCents: 40000 }); });
     expect(await s.t.mutation(api.sessionDelivery.refresh, { token })).toBeNull();
+    expect(await s.t.run(async (ctx) => await onBalanceSettled(ctx, s.A.sessionId))).toBe(false);
+    const fee = (await s.t.run(async (ctx) => await ctx.db.query("invoices").withIndex("by_session", (q) => q.eq("sessionId", s.A.sessionId)).first()))!;
+    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: fee._id, status: "sent" });
+    await s.as(s.A.owner).mutation(api.invoices.setStatus, { id: fee._id, status: "paid", paymentMethod: "zelle" });
+    expect((await row(s)).status).toBe("awaiting_payment");
+    // Staff: Send now anyway and Resend refuse with the no-show reason.
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.releaseNow, { sessionId: s.A.sessionId })).rejects.toThrow(NO_SHOW);
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow(NO_SHOW);
+    const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st).toMatchObject({ noShow: true, cancelled: false, canMarkReady: false, canRelease: false, onlinePay: "none", state: "awaiting_payment" });
+    // Nowhere to pay.
+    const target = await s.t.run(async (ctx) => await payTargetFor(ctx, (await ctx.db.get(s.A.sessionId))!, await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "studio_a")).first()));
+    expect(target.kind).toBe("none");
     expect((await row(s)).status).toBe("awaiting_payment");
     expect((await clientEmails(s.t, s.A.sessionId)).filter((m) => m.kind === "delivery.ready")).toHaveLength(0);
+  });
+
+  it("R4-02 a released delivery whose booking becomes a no-show: the page and every file link go dead", async () => {
+    const s = await setup({ amountPaidCents: 36000 });
+    const f = await uploadSessionFile(s.t, s.as(s.A.engineer), s.A.sessionId, "Mix.wav");
+    await s.as(s.A.engineer).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: true });
+    expect(await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).toEqual({ state: "released" });
+    const token = (await row(s)).token;
+    expect((await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: f.versionId })).url).toBeTruthy();
+    await s.as(s.A.owner).mutation(api.sessions.setStatus, { id: s.A.sessionId, status: "no_show" });
+    expect(await s.t.query(api.sessionDelivery.page, { token })).toBeNull();
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: f.versionId })).rejects.toThrow("That file is not available.");
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow(NO_SHOW);
+  });
+
+  it("R4-02 a cancelled booking still says cancelled, and noShow is false", async () => {
+    const s = await setup();
+    await ready(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "cancelled" }); });
+    const st = await s.as(s.A.owner).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st).toMatchObject({ cancelled: true, noShow: false, canRelease: false });
+    await expect(s.as(s.A.owner).mutation(api.sessionDelivery.resend, { sessionId: s.A.sessionId })).rejects.toThrow("This booking was cancelled.");
   });
 });
 
