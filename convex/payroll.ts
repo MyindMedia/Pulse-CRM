@@ -319,6 +319,14 @@ export const adjustEntry = mutation({
     if (inAt !== entry.clockInAt || outAt !== entry.clockOutAt) {
       await refuseOverlap(ctx, orgId, entry.memberId, inAt, outAt, entryId, await studioTz(ctx, orgId));
     }
+    // An entry is filed under the period its clock-in falls in. Moving it out of
+    // a period already in the ledger would leave its pay posted there and post
+    // it again in the next period (H208-R2-02).
+    const posted = await postedWindowsFor(ctx, orgId, entry.memberId);
+    if (inAt !== entry.clockInAt && posted.some((w) => inWindow(w, entry.clockInAt) && !inWindow(w, inAt))) {
+      throw new Error("That period is already posted; remove the entry and add a new one in the right period.");
+    }
+    const postedPeriod = posted.some((w) => inWindow(w, entry.clockInAt) || inWindow(w, inAt));
     const who = await actorName(ctx);
     fields.editedBy = who.subject ?? undefined;
     await ctx.db.patch(entryId, fields);
@@ -340,6 +348,8 @@ export const adjustEntry = mutation({
         accent: "info",
       });
     }
+    // The panel tells the manager to post that period again so the ledger matches.
+    return { postedPeriod };
   },
 });
 
@@ -353,7 +363,9 @@ export const removeEntry = mutation({
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
     refuseOwnHours(selfId, entry.memberId);
-    if (entry.voidedAt) return;
+    const posted = await postedWindowsFor(ctx, orgId, entry.memberId);
+    const postedPeriod = posted.some((w) => inWindow(w, entry.clockInAt));
+    if (entry.voidedAt) return { postedPeriod };
     const who = await actorName(ctx);
     const why = reason?.trim().slice(0, 300) || undefined;
     await ctx.db.patch(entryId, {
@@ -379,6 +391,7 @@ export const removeEntry = mutation({
       entityId: entryId,
       accent: "critical",
     });
+    return { postedPeriod };
   },
 });
 
@@ -401,6 +414,32 @@ function keyRange(key: string): { start: number; end: number } | null {
 function keyOf(x: { payrollPeriod?: string; notes?: string }): string | null {
   return x.payrollPeriod ?? x.notes?.match(/^\[payroll (.+)\]$/)?.[1] ?? null;
 }
+
+/** The pay periods already posted to the ledger for one teammate, as [start, end)
+ *  windows (exact for posts that store them, day precision for older rows). */
+async function postedWindowsFor(
+  ctx: QueryCtx,
+  orgId: string,
+  memberId: Id<"members">,
+): Promise<{ start: number; end: number }[]> {
+  const rows = await ctx.db
+    .query("expenses")
+    .withIndex("by_org_member", (q) => q.eq("orgId", orgId).eq("memberId", memberId))
+    .collect();
+  const out: { start: number; end: number }[] = [];
+  for (const x of rows) {
+    if (x.category !== "payroll") continue;
+    const k = keyOf(x);
+    if (!k) continue; // a session payout, not a period post
+    const w = x.payrollStart !== undefined && x.payrollEnd !== undefined
+      ? { start: x.payrollStart, end: x.payrollEnd }
+      : keyRange(k);
+    if (w) out.push(w);
+  }
+  return out;
+}
+
+const inWindow = (w: { start: number; end: number }, ts: number) => ts >= w.start && ts < w.end;
 
 type PostedForMember = { sameCents: number; overlaps: boolean };
 

@@ -717,3 +717,80 @@ describe("an agency owner with hours in the studio cannot change their own (H208
     expect(sum.rows.filter((r) => r.isYou).map((r) => r.memberId)).toEqual([adaId]);
   });
 });
+
+describe("a correction in a period already posted is not counted twice (H208-R2-02)", () => {
+  const W1 = START;
+  const W2 = START + 7 * DAY;
+  const W3 = START + 14 * DAY;
+
+  async function nightShift(t: T, orgId: string, engId: Awaited<ReturnType<typeof studio>>["engId"]) {
+    // Sun 22:00 to Mon 02:00: filed under week 1 by its clock-in.
+    return await t.run((ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: W2 - 2 * HOUR, clockOutAt: W2 + 2 * HOUR, status: "completed",
+        rateCentsSnapshot: 5_000, source: "self",
+      }),
+    );
+  }
+
+  it("moving a posted entry's clock-in into the next period is refused, and week 2 posts nothing for it", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const night = await nightShift(t, orgId, engId);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: W1, end: W2 });
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: night, clockInAt: W2 }))
+      .rejects.toThrow(/already posted/);
+    expect((await t.run((ctx) => ctx.db.get(night)))!.clockInAt).toBe(W2 - 2 * HOUR);
+    const wk2 = await as(t, "own").mutation(api.payroll.postToExpenses, { start: W2, end: W3 });
+    expect(wk2.totalCents).toBe(0);
+  });
+
+  it("a period posted before exact windows were stored (key only) is protected too", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const night = await nightShift(t, orgId, engId);
+    await t.run((ctx) =>
+      ctx.db.insert("expenses", {
+        orgId, category: "payroll", vendor: "Eli", description: "Payroll", amountCents: 40_000, date: W2 - 1,
+        memberId: engId, notes: "[payroll 2026-10-01_2026-10-08]",
+      }),
+    );
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: night, clockInAt: W2 + HOUR }))
+      .rejects.toThrow(/already posted/);
+  });
+
+  it("a change inside a posted period is allowed and tells the panel to post that period again", async () => {
+    const t = newT();
+    const { orgId, engId, entryId } = await studio(t);
+    const night = await nightShift(t, orgId, engId);
+    await as(t, "own").mutation(api.payroll.postToExpenses, { start: W1, end: W2 });
+    const res = await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: night, clockInAt: W2 - 3 * HOUR });
+    expect(res).toEqual({ postedPeriod: true });
+    const again = await as(t, "own").mutation(api.payroll.postToExpenses, { start: W1, end: W2 });
+    expect(again).toMatchObject({ adjusted: 1, totalCents: 5_000 });
+    const removed = await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId });
+    expect(removed).toEqual({ postedPeriod: true });
+    // A second remove does nothing and says the same.
+    expect(await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId })).toEqual({ postedPeriod: true });
+  });
+
+  it("an entry in a period not yet posted moves freely and reports no posted period", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const night = await nightShift(t, orgId, engId);
+    const res = await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: night, clockInAt: W2 });
+    expect(res).toEqual({ postedPeriod: false });
+    expect(await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId: night })).toEqual({ postedPeriod: false });
+  });
+
+  it("another teammate's or another studio's post does not block the move", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const night = await nightShift(t, orgId, engId);
+    const other = await studio(t, "org_q");
+    await as(t, "own", "org_q").mutation(api.payroll.postToExpenses, { start: W1, end: W2 });
+    expect(other.orgId).toBe("org_q");
+    const res = await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: night, clockInAt: W2 });
+    expect(res).toEqual({ postedPeriod: false });
+  });
+});

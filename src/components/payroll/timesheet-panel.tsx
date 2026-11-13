@@ -64,6 +64,9 @@ function when(ts: number | undefined): string {
   return new Date(ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+const POSTED_AGAIN =
+  "This entry is in a pay period already posted to Expenses. Post that period again so the ledger matches.";
+
 function errText(e: unknown, fallback: string): string {
   return e instanceof Error ? e.message.replace(/^.*Uncaught Error: /, "").split("\n")[0] : fallback;
 }
@@ -119,13 +122,14 @@ export function TimesheetPanel({
     if (i === null) return void toast.error("Enter a clock-in time.");
     setBusy(true);
     try {
-      await adjust({
+      const res = await adjust({
         entryId: editing._id,
         clockInAt: i,
         clockOutAt: o,
         note: note.trim() || undefined,
       });
       toast.success(`Updated ${editing.memberName}'s entry.`);
+      if (res?.postedPeriod) toast.info(POSTED_AGAIN);
       setEditing(null);
     } catch (e) {
       toast.error(errText(e, "Could not save the entry."));
@@ -157,8 +161,9 @@ export function TimesheetPanel({
     if (!removing || busy) return;
     setBusy(true);
     try {
-      await remove({ entryId: removing._id, reason: reason.trim() || undefined });
+      const res = await remove({ entryId: removing._id, reason: reason.trim() || undefined });
       toast.success("Entry removed from pay. It stays on the record.");
+      if (res?.postedPeriod) toast.info(POSTED_AGAIN);
       setRemoving(null);
       setReason("");
     } catch (e) {
