@@ -1,0 +1,24 @@
+## npx tsc --noEmit -p tsconfig.json (HEAD 01c745e)
+tsc exit 0
+
+## eslint on the branch's changed files
+eslint exit 0
+
+## eslint whole repo (develop baseline is 164 problems, 53 errors)
+  122:12  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  197:12  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  211:14  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  43:8  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+  400:20  warning  Unused eslint-disable directive (no problems were reported from '@next/next/no-img-element')
+✖ 164 problems (53 errors, 111 warnings)
+
+## env -u OPENAI_API_KEY npx vitest run (full suite)
+ FAIL  convex/lib/agentScope.test.ts > (b) only the Accounting modules reach the ledger > no other module reads or writes the ledger tables or calls the ledger API
+ FAIL  convex/marketing/results.test.ts > marketing results > counts clicks, bookings and revenue per post inside the 7-day window, postId over code
+ FAIL  convex/outreachCalls.test.ts > confirmation calls > live: re-checks consent, POSTs the documented request once, and never again
+ Test Files  3 failed | 397 passed (400)
+      Tests  3 failed | 4367 passed (4370)
+   Start at  15:41:09
+   Duration  24.96s (transform 25.89s, setup 0ms, import 57.71s, tests 83.17s, environment 23.94s)
+
+vitest exit 1

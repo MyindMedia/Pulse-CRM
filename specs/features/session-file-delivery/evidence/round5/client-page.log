@@ -1,0 +1,161 @@
+## C-05 / C-06 (R2 mocked by route; Firefox names the mp3 download .wav because the mock serves audio/wav)
+[chromium] rows: [{"name":"Midnight Drive - Instrumental.mp3","buttons":["Play Midnight Drive - Instrumental.mp3","Download Midnight Drive - Instrumental.mp3"]},{"name":"Lyric sheet.pdf","buttons":["Download Lyric sheet.pdf"]},{"name":"Midnight Drive - Stems.zip","buttons":["Download Midnight Drive - Stems.zip"]},{"name":"Midnight Drive - Final Mix (24-bit 48k).wav","buttons":["Play Midnight Drive - Final Mix (24-bit 48k).wav","Download Midnight Drive - Final Mix (24-bit 48k).wav"]}]
+[chromium] C-05 clicked "Play Midnight Drive - Instrumental.mp3": audio={"t":2.218921,"paused":false,"err":null} pauseButtons=1
+[chromium] C-06 R2 GETs after Download all: 4 ["Midnight Drive - Instrumental.mp3","Lyric sheet.pdf","Midnight Drive - Stems.zip","Midnight Drive - Final Mix (24-bit 48k).wav"]; download events 4 ["Midnight Drive - Instrumental.mp3","Lyric sheet.pdf","Midnight Drive - Stems.zip","Midnight Drive - Final Mix (24-bit 48k).wav"]; iframes 4; main-frame navigations 0; url unchanged true
+[chromium] R2 hosts: *.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com
+[firefox] rows: [{"name":"Midnight Drive - Instrumental.mp3","buttons":["Play Midnight Drive - Instrumental.mp3","Download Midnight Drive - Instrumental.mp3"]},{"name":"Lyric sheet.pdf","buttons":["Download Lyric sheet.pdf"]},{"name":"Midnight Drive - Stems.zip","buttons":["Download Midnight Drive - Stems.zip"]},{"name":"Midnight Drive - Final Mix (24-bit 48k).wav","buttons":["Play Midnight Drive - Final Mix (24-bit 48k).wav","Download Midnight Drive - Final Mix (24-bit 48k).wav"]}]
+[firefox] C-05 clicked "Play Midnight Drive - Instrumental.mp3": audio={"t":2.222494,"paused":false,"err":null} pauseButtons=1
+[firefox] C-06 R2 GETs after Download all: 4 ["Midnight Drive - Instrumental.mp3","Lyric sheet.pdf","Midnight Drive - Stems.zip","Midnight Drive - Final Mix (24-bit 48k).wav"]; download events 4 ["Midnight Drive - Instrumental.wav","Lyric sheet.pdf","Midnight Drive - Stems.zip","Midnight Drive - Final Mix (24-bit 48k).wav"]; iframes 4; main-frame navigations 0; url unchanged true
+[firefox] R2 hosts: *.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com
+[webkit] rows: [{"name":"Midnight Drive - Instrumental.mp3","buttons":["Play Midnight Drive - Instrumental.mp3","Download Midnight Drive - Instrumental.mp3"]},{"name":"Lyric sheet.pdf","buttons":["Download Lyric sheet.pdf"]},{"name":"Midnight Drive - Stems.zip","buttons":["Download Midnight Drive - Stems.zip"]},{"name":"Midnight Drive - Final Mix (24-bit 48k).wav","buttons":["Play Midnight Drive - Final Mix (24-bit 48k).wav","Download Midnight Drive - Final Mix (24-bit 48k).wav"]}]
+[webkit] C-05 clicked "Play Midnight Drive - Instrumental.mp3": audio={"t":1.9716474336665604,"paused":false,"err":null} pauseButtons=1
+[webkit] C-06 R2 GETs after Download all: 4 ["Midnight Drive - Instrumental.mp3","Lyric sheet.pdf","Midnight Drive - Stems.zip","Midnight Drive - Final Mix (24-bit 48k).wav"]; download events 0 []; iframes 4; main-frame navigations 0; url unchanged true
+[webkit] R2 hosts: *.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com
+[iphone] rows: [{"name":"Midnight Drive - Instrumental.mp3","buttons":["Play Midnight Drive - Instrumental.mp3","Download Midnight Drive - Instrumental.mp3"]},{"name":"Lyric sheet.pdf","buttons":["Download Lyric sheet.pdf"]},{"name":"Midnight Drive - Stems.zip","buttons":["Download Midnight Drive - Stems.zip"]},{"name":"Midnight Drive - Final Mix (24-bit 48k).wav","buttons":["Play Midnight Drive - Final Mix (24-bit 48k).wav","Download Midnight Drive - Final Mix (24-bit 48k).wav"]}]
+[iphone] C-05 clicked "Play Midnight Drive - Instrumental.mp3": audio={"t":1.990598876664926,"paused":false,"err":null} pauseButtons=1
+[iphone] C-06 no Download all; "Tap a file to download it." shown=1
+[iphone] C-06 R2 GETs after Download all: 0 []; download events 0 []; iframes 0; main-frame navigations 0; url unchanged true
+[iphone] R2 hosts: *.0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com
+
+## C-10
+[chromium] 390px text 100% (root 16px): scrollWidth 390/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 359, list right 374, rightmost part 359, fits true, name width 224, icon/control rows 2; span 31-67@542 36x36 | div 79-303@540 224x41 | button:Download 315-359@538 44x44
+   Midnight Drive - Final: content right 359, list right 374, rightmost part 359, fits true, name width 168, icon/control rows 2; span 31-67@621 36x36 | div 79-247@607 168x63 | button:Play 259-303@617 44x44 | button:Download 315-359@617 44x44
+[chromium] 390px text 150% (root 24px): scrollWidth 390/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 344, list right 366, rightmost part 344, fits true, name width 298, icon/control rows 2; span 46-100@1156 54x54 | div 46-344@1072 298x61 | button:Download 118-184@1150 66x66
+   Midnight Drive - Final: content right 344, list right 366, rightmost part 344, fits true, name width 298, icon/control rows 2; span 46-100@1372 54x54 | div 46-344@1253 298x95 | button:Play 118-184@1366 66x66 | button:Download 202-268@1366 66x66
+[chromium] 390px text 200% (root 32px): scrollWidth 390/390, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+[chromium] 1280px text 200% (root 32px): scrollWidth 1280/1280, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 1211, list right 1240, rightmost part 1211, fits true, name width 934, icon/control rows 2; span 69-141@913 72x72 | div 165-1099@909 934x81 | button:Download 1123-1211@905 88x88
+   Midnight Drive - Final: content right 1211, list right 1240, rightmost part 1211, fits true, name width 822, icon/control rows 2; span 69-141@1050 72x72 | div 165-987@1046 822x81 | button:Play 1011-1099@1042 88x88 | button:Download 1123-1211@1042 88x88
+[chromium] 320px text 200% (root 32px): scrollWidth 373/320, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+[firefox] 390px text 100% (root 16px): scrollWidth 390/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 359, list right 374, rightmost part 359, fits true, name width 224, icon/control rows 2; span 31-67@542 36x36 | div 79-303@540 224x41 | button:Download 315-359@538 44x44
+   Midnight Drive - Final: content right 359, list right 374, rightmost part 359, fits true, name width 168, icon/control rows 2; span 31-67@621 36x36 | div 79-247@607 168x63 | button:Play 259-303@617 44x44 | button:Download 315-359@617 44x44
+[firefox] 390px text 150% (root 24px): scrollWidth 390/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 344, list right 366, rightmost part 344, fits true, name width 298, icon/control rows 2; span 46-100@1156 54x54 | div 46-344@1072 298x61 | button:Download 118-184@1150 66x66
+   Midnight Drive - Final: content right 344, list right 366, rightmost part 344, fits true, name width 298, icon/control rows 2; span 46-100@1372 54x54 | div 46-344@1253 298x95 | button:Play 118-184@1366 66x66 | button:Download 202-268@1366 66x66
+[firefox] 390px text 200% (root 32px): scrollWidth 390/390, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+[firefox] 1280px text 200% (root 32px): scrollWidth 1280/1280, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 1211, list right 1240, rightmost part 1211, fits true, name width 934, icon/control rows 2; span 69-141@913 72x72 | div 165-1099@909 934x81 | button:Download 1123-1211@905 88x88
+   Midnight Drive - Final: content right 1211, list right 1240, rightmost part 1211, fits true, name width 822, icon/control rows 2; span 69-141@1050 72x72 | div 165-987@1046 822x81 | button:Play 1011-1099@1042 88x88 | button:Download 1123-1211@1042 88x88
+[firefox] 320px text 200% (root 32px): scrollWidth 373/320, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+[webkit] 390px text 100% (root 16px): scrollWidth 390/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 359, list right 374, rightmost part 359, fits true, name width 224, icon/control rows 2; span 31-67@542 36x36 | div 79-303@540 224x41 | button:Download 315-359@538 44x44
+   Midnight Drive - Final: content right 359, list right 374, rightmost part 359, fits true, name width 168, icon/control rows 2; span 31-67@621 36x36 | div 79-247@607 168x63 | button:Play 259-303@617 44x44 | button:Download 315-359@617 44x44
+[webkit] 390px text 150% (root 24px): scrollWidth 380/390, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 334, list right 356, rightmost part 334, fits true, name width 288, icon/control rows 2; span 46-100@1190 54x54 | div 46-334@1072 288x95 | button:Download 118-184@1184 66x66
+   Midnight Drive - Final: content right 334, list right 356, rightmost part 334, fits true, name width 288, icon/control rows 2; span 46-100@1406 54x54 | div 46-334@1287 288x95 | button:Play 118-184@1400 66x66 | button:Download 202-268@1400 66x66
+[webkit] 390px text 200% (root 32px): scrollWidth 380/390, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+[webkit] 1280px text 200% (root 32px): scrollWidth 1270/1280, running animations 0, HOLDS
+   Midnight Drive - Stems: content right 1201, list right 1230, rightmost part 1201, fits true, name width 924, icon/control rows 2; span 69-141@913 72x72 | div 165-1089@909 924x81 | button:Download 1113-1201@905 88x88
+   Midnight Drive - Final: content right 1201, list right 1230, rightmost part 1201, fits true, name width 812, icon/control rows 2; span 69-141@1050 72x72 | div 165-977@1046 812x81 | button:Play 1001-1089@1042 88x88 | button:Download 1113-1201@1042 88x88
+[webkit] 320px text 200% (root 32px): scrollWidth 373/320, running animations 0, BROKEN
+   Midnight Drive - Stems: content right 344, list right 373, rightmost part 344, fits true, name width 283, icon/control rows 2; span 61-133@1632 72x72 | div 61-344@1474 283x126 | button:Download 157-245@1624 88x88
+   Midnight Drive - Final: content right 344, list right 373, rightmost part 377, fits false, name width 316, icon/control rows 2; span 61-133@1919 72x72 | div 61-377@1761 316x126 | button:Play 157-245@1911 88x88 | button:Download 269-357@1911 88x88
+
+## C-04, C-09, LL-01, LL-02, LL-04, LL-10, C-07, LL-12, LL-13
+[C-04 chromium] bad, malformed, off, noshow, expired: 1 distinct text(s); studio/file name leaks: none; text: "This link has expired Ask the studio to send a new one. Your files are still safe with them. Delivered with Pulse Privacy · Terms"
+[C-04 firefox] bad, malformed, off, noshow, expired: 1 distinct text(s); studio/file name leaks: none; text: "This link has expired Ask the studio to send a new one. Your files are still safe with them. Delivered with Pulse Privacy · Terms"
+[C-04 webkit] bad, malformed, off, noshow, expired: 1 distinct text(s); studio/file name leaks: none; text: "This link has expired Ask the studio to send a new one. Your files are still safe with them. Delivered with Pulse Privacy · Terms"
+[net unlocked] status 200, requests 40, hosts {"localhost:3311":40}, cookies 0, localStorage [], sessionStorage [], form fields 0, links ["Privacy=/privacy","Terms=/terms"], meta robots "noindex, nofollow", meta referrer "no-referrer", header referrer-policy "no-referrer", x-robots-tag "noindex, nofollow"
+   Privacy=/privacy -> 200
+   Terms=/terms -> 200
+[net locked] status 200, requests 40, hosts {"localhost:3311":40}, cookies 0, localStorage [], sessionStorage [], form fields 0, links ["Privacy=/privacy","Terms=/terms"], meta robots "noindex, nofollow", meta referrer "no-referrer", header referrer-policy "no-referrer", x-robots-tag "noindex, nofollow"
+   Privacy=/privacy -> 200
+   Terms=/terms -> 200
+[net expired] status 200, requests 40, hosts {"localhost:3311":40}, cookies 0, localStorage [], sessionStorage [], form fields 0, links ["Privacy=/privacy","Terms=/terms"], meta robots "noindex, nofollow", meta referrer "no-referrer", header referrer-policy "no-referrer", x-robots-tag "noindex, nofollow"
+   Privacy=/privacy -> 200
+   Terms=/terms -> 200
+[C-07 #fdb913 dark unlocked] "Download all" ink rgb(0, 0, 0) on rgb(253, 185, 19) 15px/700 ratio 12.13:1
+[C-07 #fdb913] header: logo img null, studio text ["MS","Myind Sound"]
+[LL-12 axe 4.11.4 #fdb913 dark unlocked] violations 0  (passes 23)
+[LL-13 #fdb913 dark unlocked] Tab order: Download all [fv true, solid 2px rgb(253, 185, 19) vs rgb(20, 20, 23) 10.62:1] > Play Midnight Drive - Instrumental.mp3 [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Instrumental.m [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Lyric sheet.pdf [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Stems.zip [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Play Midnight Drive - Final Mix (24-bit  [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Final Mix (24- [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Privacy [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1] > Terms [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1]
+[C-07 #fdb913 dark lockedPay] "Pay and unlock" ink rgb(0, 0, 0) on rgb(253, 185, 19) 15px/700 ratio 12.13:1
+[LL-12 axe 4.11.4 #fdb913 dark lockedPay] violations 0  (passes 24)
+[LL-13 #fdb913 dark lockedPay] Tab order: Pay and unlock [fv true, solid 2px rgb(253, 185, 19) vs rgb(20, 20, 23) 10.62:1] > Privacy [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1] > Terms [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1]
+[LL-12 axe 4.11.4 #fdb913 dark noTarget] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 dark openWrong] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 dark hidden] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 dark hiddenOpen] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 dark nothingOwedNoEmail] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 dark expired] violations 0  (passes 19)
+[C-07 #fdb913 light unlocked] "Download all" ink rgb(0, 0, 0) on rgb(253, 185, 19) 15px/700 ratio 12.13:1
+[LL-12 axe 4.11.4 #fdb913 light unlocked] violations 0  (passes 23)
+[LL-13 #fdb913 light unlocked] Tab order: Download all [fv true, solid 2px rgb(122, 86, 0) vs rgb(255, 255, 255) 6.65:1] > Play Midnight Drive - Instrumental.mp3 [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Instrumental.m [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Lyric sheet.pdf [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Stems.zip [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Play Midnight Drive - Final Mix (24-bit  [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Final Mix (24- [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Privacy [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1] > Terms [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1]
+[C-07 #fdb913 light lockedPay] "Pay and unlock" ink rgb(0, 0, 0) on rgb(253, 185, 19) 15px/700 ratio 12.13:1
+[LL-12 axe 4.11.4 #fdb913 light lockedPay] violations 0  (passes 24)
+[LL-13 #fdb913 light lockedPay] Tab order: Pay and unlock [fv true, solid 2px rgb(122, 86, 0) vs rgb(255, 255, 255) 6.65:1] > Privacy [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1] > Terms [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1]
+[LL-12 axe 4.11.4 #fdb913 light noTarget] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 light openWrong] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 light hidden] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 light hiddenOpen] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 light nothingOwedNoEmail] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #fdb913 light expired] violations 0  (passes 19)
+[C-07 #0f8f6f dark unlocked] "Download all" ink rgb(0, 0, 0) on rgb(15, 143, 111) 15px/700 ratio 5.18:1
+[C-07 #0f8f6f] header: logo img null, studio text ["MS","Myind Sound"]
+[LL-12 axe 4.11.4 #0f8f6f dark unlocked] violations 0  (passes 23)
+[LL-13 #0f8f6f dark unlocked] Tab order: Download all [fv true, solid 2px rgb(253, 185, 19) vs rgb(20, 20, 23) 10.62:1] > Play Midnight Drive - Instrumental.mp3 [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Instrumental.m [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Lyric sheet.pdf [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Stems.zip [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Play Midnight Drive - Final Mix (24-bit  [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Download Midnight Drive - Final Mix (24- [fv true, solid 2px rgb(246, 246, 245) vs rgb(20, 20, 23) 17.00:1] > Privacy [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1] > Terms [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1]
+[C-07 #0f8f6f dark lockedPay] "Pay and unlock" ink rgb(0, 0, 0) on rgb(15, 143, 111) 15px/700 ratio 5.18:1
+[LL-12 axe 4.11.4 #0f8f6f dark lockedPay] violations 0  (passes 24)
+[LL-13 #0f8f6f dark lockedPay] Tab order: Pay and unlock [fv true, solid 2px rgb(253, 185, 19) vs rgb(20, 20, 23) 10.62:1] > Privacy [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1] > Terms [fv true, solid 2px rgb(253, 185, 19) vs rgb(8, 8, 10) 11.55:1]
+[LL-12 axe 4.11.4 #0f8f6f dark noTarget] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f dark openWrong] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f dark hidden] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f dark hiddenOpen] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f dark nothingOwedNoEmail] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f dark expired] violations 0  (passes 19)
+[C-07 #0f8f6f light unlocked] "Download all" ink rgb(0, 0, 0) on rgb(15, 143, 111) 15px/700 ratio 5.18:1
+[LL-12 axe 4.11.4 #0f8f6f light unlocked] violations 0  (passes 23)
+[LL-13 #0f8f6f light unlocked] Tab order: Download all [fv true, solid 2px rgb(122, 86, 0) vs rgb(255, 255, 255) 6.65:1] > Play Midnight Drive - Instrumental.mp3 [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Instrumental.m [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Lyric sheet.pdf [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Stems.zip [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Play Midnight Drive - Final Mix (24-bit  [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Download Midnight Drive - Final Mix (24- [fv true, solid 2px rgb(22, 20, 14) vs rgb(255, 255, 255) 18.41:1] > Privacy [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1] > Terms [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1]
+[C-07 #0f8f6f light lockedPay] "Pay and unlock" ink rgb(0, 0, 0) on rgb(15, 143, 111) 15px/700 ratio 5.18:1
+[LL-12 axe 4.11.4 #0f8f6f light lockedPay] violations 0  (passes 24)
+[LL-13 #0f8f6f light lockedPay] Tab order: Pay and unlock [fv true, solid 2px rgb(122, 86, 0) vs rgb(255, 255, 255) 6.65:1] > Privacy [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1] > Terms [fv true, solid 2px rgb(122, 86, 0) vs rgb(232, 230, 223) 5.32:1]
+[LL-12 axe 4.11.4 #0f8f6f light noTarget] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f light openWrong] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f light hidden] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f light hiddenOpen] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f light nothingOwedNoEmail] violations 0  (passes 24)
+[LL-12 axe 4.11.4 #0f8f6f light expired] violations 0  (passes 19)
+[C-07 #3b63e6 dark unlocked] "Download all" ink rgb(255, 255, 255) on rgb(59, 99, 230) 15px/700 ratio 5.11:1
+[C-07 #3b63e6] header: logo img null, studio text ["MS","Myind Sound"]
+[C-07 #3b63e6 dark lockedPay] "Pay and unlock" ink rgb(255, 255, 255) on rgb(59, 99, 230) 15px/700 ratio 5.11:1
+[C-07 #777777 dark unlocked] "Download all" ink rgb(0, 0, 0) on rgb(119, 119, 119) 15px/700 ratio 4.69:1
+[C-07 #777777] header: logo img null, studio text ["MS","Myind Sound"]
+[C-07 #777777 dark lockedPay] "Pay and unlock" ink rgb(0, 0, 0) on rgb(119, 119, 119) 15px/700 ratio 4.69:1
+accent restored to #fdb913
+
+## C-08 / C-09 headers
+== curl -sI (signed out) /delivery/<unlocked>
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+== curl -sI (signed out) /delivery/<locked>
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+== curl -sI (signed out) /delivery/<unknown>
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+== curl -sI (signed out) /delivery/<malformed>
+HTTP/1.1 200 OK
+Referrer-Policy: no-referrer
+X-Robots-Tag: noindex, nofollow
+
+## C-13 browser: late booking (start 2026-11-11T07:00Z = Nov 10, 11 PM Pacific): page 'R5 Late night vocals · Studio A - Live Room · November 10, 2026'; email late-ready.html 'on November 10'
+
+## F-03 first-load JS (next build exit 0, Next 16.2.6; rootMainFiles + entryJSFiles per route, gzip)
+{"dir":"delivery/[token]","chunks":19,"rawKB":"839","gzipKB":"248","appShellMarkers":[]}
+{"dir":"_not-found","chunks":17,"rawKB":"807","gzipKB":"236","appShellMarkers":[]}
+{"dir":"(app)/calendar","chunks":32,"rawKB":"1513","gzipKB":"467","appShellMarkers":["SessionSheet","Search clients, sessions"]}
