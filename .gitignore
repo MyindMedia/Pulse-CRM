@@ -33,14 +33,17 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
-
 # local dev artifacts
 .shots/
 *.sh
 # ...but track the portable deploy script (needed by cloud/phone sessions)
 !scripts/deploy.sh
+# ...and the armed monitor's deploy + hand-run scripts. MYI-266: the blanket
+# `*.sh` above is why `scripts/cf/deploy-uptime-watch.sh` was never on main —
+# `git add` reported nothing and `git status` showed nothing, so the only copy
+# of the live monitor's deploy path sat on an unmerged branch for two weeks.
+!scripts/cf/deploy-uptime-watch.sh
+!scripts/uptime-check.sh
 
 # typescript
 *.tsbuildinfo
