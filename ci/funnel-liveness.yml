@@ -1,0 +1,86 @@
+name: Booking funnel — is the counter still writing?
+
+# Separate from uptime.yml on purpose. That one runs every 10 minutes and is a
+# pure curl; this one drives Chromium and writes a real row each time, so it
+# runs four times a day instead. Also on GitHub's runners rather than a Convex
+# cron: a Convex cron would be testing the backend from inside the backend, and
+# the half that actually broke silently is the browser's.
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: funnel-liveness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Installed here rather than added to the repo's devDependencies: this is
+      # an ops script and a browser has no business in the app's lockfile.
+      - name: Install Chromium
+        run: |
+          npm i -g playwright
+          playwright install --with-deps chromium
+
+      - name: Load the booking page and watch for the write
+        id: probe
+        run: |
+          set +e
+          node scripts/funnel-liveness.mjs 2>&1 | tee /tmp/funnel.txt
+          echo "status=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      # Exit 2 means the page never served, which uptime.yml is already paging
+      # for. One fault, one alert: filing here too would double-page on an
+      # outage that has nothing to do with the counter.
+      - name: Note that the site is down, and stop
+        if: steps.probe.outputs.status == '2'
+        run: |
+          echo "::notice::Booking page did not serve, so the counter could not be" \
+               "measured. uptime.yml owns this alert."
+
+      - name: Open or update the counter issue
+        if: steps.probe.outputs.status == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "🔴 Booking-funnel counter is not recording visits"
+        run: |
+          BODY="$(printf 'A real browser loaded the booking page at %s and no funnel row was written.\n\nEvery studio'"'"'s funnel report is reading zero visitors regardless of its traffic until this is fixed, and the client swallows the error by design (src/lib/use-booking-funnel.ts), so nothing else will say so.\n\n```\n%s\n```\n\nRun: %s/%s/actions/runs/%s\n' \
+            "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(cat /tmp/funnel.txt)" \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")"
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY"
+          fi
+
+      - name: Close the counter issue once it writes again
+        if: steps.probe.outputs.status == '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TITLE: "🔴 Booking-funnel counter is not recording visits"
+        run: |
+          EXISTING="$(gh issue list --state open --search "$TITLE in:title" --json number --jq '.[0].number')"
+          if [ -n "$EXISTING" ]; then
+            gh issue close "$EXISTING" --comment "A browser load wrote a funnel row at $(date -u +%Y-%m-%dT%H:%M:%SZ). Recovered."
+          fi
+
+      # Last, so the issue is filed before the job goes red.
+      - name: Fail if the counter did not write
+        if: steps.probe.outputs.status == '1'
+        run: exit 1
