@@ -36,4 +36,22 @@ No new webhook endpoint or event is needed. The receiver (`convex/billingWebhook
 
 ## Automation (do not run without a go-ahead)
 
-`scripts/stripe-create-products.mjs` creates the same three products and six prices idempotently and sets the Convex vars. It refuses to write in live mode without `--live-approved`. It has not been run.
+`scripts/stripe-create-products.mjs` creates the same three products and six prices idempotently and sets the Convex vars. It refuses to write in live mode without `--live-approved`.
+
+**It has been run live, once, on 2026-10-07T22:09Z** — and it mis-parented a price book, which is MYI-248. Its
+`findProduct` keyed on `metadata.pulse_tier` alone, so `growth` matched the 2026-06-07 $199 product, printed
+"reusing product", and created $297/mo + $2,970/yr **on that live product**. One product id ended up carrying two
+generations of the price book; `metadata.slug` is product-scoped, so the `pulse-studio-growth` revenue line had to be
+given up to resolve it.
+
+Fixed in MYI-252. A product now binds only when `pulse_tier` **and** `pulse_price_book` both match
+(`PRICE_BOOK` in `scripts/lib/price-book.mjs`), so a new generation cannot reach an old one's products at any case,
+for any key. The run **stops and writes nothing** for a tier when the key belongs to another book, when two products
+match, when another live product already owns the tier's `slug`, or when the bound product carries an active price
+this book does not declare. The description-substring matcher is gone. Rules are asserted in
+`convex/priceBookBinding.test.ts`.
+
+**Starting a 5th generation:** bump `PRICE_BOOK`, give each tier a `slug` no live product holds, and pass
+`--new-generation` (it may create a fresh product, never bind to an old one). After any run that creates a live price,
+run `node scripts/revenue-by-product.mjs --relock` in the storefront repo and commit the new `ACTIVE_PRICE_BOOK`, or
+GATE D goes red.
