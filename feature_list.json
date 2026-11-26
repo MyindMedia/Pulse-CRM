@@ -1,0 +1,1687 @@
+{
+  "project": "Pulse OS (pulse-web)",
+  "baseline": "origin/develop 4276ef13 (same files as origin/main 1eae6271), read 2026-11-25",
+  "rules": [
+    "Only change a feature's passes value. Never edit or delete descriptions or test steps; record corrections in claude-progress.txt.",
+    "passes true requires every test step verified.",
+    "Features with needs_owner_approval need Lawrence's approval before code.",
+    "'Staging or local' means https://develop--studiopulse-staging.netlify.app or a local app on a non-production Convex backend. Never test writes against production."
+  ],
+  "features": [
+    {
+      "id": "F001",
+      "category": "integration",
+      "priority": 1,
+      "description": "A developer can install dependencies cleanly from the lockfile.",
+      "test_steps": [
+        "Check out a branch based on origin/develop",
+        "Run `npm ci` and expect exit code 0",
+        "Run `git status --short` and expect no changed tracked files"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F002",
+      "category": "integration",
+      "priority": 2,
+      "description": "The whole app type-checks.",
+      "test_steps": [
+        "Run `npx tsc --noEmit` and expect exit code 0 with no errors"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F003",
+      "category": "integration",
+      "priority": 3,
+      "description": "The full unit and integration test suite passes, including the three failures recorded as known on main.",
+      "test_steps": [
+        "Run `npx vitest run` and expect 0 failed tests",
+        "Specifically expect convex/lib/agentScope.test.ts, convex/marketing/results.test.ts and the live-call case in convex/outreachCalls.test.ts to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F004",
+      "category": "integration",
+      "priority": 4,
+      "description": "Lint passes with no errors.",
+      "test_steps": [
+        "Run `npm run lint` and expect 0 errors (the 2026-11-12 record was 53 errors, 111 warnings)"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F005",
+      "category": "integration",
+      "priority": 5,
+      "description": "The production web build compiles.",
+      "test_steps": [
+        "Set NEXT_PUBLIC_CONVEX_URL to a non-production deployment",
+        "Run `npx next build` (skips the codegen prebuild) and expect exit code 0"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F006",
+      "category": "integration",
+      "priority": 6,
+      "description": "A developer can run the app locally against a non-production backend.",
+      "test_steps": [
+        "Provide a non-production NEXT_PUBLIC_CONVEX_URL in the environment or .env.local",
+        "Run `./init.sh` and expect it to start or reuse the dev server and report /pricing 200",
+        "Open http://localhost:3147/dashboard and expect seeded studio data, with no request to pastel-corgi-340"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F007",
+      "category": "security",
+      "priority": 7,
+      "description": "Every studio's records are isolated: no signed-in user can read or write another studio's data.",
+      "test_steps": [
+        "Run `npx vitest run convex/lib/access.test.ts convex/lib/access-audit.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, sign in as studio A and request a studio B record id (session, invoice, client) and expect a refusal or not found"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F008",
+      "category": "security",
+      "priority": 8,
+      "description": "Role permissions are enforced on the server for owner, manager, engineer, staff and guest.",
+      "test_steps": [
+        "Run `npx vitest run convex/lib/accessPolicies.test.ts convex/refusalReasons.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, sign in as an engineer, open /banking, /expenses and /payroll by URL and expect a refusal with no figures shown"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F009",
+      "category": "security",
+      "priority": 9,
+      "description": "Money figures are visible only to people with money permission, including the owner's 'Managers can see money' switch.",
+      "test_steps": [
+        "Run `npx vitest run convex/money.test.ts convex/bookingDrillVisibility.test.ts convex/bookingGearVisibility.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, turn the manager money switch off, sign in as a manager and expect no rates, balances or revenue on dashboard, bookings, clients and inventory"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F010",
+      "category": "security",
+      "priority": 10,
+      "description": "Locked plan features are refused by the server and shown as locked with the tier that unlocks them.",
+      "test_steps": [
+        "Run `npx vitest run convex/entitlements.test.ts convex/tierGates.test.ts src/lib/nav.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, on a Core studio open a Growth page by URL and expect an upgrade card",
+        "Click a locked sidebar row and expect /settings?tab=billing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F011",
+      "category": "functional",
+      "priority": 11,
+      "description": "Owners can switch modules off, and a switched-off module disappears from navigation and refuses server calls.",
+      "test_steps": [
+        "Run `npx vitest run convex/modules.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, turn off Inventory in Settings, expect it gone from the sidebar and command palette, and /inventory to refuse",
+        "Turn it back on and expect it to return; expect bookings and calendar to have no off switch"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F012",
+      "category": "security",
+      "priority": 12,
+      "description": "Core studios cannot switch on or use Growth receptionist and visitor check-in features (audit item entitlement-gate).",
+      "test_steps": [
+        "Confirm the gap in code first",
+        "On a Core studio try enabling the receptionist and visitor check-in and expect UPGRADE_REQUIRED",
+        "Add a server test that proves it"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F013",
+      "category": "security",
+      "priority": 13,
+      "description": "Re-saving a split sheet keeps the signature record, and a signature never attaches to shares the person did not agree to.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Sign a split sheet by link, then re-save it (add an IPI) and expect signer, time and method preserved",
+        "Change a signed share and expect that signature to be voided and requested again",
+        "Run `npx vitest run convex/splitSheets.test.ts convex/splitSignatures.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F014",
+      "category": "security",
+      "priority": 14,
+      "description": "A split sheet marked executed by studio staff is never shown as signed by the contributors.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Mark a sheet executed by hand and expect a label that differs from real e-signature",
+        "Expect royalties not to treat unsigned shares as signed"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F015",
+      "category": "functional",
+      "priority": 15,
+      "description": "A studio-billed booking with prices hidden is never auto-cancelled for an unpaid balance.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Approve a booking with pricing hidden and run the booking automation past the balance deadline",
+        "Expect the booking to remain and no cancellation text"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F016",
+      "category": "functional",
+      "priority": 16,
+      "description": "A client cannot be charged for a booking that has already been released.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Open checkout for a held booking, let the hold expire, then try to pay",
+        "Expect the Checkout session to be expired and no charge, with an accurate message"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F017",
+      "category": "functional",
+      "priority": 17,
+      "description": "A voided invoice cannot be paid.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Void an invoice and open /pay/invoice/<id>",
+        "Expect a cancelled state with no pay button and the server refusing payment",
+        "Run `npx vitest run convex/invoicePay.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F018",
+      "category": "functional",
+      "priority": 18,
+      "description": "An intern waiting on overtime approval is never told to keep working on unrecorded time.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Trigger the stay-clocked-in request, let it time out",
+        "Expect the text and the recorded hours to agree",
+        "Run `npx vitest run convex/lib/smsTemplates.test.ts convex/timeclock.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F019",
+      "category": "functional",
+      "priority": 19,
+      "description": "A client's card is saved server side after card capture and shows on their record.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "On staging or a local non-production backend with a seeded test studio, complete card capture with Stripe test card 4242 4242 4242 4242",
+        "Reload the client profile and expect the saved card without relying on the browser callback"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F020",
+      "category": "functional",
+      "priority": 20,
+      "description": "A studio can charge the saved card for a missed session.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Save a test card, mark a session no-show with a fee policy",
+        "Expect a real Stripe test charge on the studio's connected account and a paid fee invoice",
+        "Run `npx vitest run convex/noShowShield.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F021",
+      "category": "functional",
+      "priority": 21,
+      "description": "Prepaid hour packages can be bought by a client or sold by staff and draw down as credit.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Sell a package to a client, then book a session against it",
+        "Expect the credit balance to fall by the session hours",
+        "Expect the page gate to match the Growth entitlement",
+        "Run `npx vitest run convex/packages.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F022",
+      "category": "functional",
+      "priority": 22,
+      "description": "Hourly engineers' labor is counted once in the P&L when payroll is posted and session payouts are paid.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Post a pay period and pay a session payout covering the same hours",
+        "Expect one labor cost in the P&L",
+        "Run `npx vitest run convex/payouts.test.ts convex/payroll.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F023",
+      "category": "functional",
+      "priority": 23,
+      "description": "Wrong or missing clock-outs can be corrected, and the same pay period cannot be posted twice.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Edit an open time entry and expect corrected hours in payroll",
+        "Post a period twice and expect the second post refused"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F024",
+      "category": "functional",
+      "priority": 24,
+      "description": "The agent's auto-approve switches do exactly what their copy says.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Turn on each autonomy option and run the agent",
+        "Expect only the described low-risk reminders to send without approval",
+        "Run `npx vitest run convex/opsAutonomy.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F025",
+      "category": "functional",
+      "priority": 25,
+      "description": "Discount codes accepted at checkout match what the product claims: approved, expiring, and linked on the right domain.",
+      "test_steps": [
+        "Get the owner's written approval of a short plan before changing code",
+        "Generate a code and expect approval and an expiry",
+        "Expect the emailed link to use studiopulse.tech",
+        "Run `npx vitest run convex/discountCodes.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F026",
+      "category": "functional",
+      "priority": 26,
+      "description": "A visitor can start a 14-day card trial and receives their own studio sub-account.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /pricing, click Start free trial, enter email and studio name",
+        "Expect Stripe Checkout with the email prefilled and a card required",
+        "Pay with a test card, expect /welcome/activate then a new studio that is not an agency",
+        "Run `npx vitest run convex/claimCheckout.test.ts convex/billing.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F027",
+      "category": "functional",
+      "priority": 27,
+      "description": "Unfinished sign-ups are saved, can be resumed and unsubscribed, and appear to the platform owner.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, start a trial and abandon Checkout",
+        "Expect a row on /agency/signups",
+        "Open the resume link and expect a fresh checkout; open the unsubscribe link and expect no further reminders",
+        "Run `npx vitest run convex/signupLeads.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F028",
+      "category": "functional",
+      "priority": 28,
+      "description": "Pricing change and trial rules require a card everywhere except the 365-day beta.",
+      "test_steps": [
+        "Run `npx vitest run convex/trialRequiresCard.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, assign a paid trial plan to a test studio and expect pending_card until Checkout completes"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F029",
+      "category": "functional",
+      "priority": 29,
+      "description": "Every paid agency plan creates a real Stripe subscription before the studio becomes active.",
+      "test_steps": [
+        "Run `npx vitest run convex/agencyPaidPlanCharges.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, assign a paid no-trial plan, expect pending_card, complete Checkout and expect active"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F030",
+      "category": "functional",
+      "priority": 30,
+      "description": "An owner can upgrade or downgrade from Settings > Billing without creating a second subscription.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, on a subscribed test studio open /settings?tab=billing and choose another plan",
+        "Expect the Stripe portal change flow and one subscription afterwards",
+        "Run `npx vitest run convex/changeMyPlan.test.ts convex/platformSubscription.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F031",
+      "category": "functional",
+      "priority": 31,
+      "description": "The Stripe webhook verifies signatures and applies subscription, checkout and Connect events idempotently.",
+      "test_steps": [
+        "POST an unsigned body to a non-production /stripe/webhook and expect 400",
+        "Replay a signed test event twice and expect one state change",
+        "Run `npx vitest run convex/stripeConnect.test.ts convex/stripeLedger.test.ts convex/billingLock.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F032",
+      "category": "functional",
+      "priority": 32,
+      "description": "The beta runs 365 days without a card, warns at 30, 7 and 1 days, then locks until a plan is paid.",
+      "test_steps": [
+        "Run `npx vitest run convex/betaClock.test.ts convex/betaHardStop.test.ts convex/betaLicense.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, set a test studio's beta end in the past and expect the lock screen leading to /billing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F033",
+      "category": "functional",
+      "priority": 33,
+      "description": "A studio can be invited by email and the owner can create an account and finish branded onboarding.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, send an invite from /agency",
+        "Open /invite/<token>, set name and password, expect /welcome",
+        "Complete the steps and expect the room and logo to appear in the studio",
+        "Run `npx vitest run convex/invites.test.ts convex/onboarding.test.ts convex/onboardingFeatures.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F034",
+      "category": "functional",
+      "priority": 34,
+      "description": "An invited teammate can join with the right role and complete staff onboarding.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, add a team member with an email and phone",
+        "Accept the invite, expect /welcome-team with photo and availability steps",
+        "Run `npx vitest run convex/staffOnboarding.test.ts convex/teammateAllowlist.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F035",
+      "category": "functional",
+      "priority": 35,
+      "description": "A user can delete their account, and a sole owner is refused.",
+      "test_steps": [
+        "Run `npx vitest run convex/account.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, as a non-sole owner delete the account and expect sign-out and the seat anonymized"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F036",
+      "category": "functional",
+      "priority": 36,
+      "description": "An owner can create and edit rooms with rates, deposits and photos.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /studio, add a room with hourly rate and deposit percent",
+        "Edit it and expect changes on /studio/<id> and the public booking page",
+        "Run `npx vitest run convex/rooms.test.ts convex/photos.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F037",
+      "category": "functional",
+      "priority": 37,
+      "description": "A studio connects its own Stripe account and shows an accurate connection status.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open Settings and start Stripe Connect onboarding in test mode",
+        "Complete it and expect status connected",
+        "Run `npx vitest run convex/stripeConnect.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F038",
+      "category": "functional",
+      "priority": 38,
+      "description": "A client can book a room on the public page with services and add-ons without signing in.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /book/<slug>, choose a room, time and add-on",
+        "Submit and expect the session on /bookings and /calendar",
+        "Run `npx vitest run convex/booking.addons.test.ts convex/bookableServices.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F039",
+      "category": "functional",
+      "priority": 39,
+      "description": "A client pays a deposit to the studio's own Stripe account and the booking is confirmed.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, book a room with a deposit and pay with a test card",
+        "Expect a Stripe payment on the connected account and a confirmed session",
+        "Run `npx vitest run convex/bookingPayment.test.ts convex/bookingConversion.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F040",
+      "category": "functional",
+      "priority": 40,
+      "description": "Unpaid holds expire and their messages state the correct amount and deadline.",
+      "test_steps": [
+        "Run `npx vitest run convex/holdMessageTruth.test.ts convex/forfeitTruth.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, create a hold, run the booking automation past expiry and expect the slot freed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F041",
+      "category": "functional",
+      "priority": 41,
+      "description": "Two bookings can never overlap in one room, including room blocks and outside calendar events.",
+      "test_steps": [
+        "Run `npx vitest run convex/roomBlocks.test.ts convex/externalCalendarBusy.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, block a room on the calendar then try to book the same time publicly and expect it unavailable"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F042",
+      "category": "functional",
+      "priority": 42,
+      "description": "A studio can take booking requests for approval, with or without showing prices.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, turn on booking requests and open the booking link",
+        "Submit a request, approve it and expect a confirmation; decline another and expect the refund wording when paid",
+        "Run `npx vitest run convex/bookingRequests.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F043",
+      "category": "functional",
+      "priority": 43,
+      "description": "Booking feature switches change the public booking page accordingly.",
+      "test_steps": [
+        "Run `npx vitest run convex/bookingFeatures.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, toggle each switch in Settings and expect the public page to match"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F044",
+      "category": "functional",
+      "priority": 44,
+      "description": "Changes to existing bookings go through the approval flow and are recorded.",
+      "test_steps": [
+        "Run `npx vitest run convex/sessionChanges.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, request a change to a confirmed booking, approve it and expect the new time and a record"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F045",
+      "category": "functional",
+      "priority": 45,
+      "description": "Off-peak windows discount the public price and never stack with promo codes.",
+      "test_steps": [
+        "Run `npx vitest run convex/lib/offPeak.test.ts convex/promos.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, set an off-peak window and expect the discounted price on /book/<slug>"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F046",
+      "category": "functional",
+      "priority": 46,
+      "description": "Waitlist entries are offered freed slots once, and a taken slot is never offered again.",
+      "test_steps": [
+        "Run `npx vitest run convex/waitlist.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, cancel a booking with a waitlist entry and expect one offer"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F047",
+      "category": "functional",
+      "priority": 47,
+      "description": "The calendar shows day, week and month views, and a session opens from a link.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /calendar, switch day, week and month",
+        "Open /calendar?session=<id> on first load and expect that booking open",
+        "Open /calendar?new=1 and expect the new booking form",
+        "Run `npx vitest run src/lib/use-open-session.test.tsx src/components/calendar/visible-pills.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F048",
+      "category": "functional",
+      "priority": 48,
+      "description": "Staff can run a session on the floor: notes, files, checklist and arrival prep.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open a session, add a note, upload a file and tick a checklist item",
+        "Open /brief/<sessionId> and expect the same data",
+        "Run `npx vitest run convex/sessionFloor.test.ts convex/arrivalPrep.test.ts convex/sessionExtras.test.ts convex/bookingChecklists.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F049",
+      "category": "integration",
+      "priority": 49,
+      "description": "Two-way Google Calendar sync works at studio and team-member level.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, connect a test Google account, book a session and expect the event in Google",
+        "Create a Google event and expect a busy block within 10 minutes",
+        "Run `npx vitest run convex/googleCalendar.test.ts convex/googleCalendarSync.test.ts convex/googleCalendarD.test.ts convex/googleImport.test.ts convex/oauthCsrf.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F050",
+      "category": "integration",
+      "priority": 50,
+      "description": "External iCal feeds block rooms correctly, including recurring and all-day events, and private addresses are refused.",
+      "test_steps": [
+        "Run `npx vitest run convex/externalCalendars.test.ts convex/externalCalendarsParse.test.ts convex/lib/icalGuard.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, add a feed and expect its events on the room grid"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F051",
+      "category": "functional",
+      "priority": 51,
+      "description": "Staff can create invoices, record payments with a required payment type, and see accurate balances.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /payments, create an invoice and record a partial payment",
+        "Expect the balance to update and /payments/<id> to show the history",
+        "Run `npx vitest run convex/invoicePaymentMethod.test.ts src/lib/invoice-filter.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F052",
+      "category": "functional",
+      "priority": 52,
+      "description": "A client can pay an invoice from the public link without signing in.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /pay/invoice/<id> and pay with a test card",
+        "Expect the invoice marked paid",
+        "Run `npx vitest run convex/invoicePay.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F053",
+      "category": "functional",
+      "priority": 53,
+      "description": "Overdue invoices are chased on the 3, 7 and 14 day ladder.",
+      "test_steps": [
+        "Run `npx vitest run convex/dunning.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F054",
+      "category": "functional",
+      "priority": 54,
+      "description": "The no-show and late cancel policy forfeits deposits and bills fees only as the booking page states.",
+      "test_steps": [
+        "Run `npx vitest run convex/noShowShield.test.ts convex/forfeitTruth.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, mark a session no-show and expect the fee and message to match the policy shown at booking"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F055",
+      "category": "functional",
+      "priority": 55,
+      "description": "Memberships can be sold on a public page and renew through the studio's Stripe.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, create a membership plan and subscribe with a test card",
+        "Expect an active member and credit",
+        "Run `npx vitest run convex/memberships.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F056",
+      "category": "functional",
+      "priority": 56,
+      "description": "Expenses can be recorded with receipts and read by the receipt scanner.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /expenses, add an expense with a receipt photo",
+        "Expect suggested fields that the user can correct",
+        "Run `npx vitest run convex/expenses.test.ts convex/receipts.test.ts convex/lib/receiptAI.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F057",
+      "category": "integration",
+      "priority": 57,
+      "description": "Bank and card accounts sync through Plaid sandbox and transactions reconcile against expenses and receipts.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /banking, link a Plaid sandbox account",
+        "Expect balances and transactions, then match a receipt",
+        "Run `npx vitest run convex/banking.test.ts convex/bankingWebhook.test.ts convex/bankingPagination.test.ts convex/moneyReconciliation.test.ts convex/receiptReconciliation.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F058",
+      "category": "functional",
+      "priority": 58,
+      "description": "The double-entry ledger balances and the books report matches the recomputed statements.",
+      "test_steps": [
+        "Run `npx vitest run convex/ledger.test.ts convex/lib/statements.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, open /reports/books and expect balanced statements with variances listed"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F059",
+      "category": "functional",
+      "priority": 59,
+      "description": "The accounting agent only drafts and flags money items that a person approves.",
+      "test_steps": [
+        "Run `npx vitest run convex/accountingAgent.test.ts convex/agents/accounting.test.ts convex/lib/agentScope.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, run the scan and expect inbox items, with nothing posted until approved"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F060",
+      "category": "functional",
+      "priority": 60,
+      "description": "Reports show revenue, utilization and profitability that match the underlying records.",
+      "test_steps": [
+        "Run `npx vitest run convex/reports.test.ts convex/profitability.test.ts convex/dashboardRevenue.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, open /reports and compare one month's revenue with /payments"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F061",
+      "category": "functional",
+      "priority": 61,
+      "description": "Staff can add, import and search clients and open a full client history.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /roster, add a client and import a CSV",
+        "Open /roster/<id> and expect sessions, invoices and messages",
+        "Run `npx vitest run convex/artists.test.ts convex/importClients.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F062",
+      "category": "functional",
+      "priority": 62,
+      "description": "Leads move through the pipeline board and filters work.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /pipeline, add a lead and drag it between stages, reload and expect it to stay",
+        "Run `npx vitest run convex/leadFunnel.test.ts src/components/pipeline/filters.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F063",
+      "category": "functional",
+      "priority": 63,
+      "description": "Texts, emails and portal messages appear in one inbox where staff can reply or mark handled.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /messages, reply to a thread and mark another handled",
+        "Run `npx vitest run convex/messageInbox.test.ts convex/replyToStudio.test.ts convex/clientEmail.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F064",
+      "category": "security",
+      "priority": 64,
+      "description": "Inbound texts require the shared secret and route to the correct studio or to Unrouted.",
+      "test_steps": [
+        "POST to a non-production /sms/inbound without the token and expect 401",
+        "Run `npx vitest run convex/messagesRouting.test.ts convex/sms.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F065",
+      "category": "security",
+      "priority": 65,
+      "description": "STOP is honored on every text the system sends, and START restores consent.",
+      "test_steps": [
+        "Run `npx vitest run convex/smsStopEnforced.test.ts convex/notifyOptOut.test.ts convex/smsKeywords.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F066",
+      "category": "functional",
+      "priority": 66,
+      "description": "Booking reminders go out by email and text at the stated times with truthful wording.",
+      "test_steps": [
+        "Run `npx vitest run convex/reminders.test.ts convex/reminderDayWord.test.ts convex/smsConfirmTruth.test.ts convex/smsAcksTruth.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F067",
+      "category": "integration",
+      "priority": 67,
+      "description": "The Zuops SMS provider sends studio texts and records delivery or simulation honestly.",
+      "test_steps": [
+        "Run `npx vitest run convex/lib/zuopsSms.test.ts convex/notify.test.ts convex/zuopsStudioTags.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F068",
+      "category": "functional",
+      "priority": 68,
+      "description": "A client uses their magic-link portal to rebook, pay, message and download approved files only.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /portal/<token> and perform each action",
+        "Expect draft files to be absent",
+        "Run `npx vitest run convex/portal.test.ts convex/portalUpgrades.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F069",
+      "category": "functional",
+      "priority": 69,
+      "description": "After a session the client is asked for a review and gets the studio's Google review link.",
+      "test_steps": [
+        "Run `npx vitest run convex/reviews.test.ts convex/reviewRequestTruth.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, complete a session, open /review/<token> and submit a rating"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F070",
+      "category": "functional",
+      "priority": 70,
+      "description": "Gap deal texts go only to opted-in clients and wait for approval by default.",
+      "test_steps": [
+        "Run `npx vitest run convex/growthDeals.test.ts convex/lib/deals.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F071",
+      "category": "functional",
+      "priority": 71,
+      "description": "The AI receptionist answers inbound booking texts within its guardrails.",
+      "test_steps": [
+        "Run `npx vitest run convex/receptionist.test.ts convex/lib/guardrails.test.ts convex/lib/aiGuard.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F072",
+      "category": "functional",
+      "priority": 72,
+      "description": "Managers schedule shifts with conflict warnings and staff see their own schedule.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /schedule, add overlapping shifts and expect a warning",
+        "Run `npx vitest run convex/shifts.test.ts convex/shiftsEdit.test.ts convex/engineerRequest.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F073",
+      "category": "functional",
+      "priority": 73,
+      "description": "Staff set availability and request time off, and managers decide.",
+      "test_steps": [
+        "Run `npx vitest run convex/availability.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, request time off and approve it, expect the staff member notified"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F074",
+      "category": "functional",
+      "priority": 74,
+      "description": "Staff clock in and out from a phone and the dashboard shows who is on shift.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, at 390px wide open /clock, clock in and out",
+        "Expect the entry and the on-shift widget to update",
+        "Run `npx vitest run convex/timeclock.test.ts convex/lib/punch.test.ts convex/lib/punchAlert.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F075",
+      "category": "functional",
+      "priority": 75,
+      "description": "Payroll shows hours against rates for the pay period and posts labor cost once.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /payroll and compare a period with time entries",
+        "Run `npx vitest run convex/payroll.test.ts src/lib/pay-period.test.ts src/lib/timesheet.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F076",
+      "category": "functional",
+      "priority": 76,
+      "description": "Visitors check in by QR code and appear in the front-desk log and kiosk.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /visit/<slug>, submit a check-in, expect it on /visitors",
+        "Open /kiosk and expect today's calendar",
+        "Run `npx vitest run convex/visitors.test.ts src/lib/checkin-sign.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F077",
+      "category": "functional",
+      "priority": 77,
+      "description": "The change log records who changed what for owners and managers.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, edit a room and open /changes, expect the entry with person and time",
+        "Run `npx vitest run convex/changeAudit.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F078",
+      "category": "integration",
+      "priority": 78,
+      "description": "Team devices receive push alerts for arrivals, wrap-ups and punches once each.",
+      "test_steps": [
+        "Run `npx vitest run convex/t10.test.ts convex/lib/t10.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F079",
+      "category": "integration",
+      "priority": 79,
+      "description": "The native app change feed delivers only what each user may see and re-snapshots when permissions change.",
+      "test_steps": [
+        "Run `npx vitest run convex/sync.test.ts convex/lib/mirroredTables.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F080",
+      "category": "functional",
+      "priority": 80,
+      "description": "Inventory can be added, imported from a spreadsheet, searched and labeled.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /inventory, add an item and import an xlsx",
+        "Open /inventory/labels and expect printable labels",
+        "Run `npx vitest run convex/equipment.test.ts src/lib/inventory-import.test.ts src/lib/inventory-search.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F081",
+      "category": "functional",
+      "priority": 81,
+      "description": "Gear is checked out and in by scanning, with who has what and one overdue alert.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, check out a labeled item, expect holder shown, then check in",
+        "Run `npx vitest run convex/gearCheckout.test.ts convex/gearOwnership.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F082",
+      "category": "functional",
+      "priority": 82,
+      "description": "Clients can add rental gear to a booking at the studio's rental price.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, set a rental price on /rentals and add that item during booking",
+        "Run `npx vitest run convex/lib/gearRental.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F083",
+      "category": "functional",
+      "priority": 83,
+      "description": "The patch bay records devices, ports and cables and shows history.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /patch, add two devices and run a cable, reload and expect it",
+        "Open /patch/<id> and expect the same connection",
+        "Run `npx vitest run convex/patchCables.test.ts convex/patchManager.test.ts convex/connectorVocab.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F084",
+      "category": "functional",
+      "priority": 84,
+      "description": "A maker's spec sheet or photo fills in a device's inputs and outputs for review.",
+      "test_steps": [
+        "Run `npx vitest run convex/patchSpecs.test.ts convex/specLookup.test.ts convex/specDiff.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F085",
+      "category": "functional",
+      "priority": 85,
+      "description": "Software and plugin licenses are tracked with renewal costs.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /software, add a license with a renewal date and expect it listed",
+        "Run `npx vitest run convex/software.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F086",
+      "category": "functional",
+      "priority": 86,
+      "description": "Songs can be created, imported from a streaming link and enriched from open catalogs.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /songs, import a song by link and expect title, cover and credits",
+        "Run `npx vitest run convex/songImport.test.ts convex/songs.overview.test.ts convex/lib/musicLink.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F087",
+      "category": "functional",
+      "priority": 87,
+      "description": "A member or studio can import a whole catalog by credit identity without duplicates.",
+      "test_steps": [
+        "Run `npx vitest run convex/catalogImport.test.ts convex/catalogDiscovery.test.ts convex/lib/catalogMerge.test.ts convex/importedCredits.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F088",
+      "category": "functional",
+      "priority": 88,
+      "description": "Contributors sign split sheets by link and used links say so.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, create a split on /splits, send it, sign at /sign/<token>",
+        "Reopen the link and expect a signed message",
+        "Run `npx vitest run convex/splitSheets.test.ts convex/splitSignatures.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F089",
+      "category": "functional",
+      "priority": 89,
+      "description": "With the agency switch on, distributor statements divide by signed splits; with it off, royalties are absent.",
+      "test_steps": [
+        "Run `npx vitest run convex/royalties.test.ts convex/royaltiesGate.test.ts convex/royaltyStatements.test.ts convex/lib/royaltyCsv.test.ts convex/lib/royaltyMath.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F090",
+      "category": "functional",
+      "priority": 90,
+      "description": "Finished mix versions are numbered, take notes and record the version the client approved.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, upload two versions on /mixes, add a note and approve one",
+        "Run `npx vitest run convex/files.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F091",
+      "category": "integration",
+      "priority": 91,
+      "description": "The media library uploads directly to R2, versions files and serves expiring guest links.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, upload a file on /library and expect an R2 object key",
+        "Open /files/<token> signed out, then expire it and expect refusal",
+        "Run `npx vitest run convex/mediaLibrary.test.ts convex/media.test.ts convex/r2Storage.test.ts convex/grants.test.ts convex/orgBucketTrigger.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F092",
+      "category": "functional",
+      "priority": 92,
+      "description": "Post-production projects move through stages with tasks, owners, due dates and reminders.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /projects, create one, add a task and advance the stage",
+        "Run `npx vitest run convex/projects.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F093",
+      "category": "functional",
+      "priority": 93,
+      "description": "Release campaigns can be planned and tracked.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /releases, create a campaign, add items and reload"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F094",
+      "category": "functional",
+      "priority": 94,
+      "description": "Sync placements and beat licenses are recorded and rights can be exported.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /licensing, add a license and export rights",
+        "Run `npx vitest run convex/licensing.test.ts convex/rightsExport.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F095",
+      "category": "functional",
+      "priority": 95,
+      "description": "The Pulse Agent answers about the studio's own data only and queues actions for approval.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, ask a question on /agent, then request an email and expect it in /inbox unsent",
+        "Run `npx vitest run convex/agent.test.ts convex/aiContext.test.ts convex/lib/redact.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F096",
+      "category": "functional",
+      "priority": 96,
+      "description": "Approving an inbox item executes it once and records the result truthfully.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, approve and reject items on /inbox",
+        "Run `npx vitest run convex/opsActions.test.ts convex/opsBrain.test.ts convex/staleResolution.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F097",
+      "category": "functional",
+      "priority": 97,
+      "description": "Insights can become standing rules, and client-facing rule actions still require approval.",
+      "test_steps": [
+        "Run `npx vitest run convex/agentRules.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F098",
+      "category": "functional",
+      "priority": 98,
+      "description": "The dashboard is customizable and its figures match the records.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /dashboard, add, move and hide widgets and reload",
+        "Compare today's sessions with /calendar",
+        "Run `npx vitest run convex/dashboard.test.ts convex/today.test.ts src/lib/dashboard-layout.test.ts src/components/dashboard/widget-registry.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F099",
+      "category": "integration",
+      "priority": 99,
+      "description": "Social posts are drafted, approved, scheduled and tracked with results and attribution.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, connect a test account on /marketing/accounts, compose, approve and schedule a post",
+        "Expect it on /marketing and /marketing/results",
+        "Run `npx vitest run convex/marketing/posts.test.ts convex/marketing/drafts.test.ts convex/marketing/accounts.test.ts convex/marketing/results.test.ts convex/marketing/attribution.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F100",
+      "category": "functional",
+      "priority": 100,
+      "description": "Brand cards render with the studio's own logo and color from a public URL.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, GET /api/brand-card/<postId>/<kind>/<version> signed out and expect a PNG",
+        "Run `npx vitest run convex/marketing/brandCard.test.ts convex/lib/brandCardUrl.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F101",
+      "category": "ui",
+      "priority": 101,
+      "description": "Studio brand colors, fonts and look apply across app and client pages with a contrast floor.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open Settings > Branding, preview, Apply, and expect the booking page and app to change",
+        "Try a low-contrast color and expect refusal",
+        "Run `npx vitest run convex/theme.test.ts convex/themeFlow.test.ts convex/brandColors.test.ts convex/uiStyle.test.ts src/lib/theme-ramp.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F102",
+      "category": "functional",
+      "priority": 102,
+      "description": "The platform owner can create, view, enter and manage studio sub-accounts.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /agency and /agency/<orgId>, change features and plan",
+        "Run `npx vitest run convex/agency.test.ts convex/agencyFeatures.test.ts convex/agencyOps.test.ts convex/agencyBilling.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F103",
+      "category": "security",
+      "priority": 103,
+      "description": "Agency staff see only assigned studios and suspended members are refused.",
+      "test_steps": [
+        "Run `npx vitest run convex/agencyStaff.test.ts` and expect every test to pass",
+        "On staging or a local non-production backend with a seeded test studio, sign in as scoped staff and expect other studios hidden"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F104",
+      "category": "security",
+      "priority": 104,
+      "description": "Deleting a sub-account takes three deliberate steps and leaves an audit record.",
+      "test_steps": [
+        "Run `npx vitest run convex/subaccountDeletion.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F105",
+      "category": "integration",
+      "priority": 105,
+      "description": "The agency CRM reads and writes Zuops through gated operations with writes off unless enabled.",
+      "test_steps": [
+        "Run `npx vitest run convex/crm.test.ts convex/crm/policy.test.ts convex/crm/webhook.test.ts convex/crm/zu.test.ts convex/crmProspects.test.ts` and expect every test to pass",
+        "Run `npm run zu:ops:check` and expect no drift",
+        "On staging open /agency/crm with writes off and expect read-only behavior"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F106",
+      "category": "functional",
+      "priority": 106,
+      "description": "Outreach finds contact info from studio websites safely and sends only individually approved email with opt-out.",
+      "test_steps": [
+        "Run `npx vitest run convex/outreach.test.ts convex/outreachProspects.test.ts convex/outreachDrafts.test.ts convex/outreachSend.test.ts convex/outreach/safeFetch.test.ts convex/outreachSequences.test.ts convex/outreachInbox.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F107",
+      "category": "integration",
+      "priority": 107,
+      "description": "The agency shared email inbox receives, threads and replies for studiopulse.tech mailboxes.",
+      "test_steps": [
+        "POST an unsigned body to a non-production /resend/inbound and expect refusal",
+        "Run `npx vitest run convex/mail.test.ts convex/mail/inbound.test.ts convex/mail/svix.test.ts convex/mail/threading.test.ts src/app/agency/email/page.test.tsx` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F108",
+      "category": "security",
+      "priority": 108,
+      "description": "Confirmation calls stay off or dry run unless enabled, and honor consent, calling hours and do-not-call.",
+      "test_steps": [
+        "Run `npx vitest run convex/outreachCalls.test.ts convex/callGate.test.ts convex/outreach/callPolicy.test.ts` and expect every test to pass",
+        "Never place a live call while testing"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F109",
+      "category": "functional",
+      "priority": 109,
+      "description": "The gated beta preview requires a code and a signed agreement before showing content.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, open /preview, enter a test code, sign, and expect content only afterwards",
+        "Run `npx vitest run convex/betaAccess.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F110",
+      "category": "functional",
+      "priority": 110,
+      "description": "Studio members can submit and vote on feature requests that the owner sees.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, submit on /feature-requests and expect it on /agency/feature-requests",
+        "Run `npx vitest run convex/featureRequests.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F111",
+      "category": "ui",
+      "priority": 111,
+      "description": "The home page loads and links visitors to demo, pricing, sign-in, the iPhone app and legal pages without calling the product a CRM.",
+      "test_steps": [
+        "GET https://studiopulse.tech/ and expect 200",
+        "Expect links to /demo, /pricing, /sign-in, /mobile, /privacy and /terms",
+        "Expect no 'CRM' text in the HTML"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F112",
+      "category": "functional",
+      "priority": 112,
+      "description": "The pricing page states Core $149, Growth $297 and Max $699 per month with the launch offer.",
+      "test_steps": [
+        "GET https://studiopulse.tech/pricing and expect 200",
+        "Expect $149, $297 and $699 a month in the HTML",
+        "Expect a launch offer line and a meta description naming Core, Growth and Max"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F113",
+      "category": "functional",
+      "priority": 113,
+      "description": "The pricing page states the 14-day card trial and the 365-day card-free beta.",
+      "test_steps": [
+        "GET https://studiopulse.tech/pricing",
+        "Expect '14 days', 'A card is required to start' and '365 days with no card'"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F114",
+      "category": "ui",
+      "priority": 114,
+      "description": "Home and pricing carry a large social share card whose image loads.",
+      "test_steps": [
+        "GET https://studiopulse.tech/ and https://studiopulse.tech/pricing and expect og:image and twitter:card summary_large_image",
+        "GET https://studiopulse.tech/opengraph-image and https://studiopulse.tech/pricing/opengraph-image and expect 200 image/png"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F115",
+      "category": "functional",
+      "priority": 115,
+      "description": "Privacy, terms and support pages are readable while signed out on both domains.",
+      "test_steps": [
+        "GET https://studiopulse.tech/privacy, /terms, /support and expect 200 with matching titles",
+        "GET https://pulse.myindsound.com/privacy and expect 200"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F116",
+      "category": "integration",
+      "priority": 116,
+      "description": "/demo redirects to the branded demo booking form.",
+      "test_steps": [
+        "GET https://studiopulse.tech/demo and expect 302 to https://go.studiopulse.tech/demo"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F117",
+      "category": "security",
+      "priority": 117,
+      "description": "Signed-out requests to app and agency routes redirect to sign-in with a return address.",
+      "test_steps": [
+        "GET https://studiopulse.tech/dashboard, /payments, /settings, /messages, /splits, /royalties, /agency, /agency/crm and /api/agency/email/inboxes",
+        "Expect 307 to /sign-in?redirect_url=..."
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F118",
+      "category": "integration",
+      "priority": 118,
+      "description": "Search crawlers get robots rules that exclude private paths and a sitemap of public pages.",
+      "test_steps": [
+        "GET https://studiopulse.tech/robots.txt and expect Disallow for /portal, /pay/, /files/, /sign/ and /agency",
+        "GET https://studiopulse.tech/sitemap.xml and expect /pricing, /studios and a studio profile"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F119",
+      "category": "integration",
+      "priority": 119,
+      "description": "AI assistants can read llms.txt and llms-full.txt.",
+      "test_steps": [
+        "GET https://studiopulse.tech/llms.txt and https://studiopulse.tech/llms-full.txt and expect 200 text/plain"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F120",
+      "category": "functional",
+      "priority": 120,
+      "description": "Find a Studio is server rendered with listings and structured data.",
+      "test_steps": [
+        "GET https://studiopulse.tech/studios and expect 200, a canonical link, ItemList JSON-LD and a link to a studio profile"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F121",
+      "category": "functional",
+      "priority": 121,
+      "description": "A listed studio has a profile page with structured data and a booking link.",
+      "test_steps": [
+        "GET https://studiopulse.tech/studios/myind-sound and expect a studio title, canonical link, LocalBusiness JSON-LD and a /book/myind-sound link"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F122",
+      "category": "functional",
+      "priority": 122,
+      "description": "An unknown studio profile says it was not found and is kept out of search.",
+      "test_steps": [
+        "GET https://studiopulse.tech/studios/does-not-exist-zz",
+        "Expect 'Studio not found' and a noindex robots tag"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F123",
+      "category": "ui",
+      "priority": 123,
+      "description": "Public booking pages have server-rendered title, canonical and share title.",
+      "test_steps": [
+        "GET https://studiopulse.tech/book/myind-sound and expect 200, a studio-specific title, canonical and og:title"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F124",
+      "category": "ui",
+      "priority": 124,
+      "description": "The web app manifest and icons load.",
+      "test_steps": [
+        "GET https://studiopulse.tech/manifest.webmanifest and expect start_url /dashboard",
+        "GET /icon.svg, /favicon.ico, /apple-touch-icon.png, /icon-192.png and /icon-512.png and expect 200"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F125",
+      "category": "integration",
+      "priority": 125,
+      "description": "iOS universal link verification is served for the Pulse app.",
+      "test_steps": [
+        "GET https://studiopulse.tech/.well-known/apple-app-site-association and expect 200 application/json with appID SCFGWPBXMF.tech.studiopulse.pulse.iphone"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F126",
+      "category": "security",
+      "priority": 126,
+      "description": "The comparison and sales sheet pages are kept out of search.",
+      "test_steps": [
+        "GET https://studiopulse.tech/vs and https://studiopulse.tech/mypulse and expect a noindex robots tag"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F127",
+      "category": "ui",
+      "priority": 127,
+      "description": "The beta preview asks for an access code first.",
+      "test_steps": [
+        "GET https://studiopulse.tech/preview and expect 'Enter your access code'"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F128",
+      "category": "performance",
+      "priority": 128,
+      "description": "Gear and room images are served from the R2 media host.",
+      "test_steps": [
+        "GET https://studiopulse.tech/gear/none.jpg and https://studiopulse.tech/rooms/none.jpg",
+        "Expect 307 to https://pulse-media.myindmedia.workers.dev/"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F129",
+      "category": "ui",
+      "priority": 129,
+      "description": "Video captions and the demo contact card are served with the right content types.",
+      "test_steps": [
+        "GET https://studiopulse.tech/video/pulse-one-session.en.vtt and expect text/vtt",
+        "GET https://studiopulse.tech/pulse-demo-call.vcf and expect text/vcard"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F130",
+      "category": "security",
+      "priority": 130,
+      "description": "The internal UI gallery is not reachable in production.",
+      "test_steps": [
+        "GET https://studiopulse.tech/ui-lab and expect 404"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F131",
+      "category": "integration",
+      "priority": 131,
+      "description": "The beta invite open pixel returns a 1x1 GIF.",
+      "test_steps": [
+        "GET https://pastel-corgi-340.convex.site/beta/open.gif with no code and expect 200 image/gif, 43 bytes"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F132",
+      "category": "integration",
+      "priority": 132,
+      "description": "The secondary domain serves the public site.",
+      "test_steps": [
+        "GET https://pulse.myindsound.com/ and /pricing and expect 200"
+      ],
+      "passes": true,
+      "verified": "2026-11-25 read-only HTTP checks on https://studiopulse.tech"
+    },
+    {
+      "id": "F133",
+      "category": "ui",
+      "priority": 133,
+      "description": "Visitors can pinch to zoom on every page.",
+      "test_steps": [
+        "Inspect the viewport meta tag and expect no maximum-scale=1 and no user-scalable=no (both present live on 2026-11-25; see src/app/layout.tsx)",
+        "Confirm inputs are at least 16px so iOS does not auto-zoom",
+        "Check zoom on a real iPhone"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F134",
+      "category": "security",
+      "priority": 134,
+      "description": "Pages send clickjacking and content security protections.",
+      "test_steps": [
+        "curl -I /sign-in and /pricing",
+        "Expect X-Frame-Options or CSP frame-ancestors, plus Referrer-Policy (none seen on / on 2026-11-25)",
+        "Confirm Stripe, Clerk and video still work"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F135",
+      "category": "security",
+      "priority": 135,
+      "description": "Uploads that still use Convex file storage move to R2.",
+      "test_steps": [
+        "Run `grep -rn 'generateUploadUrl()\\|ctx.storage.store(' convex --include='*.ts' | grep -v test` and expect no media, receipt, logo or photo uploads (12 modules on 2026-11-25)",
+        "Existing files still display after the backfill",
+        "Run `npx vitest run convex/mediaBackfill.test.ts convex/r2Storage.test.ts` and expect every test to pass"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F136",
+      "category": "ui",
+      "priority": 136,
+      "description": "A 16:9 branded social share image ships as a static PNG and is used site-wide.",
+      "test_steps": [
+        "GET /og/social-share.png and expect 200 image/png 1200x675 (404 on 2026-11-25)",
+        "Expect root metadata og:image to point at it or an equivalent 16:9 card"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F137",
+      "category": "ui",
+      "priority": 137,
+      "description": "Unused starter-template assets are removed.",
+      "test_steps": [
+        "Grep for references, then expect public/vercel.svg, next.svg, file.svg, globe.svg and window.svg gone",
+        "Expect the .vercel block gone from .gitignore"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F138",
+      "category": "ui",
+      "priority": 138,
+      "description": "Public pages work in Chromium, Firefox and WebKit on desktop and phone.",
+      "test_steps": [
+        "Copy ~/.claude/tools/browser-check into tools/ and run `node tools/browser-check/check.mjs <staging url>/` for /, /pricing, /studios and a booking page",
+        "Expect PASS on every engine, no broken images, console errors or horizontal overflow"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F139",
+      "category": "ui",
+      "priority": 139,
+      "description": "Signed-in app screens work at 390px wide and with reduced motion.",
+      "test_steps": [
+        "On staging or a local non-production backend with a seeded test studio, visit dashboard, calendar, bookings, payments, settings and agency at 390px and expect no horizontal scroll",
+        "Enable reduced motion and expect still backgrounds"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F140",
+      "category": "ui",
+      "priority": 140,
+      "description": "Core flows meet accessibility basics.",
+      "test_steps": [
+        "Keyboard through booking, sign-in and one dialog with visible focus",
+        "Run an automated axe or Lighthouse accessibility audit and expect no serious violations",
+        "Expect 4.5:1 text contrast"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F141",
+      "category": "performance",
+      "priority": 141,
+      "description": "Key pages load fast and the signed-in shell paints before data.",
+      "test_steps": [
+        "Run Lighthouse mobile on /, /pricing and a booking page and record LCP, CLS and INP proxies",
+        "Expect LCP under 2.5s and CLS under 0.1",
+        "Compare with docs/perf/cold-start.md"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F142",
+      "category": "security",
+      "priority": 142,
+      "description": "A penetration test of auth, public forms, uploads and payment paths has no open critical or high findings.",
+      "test_steps": [
+        "Run the pentest skill against staging only",
+        "Fix and re-test every critical and high finding",
+        "Save the report link in claude-progress.txt"
+      ],
+      "passes": false,
+      "needs_owner_approval": true
+    },
+    {
+      "id": "F143",
+      "category": "security",
+      "priority": 143,
+      "description": "A client's data can be exported and erased on request.",
+      "test_steps": [
+        "Run `npx vitest run convex/dataRights.test.ts` and expect every test to pass"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F144",
+      "category": "integration",
+      "priority": 144,
+      "description": "Staging never talks to the production backend and shows the test-data badge.",
+      "test_steps": [
+        "Run `npx vitest run src/lib/convex-url.test.ts` and expect every test to pass",
+        "Open https://develop--studiopulse-staging.netlify.app and expect the amber Staging pill and noindex"
+      ],
+      "passes": false
+    },
+    {
+      "id": "F145",
+      "category": "integration",
+      "priority": 145,
+      "description": "The remaining wording-only audit gaps are closed so public claims match behavior.",
+      "test_steps": [
+        "Work through docs/feature-truth/FIX-PLAN.md batches B1 to B4 against current code",
+        "For each id record fixed, already true or still open",
+        "Expect none still open"
+      ],
+      "passes": false
+    }
+  ]
+}

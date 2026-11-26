@@ -1,0 +1,140 @@
+PULSE OS (pulse-web) - long-build harness progress log
+Append only. Add a dated entry per session; do not rewrite earlier ones.
+
+================================================================
+READ FIRST (state on 2026-11-25)
+================================================================
+1. The branch holding these files (harness/setup-pulse-web-q-20261125-180627) is STALE:
+   it sits at b7432441, 281 commits behind origin/main. Do not build on it.
+   Start a branch from origin/develop and bring the harness commit across:
+       git fetch origin
+       git switch -c feat/<name> origin/develop
+       git cherry-pick <harness commit>     (three new files, no conflicts expected)
+2. feature_list.json describes the CURRENT code (origin/develop 4276ef13, whose files
+   equal origin/main 1eae6271), not the stale files beside it on this branch.
+3. init.sh is matched by the "*.sh" rule in .gitignore. It was added with "git add -f".
+
+================================================================
+ARCHITECTURE
+================================================================
+Pulse is a multi-tenant studio operating system for recording studios: a Next.js 16
+App Router web app (React 19, TypeScript strict, Tailwind v4) on Netlify, a Convex
+backend (schema, queries, mutations, actions, crons, HTTP webhooks; money in integer
+cents; every record scoped by orgId), Clerk auth (no publishable key = demo mode),
+Stripe for platform billing and Stripe Connect for studio payments, Cloudflare R2 for
+files (some uploads still use Convex storage), plus Resend, Zuops/GHL, Plaid, Google,
+Bland and AI providers. Three surfaces: public (marketing, booking, token-link pages),
+the studio app (src/app/(app)), and the platform owner's agency console (src/app/agency).
+The native iPhone/macOS apps live in a separate repo and read Convex through sync.*.
+
+Permission engine: convex/lib/access.ts runs three checks on every call: may this
+person (role/capability), did this workspace buy it (plan entitlement), is the module
+switched on. Plans: Core $149, Growth $297, Max $699; 14-day card trial; 365-day beta.
+
+================================================================
+ENVIRONMENTS (docs/ENVIRONMENTS.md)
+================================================================
+production  main     https://studiopulse.tech (and pulse.myindsound.com)  Convex pastel-corgi-340
+staging     develop  https://develop--studiopulse-staging.netlify.app      Convex fiery-cricket-350
+Netlify production deploys cost credits; the develop branch deploy is free.
+
+================================================================
+HOW TO RUN AND TEST
+================================================================
+./init.sh                 base check, npm ci if needed, tsc, core tests, dev server on :3147
+SMOKE=full ./init.sh      full suite
+START_DEV=0 ./init.sh     static checks only
+npx tsc --noEmit | npx vitest run | npm run lint | npm run check
+npx next build            builds without codegen ("npm run build" runs convex codegen
+                          first and needs a deployment)
+
+The dev server needs NEXT_PUBLIC_CONVEX_URL pointing at a NON-PRODUCTION deployment.
+WARNING: src/lib/convex-url.ts falls back to the PRODUCTION backend when the variable is
+unset. Never run "next dev" or a local build for testing without it. init.sh refuses to.
+A fresh worktree has no .env.local and no node_modules.
+
+================================================================
+KEY PATHS (on origin/develop)
+================================================================
+convex/schema.ts, convex/lib/access.ts, convex/lib/pricing.ts, convex/lib/plans.ts,
+convex/lib/modules.ts, convex/http.ts, convex/crons.ts (37 jobs), convex/booking.ts,
+convex/billing*.ts, convex/stripeConnect.ts
+src/middleware.ts (public route list), src/lib/nav.ts, src/app/(app), src/app/agency,
+src/components, netlify.toml, vitest.config.ts (about 380 test files)
+Docs: AGENTS.md, CONTEXT.md (glossary), Grilled.md (decisions), openspec/changes/,
+specs/features/, docs/feature-truth/ (audit and fix plan), docs/ENVIRONMENTS.md
+
+================================================================
+CONVENTIONS CODING SESSIONS MUST FOLLOW
+================================================================
+From the repo's AGENTS.md / CLAUDE.md (current develop):
+- "This is NOT the Next.js you know": read the relevant guide in
+  node_modules/next/dist/docs/ before writing code. Heed deprecation notices.
+- Staging first: branch off develop, merge there by PR; promote develop to main and
+  deploy the production backend only when the owner asks to ship.
+- Never copy production data into staging. PULSE_DEMO_MODE stays unset on staging.
+From the repo's decisions and docs:
+- Tenant isolation through the access engine on every function. Money in integer cents.
+- No em dashes in any copy. American English. Never say "CRM" on public studio-facing
+  marketing (the agency console tab named CRM is the owner's own tool).
+- Do not rename the studio entity; do not create or edit live Stripe products or prices.
+- No plan names or upsell copy inside the iOS app.
+- Public claims must match what the product does (docs/feature-truth).
+From Lawrence's global rules:
+- Netlify only, never Vercel. Media bytes go to R2, not Convex storage or Netlify.
+- Secrets live in 1Password and Convex/Netlify env; never in the repo or output.
+- Follow verified-build: for a feature, write specs/features/<id>/eval.md and get
+  approval; auth, payments, data access, R2 permissions, migrations and deploy config
+  are High risk and need a security review. Never push to main or deploy without asking.
+- Apply app-performance on app work; mobile-native baseline on UI; browser-check
+  (Chromium, Firefox, WebKit, phones) before calling web work done.
+- New charts use Bklit; do not add more Recharts (3 files still use it).
+- Commit each working state on a feature branch; use gitnexus impact analysis before
+  editing symbols (repo was not indexed on 2026-11-25: npx gitnexus analyze).
+
+================================================================
+SESSION ROUTINE
+================================================================
+Read this file, git log, feature_list.json. Run ./init.sh. Take the failing feature with
+the lowest priority number that you can do (skip needs_owner_approval ones until approved,
+and say so here). Build or fix only that one, run every test step, then set passes true.
+Many features already exist in code and mainly need verification; verify before changing.
+
+================================================================
+KNOWN RISKS, BLOCKERS AND GAPS
+================================================================
+- Stale harness branch (see top).
+- No project brief was given to Session 0. The list comes from the repo, OpenSpec
+  changes, docs and the live site. Lawrence should review it before session 1.
+- Nothing code-level was run in Session 0: no node_modules exists in this worktree or the
+  main checkout and installing was not allowed. Every test-suite feature is passes=false.
+  The 22 passes=true features were checked only by read-only HTTP requests to production.
+- Known failures recorded on main (docs/ENVIRONMENTS.md and feature-truth/REVIEW-FIXES.md,
+  not re-run here): convex/lib/agentScope.test.ts, convex/marketing/results.test.ts, a
+  live-call case in convex/outreachCalls.test.ts. Lint: 53 errors, 111 warnings.
+  SMOKE=full will exit non-zero until F003 is done. The core set init.sh runs by default
+  has not been run yet either.
+- init.sh passed "bash -n" only; it has never been executed.
+- 16 features are needs_owner_approval. Most come from batch B5 of
+  docs/feature-truth/FIX-PLAN.md (money, saved cards, signatures, wages, access). They are
+  reported by that audit; confirm each is still open in code before planning a fix.
+- This Mac has Node 25; Netlify uses 20; a local Convex backend needs 20, 22 or 24.
+- Seen on production 2026-11-25: zoom disabled in the viewport tag; no X-Frame-Options,
+  CSP or Referrer-Policy on "/"; /og/social-share.png and /apple-icon.png return 404
+  (apple-touch-icon.png is what the pages link, and it loads).
+- Owner-side setup still open per OpenSpec tasks (not code, not in the feature list):
+  confirmation-calls 6.x, email-inboxes 5.x, trial-requires-card 5.x,
+  agency-paid-plan-charges 5.x, trial-signup-recovery 5.x, agency-crm-zuops 6.x,
+  ledger and accounting owner decisions.
+- Hardware UI slice 4 (ticker, boot sequence, contrast pass) is still open in
+  openspec/changes/hardware-ui and has no dedicated feature entry; F-items for UI and
+  accessibility cover only part of it.
+- Some docs are old (README says 16 tables, LAUNCH-CHECKLIST predates studiopulse.tech).
+  Prefer docs/ENVIRONMENTS.md and the code.
+
+================================================================
+LOG
+================================================================
+2026-11-25 Session 0 (setup): created feature_list.json (145 features, 22 currently
+passing), init.sh, claude-progress.txt. Built nothing. Suggested first feature: F001
+(clean install from the lockfile, on a branch from origin/develop), then F002 and F003.
